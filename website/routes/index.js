@@ -1340,7 +1340,8 @@ router.post("/files", function(req, res, next){
 
     logger.info("Start Bagit...");
     // Call bagit process on folder of files
-    gladstone.createBagDirectory({
+    console.log('pathTmpBag: ' + master.pathTmpBag);
+    var resp = gladstone.createBagDirectory({
        bagName: master.pathTmpBag,
        originDirectory: master.pathTmpFiles,
        cryptoMethod: 'md5',
@@ -1348,9 +1349,11 @@ router.post("/files", function(req, res, next){
        contactName: 'Chris Heiser',
        contactEmail: 'lipd.contact@gmail.com',
        externalDescription: 'Source: LiPD Online Validator'
-    }).then(function(resp){
+    })
+    var resp2 = resp.then(function(resp){
+      console.log('pathTmpBag: ' + master.pathTmpBag);
       // create the tagmanifest bagit file. We have to wait because it needs the other bagit files to be written first.
-      gladstone.createTagmanifest({
+      gladstone.createManifest(master.pathTmpFiles, {
         bagName: master.pathTmpBag,
         originDirectory: master.pathTmpFiles,
         cryptoMethod: 'md5',
@@ -1358,7 +1361,9 @@ router.post("/files", function(req, res, next){
         contactName: 'Chris Heiser',
         contactEmail: 'lipd.contact@gmail.com',
         externalDescription: 'Source: LiPD Online Validator'
-      }).then(function(resp2){
+      }, 'manifest')
+    });
+     resp2.then(function(resp2){
         // When a successful Bagit Promise returns, start creating the ZIP/LiPD archive
         if(resp2){
           createArchive(master.pathTmp, master.pathTmpZip, master.pathTmpBag, master.filename, function(){
@@ -1371,7 +1376,6 @@ router.post("/files", function(req, res, next){
           res.status(500).send("POST: Error: Bagit promise not fulfilled");
         }
       });
-    });
   } catch(err) {
     logger.info(err);
     res.status(500).send("POST: Error creating LiPD: " + err);
@@ -1406,10 +1410,12 @@ router.get("/files/:tmp", function(req, res, next){
     var files = fs.readdirSync(pathTmpZip);
     // Loop over the files found
     for(var i in files) {
+        logger.info("/files get: File number: " + i);
       // Get the first lipd file you find (there should only be one)
        if(path.extname(files[i]) === ".lpd") {
          var options = {"path": pathTmpZip, "file": files[i], "content": "application/zip", "message": "/files get: Sending LiPD to client"};
          // Send response and trigger a file download
+         logger.info("/files get: Response options: " + JSON.stringify(options));
          downloadResponse(options, res);
        }
     }
@@ -1440,7 +1446,7 @@ router.post("/noaa", function(req, res, next){
     var master = {};
     // console.log(JSON.stringify(req.body.dat));
     master = parseRequestNoaa(master, req, res);
-    // console.log(JSON.stringify(master.dat));
+    console.log(JSON.stringify(master.dat));
     master = createTmpDir(master, res);
     console.log(master.name);
     // console.log(JSON.stringify(master.dat));

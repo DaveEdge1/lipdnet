@@ -881,6 +881,7 @@ angular.module("ngValidate").controller('ValidateCtrl', ['$scope','$rootScope', 
    *                             to upload file straight to the wiki with the "Upload to Wiki" button.
    */
     $scope.downloadZip = function(cb){
+      //logger.info("starting downloadZip")
       $scope.files.dataSetName = $scope.files.json.dataSetName;
       $scope.files.lipdFilename = $scope.files.dataSetName + ".lpd";
       // If there are still errors present, notify the user that the file may present issues
@@ -898,6 +899,7 @@ angular.module("ngValidate").controller('ValidateCtrl', ['$scope','$rootScope', 
         // Set up where to POST the data to in nodejs, and package the payload.
         var _url_route = "/files";
         var _payload = {"filename": $scope.files.lipdFilename, "file": filesArray};
+        logger.info("url: " + _url_route + "payload: " + _payload)
         $scope.uploadToBackend(_url_route, _payload, function(resp){
             // Initiate the download on the browser window.
             $scope.initiateDownload(resp, "files", cb);
@@ -1069,7 +1071,7 @@ angular.module("ngValidate").controller('ValidateCtrl', ['$scope','$rootScope', 
               _url = "http://localhost:3000/" + mode + "/" + _fileID;
           } else {
               // Production mode download link
-              _url = "https://lipd.net/" + mode + "/" + _fileID;
+              _url = "http://64.23.255.172:3001/" + mode + "/" + _fileID;
           }
           // Is there a callback?
           if(cb){

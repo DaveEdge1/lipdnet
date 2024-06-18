@@ -142,17 +142,17 @@ if (app.get("environment") === 'development') {
       error: err
     });
   });
-}
-
-// production error handler
-// no stacktraces leaked to user
-app.use(function(err, req, res, next) {
-  res.status(err.status || 500);
-  res.render('error', {
-    message: err.message,
-    error: {}
+} else {
+  // production error handler
+  // no stacktraces leaked to user
+  app.use(function(err, req, res, next) {
+    res.status(err.status || 500);
+    res.render('error', {
+      message: err.message,
+      error: {}
+    });
   });
-});
+}
 
 app.listen(app.get('port'), function() {
   logger.info('app: Node port: ', app.get('port'));
