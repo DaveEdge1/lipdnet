@@ -1340,7 +1340,7 @@ router.post("/files", function(req, res, next){
 
     logger.info("Start Bagit...");
     // Call bagit process on folder of files
-    console.log('pathTmpBag: ' + master.pathTmpBag);
+    console.log('Creating bag dir');
     var resp = gladstone.createBagDirectory({
        bagName: master.pathTmpBag,
        originDirectory: master.pathTmpFiles,
@@ -1351,7 +1351,7 @@ router.post("/files", function(req, res, next){
        externalDescription: 'Source: LiPD Online Validator'
     })
     var resp2 = resp.then(function(resp){
-      console.log('pathTmpBag: ' + master.pathTmpBag);
+      console.log('creating manifest');
       // create the tagmanifest bagit file. We have to wait because it needs the other bagit files to be written first.
       gladstone.createManifest(master.pathTmpFiles, {
         bagName: master.pathTmpBag,
@@ -1363,18 +1363,18 @@ router.post("/files", function(req, res, next){
         externalDescription: 'Source: LiPD Online Validator'
       }, 'manifest')
     });
+     console.log('resp2: ' + resp2)
      resp2.then(function(resp2){
         // When a successful Bagit Promise returns, start creating the ZIP/LiPD archive
-        if(resp2){
+        
+          console.log('creating zip archive')
           createArchive(master.pathTmp, master.pathTmpZip, master.pathTmpBag, master.filename, function(){
             logger.info("Callback createArchive");
             logger.info("POST: " + path.basename(master.pathTmp));
             res.status(200).send(path.basename(master.pathTmp));
           });
-        } else {
-          logger.info(resp2);
-          res.status(500).send("POST: Error: Bagit promise not fulfilled");
-        }
+          //logger.info(resp2);
+          //res.status(500).send("POST: Error: Bagit promise not fulfilled");
       });
   } catch(err) {
     logger.info(err);
@@ -1409,8 +1409,9 @@ router.get("/files/:tmp", function(req, res, next){
     logger.info("/files get: LiPD File: " + pathTmpZip);
     var files = fs.readdirSync(pathTmpZip);
     // Loop over the files found
+    logger.info("/files get: files in directory: " + files);
     for(var i in files) {
-        logger.info("/files get: File number: " + i);
+        logger.info("/files get: File name: " + files[i]);
       // Get the first lipd file you find (there should only be one)
        if(path.extname(files[i]) === ".lpd") {
          var options = {"path": pathTmpZip, "file": files[i], "content": "application/zip", "message": "/files get: Sending LiPD to client"};
@@ -1455,31 +1456,31 @@ router.post("/noaa", function(req, res, next){
       var request = require('request');
       // Pack up the options that we want to give the request module
       var options = {
-        uri: 'http://cheiser.pythonanywhere.com/api/noaa',
+        uri: 'http://64.23.255.172:3002/api/noaa',
         method: 'POST',
         json: master.dat,
-        timeout: 3000
+        timeout: 6000
       };
 
       // Send the request to the NOAA API
-      console.log("Sending LiPD data to NOAA Conversion API: ", master.name);
+      logger.info("Sending LiPD data to NOAA Conversion API: ", master.name);
       // console.log("PORT : ", port);
       // console.log(JSON.stringify(master.dat));
       request(options, function (error, response, body) {
         console.log("Received Response");
         console.log(typeof response);
 
-        if(dev){
             if (typeof response !== "undefined"){
-                console.log("Response Status: ", response.statusCode);
+                logger.info("Response Status: ", response.statusCode);
             } else {
-                console.log("No response");
+                logger.info("No response");
+                res.writeHead(403, "Bad response from API.", {'content-type' : 'text/plain'});
+                res.end();
             }
-            console.log("Response error: ");
-            console.log(error);
-            console.log("Response Body: ");
-            console.log(body);
-        }
+            logger.info("Response error: ");
+            logger.info(error);
+            logger.info("Response Body: ");
+            logger.info(body);
 
         // If the response is a string, then it is an error message coming from a Python API Exception
         if (typeof body === 'string' || body instanceof String){
@@ -1575,9 +1576,9 @@ router.get("/noaa/:fileid", function(req, res, next){
     // Read in all filenames from the dir
     logger.info("/noaa get: Reading from: " + pathTmpNoaa);
     var files = fs.readdirSync(pathTmpNoaa);
-    console.log("Found files, I hope: ");
-    console.log("File Count: ", files.length);
-    console.log(files);
+    logger.info("Found files, I hope: ");
+    logger.info("File Count: ", files.length);
+    //logger.info(files);
     if (files.length === 1){
       var options = {"path": pathTmpNoaa, "file": files[0], "content": "text/plain", "message": "/noaa get: Sending NOAA txt to client"};
       downloadResponse(options, res);
@@ -1604,10 +1605,10 @@ router.post("/query", function(req, res, next){
 
   // Pack up the options that we want to give the Python request
   var options = {
-    uri: 'http://cheiser.pythonanywhere.com/api/wikiquery',
+    uri: 'http://64.23.255.172:3002/api/wikiquery',
     method: 'POST',
     json: req.body,
-    timeout: 3000
+    timeout: 5000
   };
 
   try{
