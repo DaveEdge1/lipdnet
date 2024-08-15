@@ -52,3 +52,13 @@ If you are having issues, please report them here on github in the issue tracker
 ## License
 
 The project is licensed under the [GNU Public License](https://github.com/nickmckay/LiPD-utilities/blob/master/Python/LICENSE).
+
+## dev notes:
+The Dockerfile for the production container is located at /root/Dockerfile
+* note that the web address is hard-coded in 2 places in the file "website/public/js/ngContValidate.js"
+The DigitalOcean (http://64.23.255.172:3001/) and lipd.net version are different only in these two lines.
+The two containers in use are docker.io/davidedge/lipd_webapps:lipdnet44 (lipd.net) and docker.io/davidedge/lipd_webapps:lipdnet43 (DigitalOcean)
+
+The website is launched from a container at port 3000 in both cases
+
+* The local version of the website does not run correctly (maybe a problem with the node module set)

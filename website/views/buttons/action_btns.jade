@@ -3,9 +3,9 @@ div(style="margin-top:30px;")
   div.choosefileheader Upload LiPD File
   li#buttons(style="list-style-type: none;")
     input.step2.choosefile(custom-on-change="uploadBtnChange" ng-click="uploadBtnClick" title="Upload LiPD file" name='file' type="file" accept=".lpd")
-  div.choosefileheader Upload as Template
+  div.choosefileheadertemp Upload as Template
   li#buttons(style="list-style-type: none;")
-    input.step2.choosefile(custom-on-change="uploadBtnChangeTemplate" ng-click="uploadBtnClick" title="Upload LiPD file as a template. Removes numeric data, Creates new TSids, and retains file metadata including tables and columns." name='file' type="file" accept=".lpd")
+    input.step2.choosefiletemp(custom-on-change="uploadBtnChangeTemplate" ng-click="uploadBtnClick" title="Upload LiPD file as a template. Removes numeric data, Creates new TSids, and retains file metadata including tables and columns." name='file' type="file" accept=".lpd")
 
 div
   li#buttons(style="list-style-type: none;")

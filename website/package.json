@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "start": "nodemon ./bin/www"
+    "start": "forever ./bin/www"
   },
   "dependencies": {
     "angucomplete-alt": "^3.0.0",
@@ -17,6 +17,7 @@
     "es6-promise": "^4.2.6",
     "express": "~4.13.1",
     "fast-csv": "^2.4.0",
+    "forever": "^4.0.3",
     "gladstone": "0.2.4",
     "isomorphic-fetch": "^2.2.1",
     "jade": "~1.11.0",
@@ -44,4 +45,3 @@
     "xml2js": "^0.4.23"
   }
 }
-

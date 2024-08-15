@@ -834,8 +834,19 @@ input[type=text], select {
     font-weight: 400;
     width: 150px;
     border-radius: 5px 5px 0 0;
+}
+
+.choosefileheadertemp {
+    color: white;
+    padding-left: 20px;
+    border: solid 1px #873260;
+    background-color: #873260;
+    font-weight: 400;
+    width: 150px;
+    border-radius: 5px 5px 0 0;
 
 }
+
 .choosefile {
     max-width:200px;
     width:175px;
@@ -844,6 +855,14 @@ input[type=text], select {
     font-weight: 400;
 }
 
+.choosefiletemp {
+    max-width:200px;
+    width:150px;
+    display:inline;
+    border: solid 1px #873260;
+    border-radius: 5px 5px 0 0;
+    font-weight: 400;
+}
 
 .green-header {
     color: white;
