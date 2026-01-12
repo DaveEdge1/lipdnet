@@ -1297,6 +1297,8 @@ router.post("/remote", function(req, res, next){
 });
 
 router.get('/', function(req, res, next) {
+  // Track home page visit
+  stats.recordPageVisit('home');
   res.render('index', { title: 'LiPD' });
 });
 
@@ -1306,6 +1308,8 @@ router.post('/', function(req, res, next){
 });
 
 router.get("/playground", function(req, res, next){
+  // Track playground page visit
+  stats.recordPageVisit('playground');
   // Render the playground page
   res.render('playground', {title: 'Playground'});
 });
@@ -1714,6 +1718,8 @@ router.post("/query", function(req, res, next){
 });
 
 router.get("/query", function(req, res, next){
+  // Track query page visit
+  stats.recordPageVisit('query');
   // Render the query page
   res.render('query', {title: 'Query Datasets'});
 });
@@ -1742,6 +1748,8 @@ router.post("/downloadall", function(req, res, next){
 });
 
 router.get("/merge", function(req, res, next){
+  // Track merge page visit
+  stats.recordPageVisit('merge');
   // Render the compare page
   res.render('merge', {title: 'Merge'});
 });
