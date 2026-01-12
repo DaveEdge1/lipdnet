@@ -9,6 +9,7 @@ var request = require('request');
 var logger = require("../node_modules_custom/node_log.js");
 var lipdValidator = require("../node_modules_custom/node_validator.js");
 var misc = require("../node_modules_custom/node_misc.js");
+var stats = require("../node_modules_custom/node_stats.js");
 var port = process.env.PORT || 3000;
 var dev = port === 3000;
 var router = express.Router();
@@ -1221,6 +1222,8 @@ router.get("/lipdverse/:fileid", function(req, res, next){
     try {
         // File ID provided by client
         logger.info("/lipdverse GET");
+        // Track Lipdverse upload statistics
+        stats.recordUpload('lipdverse', { fileId: req.params.fileid });
         // Get the file ID from the request object
         var fileID = req.params.fileid;
         logger.info("/files get: " + fileID);
@@ -1324,6 +1327,8 @@ router.post("/files", function(req, res, next){
   // Response data : A string ID that corresponds to the LiPD file on the server.
 
   logger.info("POST: /files");
+  // Track upload statistics
+  stats.recordUpload('lipd', { filename: req.body.filename || 'unknown' });
   // Request
   var master = {};
   master = parseRequest(master, req, res);
@@ -1402,6 +1407,8 @@ router.get("/files/:tmp", function(req, res, next){
     // Get the file ID from the request object
     var fileID = req.params.tmp;
     logger.info("/files get: " + fileID);
+    // Track download statistics
+    stats.recordDownload('lipd', { fileId: fileID });
     // walk(path.join(process.cwd(), "tmp", fileID));
     // Path to the zip dir that holds the LiPD file
     var pathTmpZip = path.join(process.cwd(), "tmp", fileID, "zip");
@@ -1445,6 +1452,8 @@ router.post("/noaa", function(req, res, next){
   try{
     // Parse the angular request data into a form that we can use
     var master = {};
+    // Track NOAA upload/conversion statistics
+    stats.recordUpload('noaa', { name: req.body.name || 'unknown' });
     // console.log(JSON.stringify(req.body.dat));
     master = parseRequestNoaa(master, req, res);
     console.log(JSON.stringify(master.dat));
@@ -1569,6 +1578,8 @@ router.get("/noaa/:fileid", function(req, res, next){
     // NOAA ID provided by client
     var fileid = req.params.fileid;
     logger.info("/noaa get: NOAA ID: " + fileid);
+    // Track NOAA download statistics
+    stats.recordDownload('noaa', { fileId: fileid });
     // walk(path.join(process.cwd(), "tmp", tmpStr));
     // Full path to the zip dir that holds the NOAA file(s)
     // var pathTmp = path.join(process.cwd(), "tmp");
@@ -1738,6 +1749,8 @@ router.get("/merge", function(req, res, next){
 router.post("/wiki", function(req, res, next){
     // Send Dropbox link back to client side.
     logger.info("/wiki POST");
+    // Track Wiki upload statistics
+    stats.recordUpload('wiki', { filename: req.body.filename || 'unknown' });
     try{
         var _filename = req.body.filename;
         var _id = req.body.id;
@@ -1809,6 +1822,37 @@ router.get("/loading", function(req, res, next){
 
 router.get("/api/ontology", function(req, res, next){
     res.status(200).send(JSON.stringify(_ontology_query));
+});
+
+/**
+ * Get playground usage statistics
+ *
+ * Query Parameters:
+ * - period: 'hour', 'day', 'week', 'month', 'all' (default: 'all')
+ * - history: 'true' to include full history arrays (default: false)
+ *
+ * @param   {Object}  req   Request object
+ * @return  {Object}  res   Response object with statistics
+ */
+router.get("/api/stats", function(req, res, next){
+    try {
+        logger.info("/api/stats GET");
+        var period = req.query.period || 'all';
+        var includeHistory = req.query.history === 'true';
+
+        var statistics;
+        if (period === 'all') {
+            statistics = stats.getStats(includeHistory);
+        } else {
+            statistics = stats.getStatsByPeriod(period);
+        }
+
+        res.setHeader('Content-Type', 'application/json');
+        res.status(200).send(JSON.stringify(statistics, null, 2));
+    } catch (err) {
+        logger.info("/api/stats error: " + err);
+        res.status(500).send({ error: "Error retrieving statistics: " + err });
+    }
 });
 
 /**
