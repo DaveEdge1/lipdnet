@@ -20,9 +20,6 @@ RUN apk add bash
 # Install the Node.js dependencies
 RUN npm install
 
-#back to top
-WORKDIR /app
-
 # Expose the port that the web application will listen on
 EXPOSE 3000
 
