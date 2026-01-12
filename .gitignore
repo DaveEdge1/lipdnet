@@ -24,6 +24,7 @@ dist/
 downloads/
 eggs/
 lib/
+!website/public/lib/
 lib64/
 parts/
 sdist/
