@@ -16,7 +16,7 @@ Input/output and manipulation utilities for LiPD files on LiPD.net
 
 LiPD is short for Linked PaleoData. LiPD files are the data standard for storing and exchanging data amongst paleoclimate scientists. The package will help you convert your existing paleoclimate observations into LiPD files that can be shared and analyzed.
 
-Organizing and using your observation data can be time  consuming. Our goal is to let you focus on more important tasks than data wrangling.
+Organizing and using your observation data can be time consuming. Our goal is to let you focus on more important tasks than data wrangling.
 
 -----
 
