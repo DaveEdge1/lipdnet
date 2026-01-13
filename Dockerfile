@@ -15,6 +15,9 @@ RUN apk add --no-cache build-base krb5-dev python3 bash
 # Install the Node.js dependencies
 RUN npm install
 
+# Create tmp directory for file processing
+RUN mkdir -p /app/website/tmp
+
 # Expose the port that the web application will listen on
 EXPOSE 3000
 
