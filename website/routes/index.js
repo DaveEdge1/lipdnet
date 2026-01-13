@@ -24,6 +24,19 @@ if(!dev){
 // HELPERS
 
 /**
+ * Get client IP address from request, handling proxies
+ * @param {Object} req - Express request object
+ * @returns {String} Client IP address
+ */
+var getClientIp = function(req) {
+    return req.headers['x-forwarded-for'] ||
+           req.connection.remoteAddress ||
+           req.socket.remoteAddress ||
+           req.ip ||
+           'unknown';
+};
+
+/**
  * 12.18.18 :  Snapshot of the Wiki ontology data. Use if our real-time requests aren't working.
  */
 var _ontology_fallback = {
@@ -1223,7 +1236,7 @@ router.get("/lipdverse/:fileid", function(req, res, next){
         // File ID provided by client
         logger.info("/lipdverse GET");
         // Track Lipdverse upload statistics
-        stats.recordUpload('lipdverse', { fileId: req.params.fileid });
+        stats.recordUpload('lipdverse', { fileId: req.params.fileid }, getClientIp(req));
         // Get the file ID from the request object
         var fileID = req.params.fileid;
         logger.info("/files get: " + fileID);
@@ -1298,7 +1311,7 @@ router.post("/remote", function(req, res, next){
 
 router.get('/', function(req, res, next) {
   // Track home page visit
-  stats.recordPageVisit('home');
+  stats.recordPageVisit('home', {}, getClientIp(req));
   res.render('index', { title: 'LiPD' });
 });
 
@@ -1309,7 +1322,7 @@ router.post('/', function(req, res, next){
 
 router.get("/playground", function(req, res, next){
   // Track playground page visit
-  stats.recordPageVisit('playground');
+  stats.recordPageVisit('playground', {}, getClientIp(req));
   // Render the playground page
   res.render('playground', {title: 'Playground'});
 });
@@ -1332,7 +1345,7 @@ router.post("/files", function(req, res, next){
 
   logger.info("POST: /files");
   // Track upload statistics
-  stats.recordUpload('lipd', { filename: req.body.filename || 'unknown' });
+  stats.recordUpload('lipd', { filename: req.body.filename || 'unknown' }, getClientIp(req));
   // Request
   var master = {};
   master = parseRequest(master, req, res);
@@ -1412,7 +1425,7 @@ router.get("/files/:tmp", function(req, res, next){
     var fileID = req.params.tmp;
     logger.info("/files get: " + fileID);
     // Track download statistics
-    stats.recordDownload('lipd', { fileId: fileID });
+    stats.recordDownload('lipd', { fileId: fileID }, getClientIp(req));
     // walk(path.join(process.cwd(), "tmp", fileID));
     // Path to the zip dir that holds the LiPD file
     var pathTmpZip = path.join(process.cwd(), "tmp", fileID, "zip");
@@ -1457,7 +1470,7 @@ router.post("/noaa", function(req, res, next){
     // Parse the angular request data into a form that we can use
     var master = {};
     // Track NOAA upload/conversion statistics
-    stats.recordUpload('noaa', { name: req.body.name || 'unknown' });
+    stats.recordUpload('noaa', { name: req.body.name || 'unknown' }, getClientIp(req));
     // console.log(JSON.stringify(req.body.dat));
     master = parseRequestNoaa(master, req, res);
     console.log(JSON.stringify(master.dat));
@@ -1583,7 +1596,7 @@ router.get("/noaa/:fileid", function(req, res, next){
     var fileid = req.params.fileid;
     logger.info("/noaa get: NOAA ID: " + fileid);
     // Track NOAA download statistics
-    stats.recordDownload('noaa', { fileId: fileid });
+    stats.recordDownload('noaa', { fileId: fileid }, getClientIp(req));
     // walk(path.join(process.cwd(), "tmp", tmpStr));
     // Full path to the zip dir that holds the NOAA file(s)
     // var pathTmp = path.join(process.cwd(), "tmp");
@@ -1719,7 +1732,7 @@ router.post("/query", function(req, res, next){
 
 router.get("/query", function(req, res, next){
   // Track query page visit
-  stats.recordPageVisit('query');
+  stats.recordPageVisit('query', {}, getClientIp(req));
   // Render the query page
   res.render('query', {title: 'Query Datasets'});
 });
@@ -1749,7 +1762,7 @@ router.post("/downloadall", function(req, res, next){
 
 router.get("/merge", function(req, res, next){
   // Track merge page visit
-  stats.recordPageVisit('merge');
+  stats.recordPageVisit('merge', {}, getClientIp(req));
   // Render the compare page
   res.render('merge', {title: 'Merge'});
 });
@@ -1758,7 +1771,7 @@ router.post("/wiki", function(req, res, next){
     // Send Dropbox link back to client side.
     logger.info("/wiki POST");
     // Track Wiki upload statistics
-    stats.recordUpload('wiki', { filename: req.body.filename || 'unknown' });
+    stats.recordUpload('wiki', { filename: req.body.filename || 'unknown' }, getClientIp(req));
     try{
         var _filename = req.body.filename;
         var _id = req.body.id;

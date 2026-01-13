@@ -21,6 +21,7 @@ build/
 develop-eggs/
 downloads/
 eggs/
+!website/public/lib/
 lib64/
 parts/
 sdist/
