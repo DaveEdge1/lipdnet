@@ -815,6 +815,7 @@ var createSubdirs = function(master, res){
         master.pathTmpFiles = path.join(master.pathTmp, "files");
 
         // logger.info("POST: make other dirs...");
+        mkdirSync(master.pathTmpBag);
         mkdirSync(master.pathTmpZip);
         mkdirSync(master.pathTmpFiles);
         return master;
