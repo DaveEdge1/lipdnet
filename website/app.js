@@ -23,6 +23,7 @@ var bodyParser = require('body-parser');
 var multer = require("multer");
 var sys = require('sys');
 var favicon = require('serve-favicon');
+var { createProxyMiddleware } = require('http-proxy-middleware');
 var app = express();
 var routes = require('./routes/index');
 var users = require('./routes/users');
@@ -120,6 +121,15 @@ app.use(multer({ storage: storage, limits:{ fieldSize: 25 * 1024 * 1024 }}).sing
 // });
 
 
+
+// Proxy /flask/* requests to localhost:9023
+app.use('/flask', createProxyMiddleware({
+  target: 'http://localhost:9023',
+  changeOrigin: true,
+  pathRewrite: {
+    '^/flask': '' // Remove /flask prefix when forwarding
+  }
+}));
 
 // Attach the router to our app.
 app.use('/', routes);
