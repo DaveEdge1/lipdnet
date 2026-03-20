@@ -1328,6 +1328,10 @@ router.get("/playground", function(req, res, next){
   res.render('playground', {title: 'Playground'});
 });
 
+router.get("/format", function(req, res, next){
+  res.render('format', {title: 'LiPD Format'});
+});
+
 /**
  * Create a LiPD file with the metadata and values data provided. This involves:
  * 1. Creating separate directories

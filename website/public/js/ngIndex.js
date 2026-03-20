@@ -3,33 +3,31 @@ var p = angular.module("ngIndex", ["ngSanitize"]);
 p.controller('IndexCtrl', function ($scope) {
     $scope.gettingStarted = [
       {
-        "title": "create a LiPD file from scratch",
+        "title": "create or edit a LiPD file",
         "descriptions": [
           "Use the <a href='/playground'>LiPD Playground</a>: enter data and download your dataset as a LiPD file",
-          "Use the <a href='https://github.com/nickmckay/LiPD-utilities/tree/master/Python'>LiPD Utilities (Python)</a>: enter your data into our Excel template, and use the LiPD Utilities to convert the excel file to a LiPD file"
-        ]
-      },
-      {
-        "title": "create many LiPD files from scratch",
-        "descriptions": [
-          "Use the <a href='https://github.com/nickmckay/LiPD-utilities/tree/master/Python'>LiPD Utilities (Python)</a>: enter your data into our Excel template, and use the LiPD Utilities " +
-          "to convert the excel file to a LiPD file. This is currently the easiest way as creating many files one-by-one in the Playground can be tedious."
-        ]
-      },
-      {
-        "title": "edit a LiPD file",
-        "descriptions": [
-          "Use the <a href='/playground'>LiPD Playground</a>: upload your LiPD file, edit, and download as a new LiPD file",
-          "Use the <a href='https://github.com/nickmckay/LiPD-utilities/'>LiPD Utilities</a>: read the LiPD file to the workspace, make manual edits, and write as a new file",
-          "Use the <a href='http://wiki.linked.earth/Main_Page'>Linked Earth Wiki</a> to upload and edit LiPD files. Use the <a href='http://wiki.linked.earth/Dataset_Tutorial#Uploading_a_LiPD_file'>Getting Started Guide</a> if you are new to using the Wiki."
+          "Use <a href='https://github.com/nickmckay/lipdR'>lipdR</a> (R): read, edit, and write LiPD files directly in R",
+          "Use <a href='https://github.com/LinkedEarth/pylipd'>pylipd</a> (Python): read, edit, and write LiPD files in Python"
         ]
       },
       {
         "title": "analyze LiPD data",
         "descriptions": [
-          "Use the <a href='https://github.com/nickmckay/LiPD-utilities/'>LiPD Utilities</a>: read a LiPD file and use the desired functions. Consider adding the <a href='http://github.com/nickmckay/GeoChronR/'>GeoChronR</a> or <a href='https://github.com/LinkedEarth/Pyleoclim_util'>PyleoClim</a> packages for additional functions."
+          "Use <a href='https://github.com/nickmckay/lipdR'>lipdR</a> with <a href='https://nickmckay.github.io/GeoChronR/'>GeoChronR</a> for age modeling, time series analysis, and visualization in R",
+          "Use <a href='https://github.com/LinkedEarth/pylipd'>pylipd</a> with <a href='https://github.com/LinkedEarth/Pyleoclim_util'>Pyleoclim</a> for spectral analysis, mapping, and visualization in Python"
         ]
-
+      },
+      {
+        "title": "find LiPD datasets",
+        "descriptions": [
+          "Browse and download datasets from <a href='https://lipdverse.org/'>LiPDverse</a>, the community archive for LiPD files"
+        ]
+      },
+      {
+        "title": "understand the LiPD format",
+        "descriptions": [
+          "Read the <a href='/format'>Format Reference</a> for a technical description of the LiPD file structure, field definitions, and CSV conventions"
+        ]
       }
     ];
 
@@ -38,132 +36,76 @@ p.controller('IndexCtrl', function ($scope) {
         "icon": "toys",
         "title": "LiPD Playground",
         "link": "./playground",
-        "tooltip": "Get a hands-on LiPD experience in the playground by creating or editing a LiPD file. Don't forget to take the tour!"
+        "tooltip": "Create and edit LiPD files in your browser"
+      },
+      {
+        "icon": "description",
+        "title": "Format Reference",
+        "link": "./format",
+        "tooltip": "Technical specification of the LiPD file format for developers"
       },
       {
         "icon": "code",
-        "title": "LiPD Playground Github",
-        "link": "https://github.com/chrismheiser/lipdnet",
-        "tooltip": "The Github repository for the LiPD Playground. Please use it to make suggestions on improving the Playground and to report bugs."
-      },
-      {
-        "icon": "videocam",
-        "title": "LiPD Tutorials",
-        "link": "https://www.youtube.com/channel/UCOoRYB7I9SOpI11W2hcVBkA",
-        "tooltip": "Watch tutorial videos to learn how to use the LiPD Playground."
-
+        "title": "lipdR",
+        "link": "https://github.com/nickmckay/lipdR",
+        "tooltip": "R package for reading, writing, and analyzing LiPD files"
       },
       {
         "icon": "code",
-        "title": "LiPD Utilities Github",
-        "link": "http://nickmckay.github.io/LiPD-utilities/",
-        "tooltip": "The Github repository is the main hub for our Matlab, Python, and R code."
-      },
-      {
-        "icon": "chrome_reader_mode",
-        "title": "LiPD Utilities Docs",
-        "link": "http://nickmckay.github.io/LiPD-utilities/",
-        "tooltip": "An overview on how to download and use the LiPD Utilities. Docs are available in Matlab, Python, and R languages."
+        "title": "pylipd",
+        "link": "https://github.com/LinkedEarth/pylipd",
+        "tooltip": "Python package for reading, writing, and analyzing LiPD files"
       },
       {
         "icon": "code",
         "title": "GeoChronR",
-        "link": "http://nickmckay.github.io/GeoChronR/",
-        "tooltip": "An R package for analyzing and visualizing paleoclimate data in LiPD."
+        "link": "https://nickmckay.github.io/GeoChronR/",
+        "tooltip": "R package for age modeling and time series analysis with LiPD data"
       },
       {
         "icon": "code",
-        "title": "PyleoClim Github",
+        "title": "Pyleoclim",
         "link": "https://github.com/LinkedEarth/Pyleoclim_util",
-        "tooltip": "A Python package for analyzing and visualizing paleoclimate data in LiPD."
+        "tooltip": "Python package for paleoclimate time series analysis and visualization"
       },
-      // {
-      //   "icon": "chrome_reader_mode",
-      //   "title": "PyleoClim Docs",
-      //   "link": "http://linkedearth.github.io/Pyleoclim_util/",
-      //   "tooltip": "The PyleoClim package documentation."
-      // },
       {
         "icon": "public",
-        "title": "LinkedEarth Wiki",
-        "link": "http://wiki.linked.earth/Main_Page",
-        "tooltip": "The LinkedEarth Wiki contains a database of viewable LiPD datasets, guides for learning various tasks, and community activities."
+        "title": "LiPDverse",
+        "link": "https://lipdverse.org/",
+        "tooltip": "Community archive of LiPD datasets with browsing and download"
       },
       {
-        "icon": "search",
-        "title": "NOAA + LiPD examples",
-        "link": "https://www1.ncdc.noaa.gov/pub/data/paleo/pages2k/NAm2kHydro-2017/",
-        "tooltip": "A sample of NOAA text template files that have been generated from LiPD files."
-      },
-      // {
-      //   "icon": "chrome_reader_mode",
-      //   "title": "LiPD Ontology",
-      //   "link": "http://linked.earth/ontology/core/1.2.0/index-en.html",
-      //   "tooltip": "A controlled vocabulary of terms used in LiPD."
-      // },
-      {
-        "icon": "chrome_reader_mode",
-        "title": "LinkedEarth Ontology",
-        "link": "http://linked.earth/ontology/",
-        "tooltip": "A controlled vocabulary of terms used by LinkedEarth."
-      },
-      {
-        "icon": "cloud_download",
-        "title": "LiPD Excel Template",
-        "link": "https://github.com/nickmckay/LiPD-utilities/raw/master/Examples/LiPD_template.xlsx",
-        "tooltip": "Create a LiPD file by entering your data into the Excel template and converting it using the LiPD Utilities (Python)."
-      },
-      // {
-      //   "icon": "chrome_reader_mode",
-      //   "title": "NOAA Variable Naming",
-      //   "link": "https://www1.ncdc.noaa.gov/pub/data/paleo/templates/Variable_naming_guide.pdf",
-      //   "tooltip": "A short guide to naming variables using NOAA standards."
-      // },
-
-
+        "icon": "group",
+        "title": "LinkedEarth",
+        "link": "https://linked.earth/",
+        "tooltip": "The LinkedEarth project — community paleoclimate data science"
+      }
     ];
 
     $scope.faqs = [
       {
-        "question": "What are LiPD Utilities and why do I need them?",
-        "answer": "The LiPD Utilities are functions that allow you to create, edit, and analyze LiPD data."
+        "question": "What is a LiPD file?",
+        "answer": "A LiPD (.lpd) file is a ZIP archive that bundles tabular proxy data (CSV files) with rich structured metadata (a JSON-LD file). It follows the BagIt specification for data integrity. See the Format Reference for full technical details."
       },
       {
-        "question": "What languages are the LiPD Utilities available in?",
-        "answer": "R, Matlab, and Python."
+        "question": "What tools are available for working with LiPD data?",
+        "answer": "lipdR (R package) and pylipd (Python package) provide core read/write/validate functionality. GeoChronR (R) and Pyleoclim (Python) add advanced analysis and visualization. The LiPD Playground lets you create and edit files in your browser."
       },
       {
-        "question": "Why would you code the LiPD Utilities in different languages?",
-        "answer": "We want to give LiPD access to as many people as possible, regardless of computer setup. We think that covering the main scientific languages is a good place to start."
+        "question": "Where can I find LiPD datasets?",
+        "answer": "LiPD files are hosted on LiPDverse (lipdverse.org), a community archive with browsing, filtering, and bulk download."
       },
       {
-        "question": "Do I need to learn new functions for each package?",
-        "answer": "Yes and no. Each package contains the same set of 'core' functions. Each package has some extra functions that leverage the strengths of that specific language as well. All functions are noted in the individual package documentation."
+        "question": "What is the difference between the Playground and the R/Python libraries?",
+        "answer": "The LiPD Playground is great for creating or editing individual files in a browser with no installation required. The R and Python libraries are better for batch workflows, programmatic editing, and integration into analysis pipelines."
+      },
+      {
+        "question": "How do I validate a LiPD file?",
+        "answer": "Use validLipd() in lipdR, or POST metadata.jsonld to the /api/validator endpoint. The validator checks required fields, coordinate ranges, publication structure, TSid uniqueness, and column consistency."
       },
       {
         "question": "It's not working OR it could work better!",
-        "answer": "Please let us know! Each Github repository has an 'Issues' tab that helps us track bug reports and suggestions for improving." +
-        "All relevant Github repositories are listed below in 'Quick Links'. Post your comments and concerns and we will get to them as soon as possible!"
-      },
-      {
-        "question": "Where can I find LiPD files?",
-        "answer": "LiPD files are currently hosted on the LinkedEarth Wiki and NOAA Paleo. Both sites are linked below in 'Quick Links'."
-      },
-      {
-        "question": "Why do you have the LiPD Utilities and the LiPD Playground? Aren't they the same thing?",
-        "answer": "Not exactly. The LiPD Playground is great for creating and editing files on a file-by-file basis. " +
-        "It also works well for doing a quick glance at the data and making sure it looks correct. The LiPD Utilities are " +
-        "better at batch data and data analysis. For example, creating multiple LiPD files from Excel templates, extracting and " +
-        "analyzing a time series, or editing a specific piece of data in multiple files."
-      },
-      {
-        "question": "How do PyleoClim and GeoChronR packages fit into all this?",
-        "answer": "PyleoClim and GeoChronR are complementary packages to the LiPD Utilities. The LiPD Utilities help " +
-        "facilitate the basic functions of reading, writing, and managing your LiPD files. GeoChronR and PyleoClim are meant to handle more advanced functions for analysis and visualization in R and Python respectively."
-      },
-      {
-        "question": "How do I use the LiPD Playground?",
-        "answer": "Use the 'Take the Tour!' button on the playground to walk through each section with step-by-step instructions and tips. Additionally, there are video tutorials on our LiPD Manager YouTube page."
+        "answer": "Please let us know! File an issue on the relevant GitHub repository (lipdR, pylipd, or this site). Links are in Quick Links above."
       }
     ];
 

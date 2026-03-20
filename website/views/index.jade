@@ -15,15 +15,12 @@ block body
 				.container#intro.text-center
 					div
 						h1.md-display-3 { Linked Paleo Data }
-						br
-						img(ng-src="img/logo_trans.png" width="250px")
-						br
-						br
-						p.md-subhead Linked Paleo Data (LiPD) is a community data framework being designed to simplify the sharing, reuse and analysis of paleoclimate data. By combining a flexible, hierarchical data container with linked data concepts, LiPD lets paleoscientists spend less time wrangling data, and more time doing science.
-						p.md-subhead We’re currently working hard to develop more and better utilities for interacting with LiPD, both for the creation and validation of LiPD datasets, and for tools to interact with LiPD data in Python, R, and Matlab.
+						img(ng-src="img/logo_trans.png" width="180px" style="margin: 10px 0 14px;")
+						p.md-subhead LiPD (Linked PaleoData) is an open data standard for sharing, reusing, and analyzing paleoclimate datasets. Each LiPD file packages tabular proxy data alongside rich structured metadata in a portable, validated archive — letting scientists spend less time managing data and more time doing science.
+						p.md-subhead LiPD is supported by libraries for R (lipdR) and Python (pylipd), a browser-based editor (LiPD Studio), and a growing community archive at LiPDverse.
 						p.md-subhead.
-							A technical description of the LiPD framework is available
-							#[a(href='http://www.clim-past-discuss.net/11/4309/2015/cpd-11-4309-2015-discussion.html') here.]
+							A technical description of the format for developers is available on the
+							#[a(href='/format') Format page.]
 
 
 			//#buttons(layout='row')
@@ -45,17 +42,117 @@ block body
 				.subject.first
 					.category-color
 					.icon
-						i.fa.fa-star
+						i.fa.fa-rocket
 					.header.cf
 					.content
-						h3 I want to ...
-						md-card(ng-repeat="item in gettingStarted")
-							md-card-title
-								md-card-title-text
-									span.md-headline {{item.title}}
-							md-card-content
-								ul
-									li(ng-repeat="desc in item.descriptions" ng-bind-html="desc") {{desc}}
+						.gs-subsection
+							.gs-subsection-header
+								i.fa.fa-code.gs-icon
+								h3 Software
+							p.gs-subsection-intro LiPD is supported by libraries for R and Python, and a browser-based editor. Choose what fits your workflow.
+							.row
+								.col-md-4
+									md-card.gs-tool-card
+										md-card-title
+											md-card-title-text
+												span.md-headline lipdR
+												span.md-subhead R package
+										md-card-content
+											p Read, write, and validate LiPD files in R. Works seamlessly with data frames and the tidyverse.
+											pre.gs-install-code install.packages("lipdR")
+									md-card-actions(layout="row")
+										a.md-button(href="https://github.com/nickmckay/lipdR" target="_blank")
+											i.fa.fa-github
+											|  GitHub
+										a.md-button(href="https://nickmckay.github.io/lipdR/" target="_blank") Docs
+								.col-md-4
+									md-card.gs-tool-card
+										md-card-title
+											md-card-title-text
+												span.md-headline pylipd
+												span.md-subhead Python package
+										md-card-content
+											p Read, write, and validate LiPD files in Python. Integrates with pandas, NumPy, and Pyleoclim.
+											pre.gs-install-code pip install pylipd
+									md-card-actions(layout="row")
+										a.md-button(href="https://github.com/LinkedEarth/pylipd" target="_blank")
+											i.fa.fa-github
+											|  GitHub
+								.col-md-4
+									md-card.gs-tool-card
+										md-card-title
+											md-card-title-text
+												span.md-headline LiPD Playground
+												span.md-subhead Browser-based editor
+										md-card-content
+											p Create, upload, and edit LiPD files directly in your browser. No installation required.
+									md-card-actions(layout="row")
+										a.md-button.md-raised.md-primary(href="/playground") Open Playground
+						.gs-subsection
+							.gs-subsection-header
+								i.fa.fa-database.gs-icon
+								h3 Find Data
+							.gs-feature-block
+								.gs-feature-body
+									h4
+										a(href="https://lipdverse.org/" target="_blank") LiPDverse
+									p The community archive for LiPD datasets. Browse thousands of paleoclimate records by archive type, variable, region, and age range. Download individual files or entire collections.
+									a.md-button.md-raised(href="https://lipdverse.org/" target="_blank")
+										i.fa.fa-external-link
+										|  Visit LiPDverse
+						.gs-subsection
+							.gs-subsection-header
+								i.fa.fa-pencil.gs-icon
+								h3 Create and Edit Files
+							.gs-feature-block
+								.gs-feature-body
+									h4
+										a(href="/playground") LiPD Playground
+									p The Playground provides a structured form editor for all LiPD metadata fields, built-in validation feedback, CSV data entry, and one-click download of the finished file.
+									p For programmatic or batch creation, use lipdR or pylipd to build LiPD objects from data frames or dictionaries and write them to disk.
+									a.md-button.md-raised.md-primary(href="/playground") Open Playground
+						.gs-subsection
+							.gs-subsection-header
+								i.fa.fa-line-chart.gs-icon
+								h3 Analyze Data
+							p.gs-subsection-intro Once you have data loaded via lipdR or pylipd, these packages extend your analysis capabilities.
+							.row
+								.col-md-4
+									md-card.gs-tool-card
+										md-card-title
+											md-card-title-text
+												span.md-headline GeoChronR
+												span.md-subhead R package
+										md-card-content
+											p Age modeling, time series analysis, and visualization for paleoclimate data. Integrates Bchron, Bacon, and other age models.
+									md-card-actions(layout="row")
+										a.md-button(href="https://nickmckay.github.io/GeoChronR/" target="_blank")
+											i.fa.fa-github
+											|  GitHub
+								.col-md-4
+									md-card.gs-tool-card
+										md-card-title
+											md-card-title-text
+												span.md-headline actR
+												span.md-subhead R package
+										md-card-content
+											p Abrupt change detection and climate reconstruction with rigorous uncertainty quantification.
+									md-card-actions(layout="row")
+										a.md-button(href="https://github.com/nickmckay/actR" target="_blank")
+											i.fa.fa-github
+											|  GitHub
+								.col-md-4
+									md-card.gs-tool-card
+										md-card-title
+											md-card-title-text
+												span.md-headline Pyleoclim
+												span.md-subhead Python package
+										md-card-content
+											p Spectral analysis, wavelet transforms, mapping, and visualization for paleoclimate time series.
+									md-card-actions(layout="row")
+										a.md-button(href="https://github.com/LinkedEarth/Pyleoclim_util" target="_blank")
+											i.fa.fa-github
+											|  GitHub
 
 
 		.container.cf#faq
