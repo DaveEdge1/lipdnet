@@ -1,5 +1,6 @@
 var express = require('express');
 var fs = require("fs");
+var crypto = require('crypto');
 var archiver = require('archiver');
 var gladstone = require('gladstone/gladstone');
 var path = require("path");
@@ -34,6 +35,79 @@ var getClientIp = function(req) {
            req.socket.remoteAddress ||
            req.ip ||
            'unknown';
+};
+
+/**
+ * Compute the md5 hex digest of a file on disk.
+ */
+var md5File = function(filePath) {
+    var data = fs.readFileSync(filePath);
+    return crypto.createHash('md5').update(data).digest('hex');
+};
+
+/**
+ * Recursively list files under a directory, returning paths relative to `root`
+ * (with forward slashes, as required by the bagit manifest format).
+ */
+var listFilesRecursive = function(dir, root) {
+    var results = [];
+    var entries = fs.readdirSync(dir);
+    entries.forEach(function(entry) {
+        var full = path.join(dir, entry);
+        var stat = fs.statSync(full);
+        if (stat.isDirectory()) {
+            results = results.concat(listFilesRecursive(full, root));
+        } else {
+            results.push(path.relative(root, full).split(path.sep).join('/'));
+        }
+    });
+    return results;
+};
+
+/**
+ * Build a BagIt bag in-place. Assumes bag/data/ already exists and contains
+ * the dataset files. Writes bagit.txt, bag-info.txt, manifest-md5.txt, and
+ * tagmanifest-md5.txt into the bag directory.
+ *
+ * This replaces the gladstone-based flow which (a) shipped without a working
+ * tagmanifest writer and (b) always injected an extra subdirectory inside
+ * bag/data named after the source staging directory.
+ *
+ * @param {String} bagDir  Absolute path to the bag directory (contains data/)
+ */
+var buildBag = function(bagDir) {
+    var dataDir = path.join(bagDir, 'data');
+
+    // bagit.txt — the bag declaration
+    fs.writeFileSync(
+        path.join(bagDir, 'bagit.txt'),
+        'BagIt-Version: 0.97\nTag-File-Character-Encoding: UTF-8\n'
+    );
+
+    // bag-info.txt — optional metadata; keep minimal but non-empty
+    var bagInfoLines = [
+        'Source-Organization: LiPD Project',
+        'Contact-Name: Chris Heiser',
+        'Contact-Email: lipd.contact@gmail.com',
+        'External-Description: Source: LiPD Online Validator',
+        'Bagging-Date: ' + new Date().toISOString().slice(0, 10)
+    ];
+    fs.writeFileSync(path.join(bagDir, 'bag-info.txt'), bagInfoLines.join('\n') + '\n');
+
+    // manifest-md5.txt — hashes of every file under data/
+    var dataFiles = listFilesRecursive(dataDir, bagDir); // paths relative to bag
+    var manifestLines = dataFiles.map(function(rel) {
+        var hash = md5File(path.join(bagDir, rel));
+        return hash + '  ' + rel;
+    });
+    fs.writeFileSync(path.join(bagDir, 'manifest-md5.txt'), manifestLines.join('\n') + '\n');
+
+    // tagmanifest-md5.txt — hashes of the bagit metadata files
+    var tagFiles = ['bag-info.txt', 'bagit.txt', 'manifest-md5.txt'];
+    var tagLines = tagFiles.map(function(name) {
+        return md5File(path.join(bagDir, name)) + '  ' + name;
+    });
+    fs.writeFileSync(path.join(bagDir, 'tagmanifest-md5.txt'), tagLines.join('\n') + '\n');
 };
 
 /**
@@ -812,12 +886,13 @@ var createSubdirs = function(master, res){
         // tmp bagit level folder. will be removed before zipping.
         master.pathTmpBag = path.join(master.pathTmp, "bag");
         master.pathTmpZip = path.join(master.pathTmp, "zip");
-        master.pathTmpFiles = path.join(master.pathTmp, "files");
+        // Data files are written straight into bag/data so the final LiPD has
+        // the layout bag/data/<files> (no extra nesting level).
+        master.pathTmpData = path.join(master.pathTmpBag, "data");
 
-        // logger.info("POST: make other dirs...");
         mkdirSync(master.pathTmpBag);
         mkdirSync(master.pathTmpZip);
-        mkdirSync(master.pathTmpFiles);
+        mkdirSync(master.pathTmpData);
         return master;
         // logger.info("POST: created dir: " + pathTmpZip);
         // logger.info("POST: created dir: " + pathTmpFiles);
@@ -1332,7 +1407,7 @@ router.get("/playground", function(req, res, next){
  * Create a LiPD file with the metadata and values data provided. This involves:
  * 1. Creating separate directories
  * 2. Writing the txt, csv, and json files
- * 3. Running bagit (gladstone) on the files
+ * 3. Writing bagit metadata files (manifest-md5, tagmanifest-md5, etc.)
  * 4. Zipping up the files into one LiPD file
  *
  * @param  {Object}   req   Request object
@@ -1358,47 +1433,19 @@ router.post("/files", function(req, res, next){
           writeLipdverseText(req.body.filename, req.body.lipdverseText, master.pathTmp);
       }
 
-    // Use the request data to write csv and jsonld files into "/tmp/<lipd-xxxxx>/files/"
-    writeFiles(master.files, master.pathTmpFiles, res, function(){});
+    // Write csv and jsonld files directly into bag/data/ (no extra nesting).
+    writeFiles(master.files, master.pathTmpData, res, function(){});
 
     logger.info("Start Bagit...");
-    // Call bagit process on folder of files
-    console.log('Creating bag dir');
-    var resp = gladstone.createBagDirectory({
-       bagName: master.pathTmpBag,
-       originDirectory: master.pathTmpFiles,
-       cryptoMethod: 'md5',
-       sourceOrganization: 'LiPD Project',
-       contactName: 'Chris Heiser',
-       contactEmail: 'lipd.contact@gmail.com',
-       externalDescription: 'Source: LiPD Online Validator'
-    })
-    var resp2 = resp.then(function(resp){
-      console.log('creating manifest');
-      // create the tagmanifest bagit file. We have to wait because it needs the other bagit files to be written first.
-      gladstone.createManifest(master.pathTmpFiles, {
-        bagName: master.pathTmpBag,
-        originDirectory: master.pathTmpFiles,
-        cryptoMethod: 'md5',
-        sourceOrganization: 'LiPD Project',
-        contactName: 'Chris Heiser',
-        contactEmail: 'lipd.contact@gmail.com',
-        externalDescription: 'Source: LiPD Online Validator'
-      }, 'manifest')
+    // Build the bag in-place: bagit.txt, bag-info.txt, manifest-md5.txt, tagmanifest-md5.txt.
+    buildBag(master.pathTmpBag);
+
+    console.log('creating zip archive');
+    createArchive(master.pathTmp, master.pathTmpZip, master.pathTmpBag, master.filename, function(){
+      logger.info("Callback createArchive");
+      logger.info("POST: " + path.basename(master.pathTmp));
+      res.status(200).send(path.basename(master.pathTmp));
     });
-     console.log('resp2: ' + resp2)
-     resp2.then(function(resp2){
-        // When a successful Bagit Promise returns, start creating the ZIP/LiPD archive
-        
-          console.log('creating zip archive')
-          createArchive(master.pathTmp, master.pathTmpZip, master.pathTmpBag, master.filename, function(){
-            logger.info("Callback createArchive");
-            logger.info("POST: " + path.basename(master.pathTmp));
-            res.status(200).send(path.basename(master.pathTmp));
-          });
-          //logger.info(resp2);
-          //res.status(500).send("POST: Error: Bagit promise not fulfilled");
-      });
   } catch(err) {
     logger.info(err);
     res.status(500).send("POST: Error creating LiPD: " + err);
