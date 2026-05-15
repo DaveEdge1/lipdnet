@@ -7,6 +7,7 @@
 var app = require('../app');
 var debug = require('debug')('gcr_proto:server');
 var http = require('http');
+var logger = require('../node_modules_custom/node_log.js');
 
 /**
  * Get port from environment and store in Express.
@@ -87,4 +88,6 @@ function onListening() {
     ? 'pipe ' + addr
     : 'port ' + addr.port;
   debug('Listening on ' + bind);
+  logger.info('app: Node port: ', app.get('port'));
+  logger.info('app: Node Env: ', app.get('environment'));
 }

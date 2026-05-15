@@ -18,6 +18,8 @@ RUN npm install
 # Create tmp directory for file processing
 RUN mkdir -p /app/website/tmp
 
+ENV NODE_ENV=production
+
 # Expose the port that the web application will listen on
 EXPOSE 3000
 
