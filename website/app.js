@@ -95,11 +95,9 @@ var storage = multer.diskStorage({
   }
 });
 
-if (port === 3000){
-  app.set("environment", "development");
-} else {
-  app.set("environment", "production");
-}
+// Trust NODE_ENV. Default to production so error responses don't leak stack
+// traces when the var is unset.
+app.set("environment", process.env.NODE_ENV === "development" ? "development" : "production");
 
 
 // view engine setup
@@ -128,6 +126,12 @@ app.use('/flask', createProxyMiddleware({
   changeOrigin: true,
   pathRewrite: {
     '^/flask': '' // Remove /flask prefix when forwarding
+  },
+  onError: function(err, req, res){
+    logger.info('flask-proxy: ' + (req && req.method) + ' ' + (req && req.url) + ' -> ' + err.code);
+    if (res && !res.headersSent){
+      res.status(502).json({error: 'Flask backend unavailable', code: err.code});
+    }
   }
 }));
 
@@ -163,10 +167,5 @@ if (app.get("environment") === 'development') {
     });
   });
 }
-
-app.listen(app.get('port'), function() {
-  logger.info('app: Node port: ', app.get('port'));
-  logger.info("app: Node Env: ", app.get("environment"));
-});
 
 module.exports = app;
