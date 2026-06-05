@@ -1399,8 +1399,22 @@ router.post('/', function(req, res, next){
 router.get("/playground", function(req, res, next){
   // Track playground page visit
   stats.recordPageVisit('playground', {}, getClientIp(req));
-  // Render the playground page
-  res.render('playground', {title: 'Playground'});
+  // Serve the React playground SPA (built from /playground-app into public/playground-app).
+  // The Mapbox token is injected here from the MAPBOX_TOKEN env var rather than
+  // committed into the bundle (see playground-app/scripts/strip-mapbox-token.mjs).
+  var indexPath = path.join(process.cwd(), "public", "playground-app", "index.html");
+  fs.readFile(indexPath, "utf8", function(err, html){
+    if(err){ return next(err); }
+    // JSON.stringify safely escapes the value into a JS string literal.
+    var token = JSON.stringify(process.env.MAPBOX_TOKEN || "");
+    var inject = "<script>window.__MAPBOX_TOKEN__=" + token + ";</script>";
+    // Insert before the first module script so the global is set before the bundle runs.
+    var out = html.indexOf("<script") !== -1
+      ? html.replace("<script", inject + "<script")
+      : html.replace("</head>", inject + "</head>");
+    res.set("Content-Type", "text/html");
+    res.send(out);
+  });
 });
 
 /**

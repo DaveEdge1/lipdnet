@@ -53,6 +53,38 @@ If you are having issues, please report them here on github in the issue tracker
 
 The project is licensed under the [GNU Public License](https://github.com/nickmckay/LiPD-utilities/blob/master/Python/LICENSE).
 
+## Playground app
+
+The `/playground` page is a React SPA (in `/playground-app`) built on
+[lipdjs](https://github.com/LinkedEarth/lipdjs) and
+[@linkedearth/lipd-ui](https://github.com/LinkedEarth/lipd-ui). LiPD parsing,
+editing, validation vocabulary, and BagIt-compliant export all run in the
+browser — no server round-trip.
+
+To work on it (requires Node 18+):
+
+```
+cd playground-app
+npm install
+npm run dev      # dev server at http://localhost:3001
+npm run build    # builds into website/public/playground-app (commit the output)
+```
+
+The build output in `website/public/playground-app` is committed to git so the
+production Docker image (node 14) can serve it without a build step. The Express
+route `GET /playground` serves the SPA's index.html and records usage stats.
+
+### Mapbox token
+
+The Location editor (from `lipd-ui`) needs a Mapbox access token. To avoid
+committing a token into the repo (which trips GitHub secret scanning), the
+build strips any hardcoded token from the bundle
+(`playground-app/scripts/strip-mapbox-token.mjs`) and the `GET /playground`
+route injects one at request time from the `MAPBOX_TOKEN` environment variable
+as `window.__MAPBOX_TOKEN__`. Set `MAPBOX_TOKEN` in the container/runtime
+environment to enable the map; if unset, the rest of the editor still works and
+the map simply shows no tiles.
+
 ## dev notes:
 The Dockerfile for the production container is located at /root/Dockerfile
 * note that the web address is hard-coded in 2 places in the file "website/public/js/ngContValidate.js"
