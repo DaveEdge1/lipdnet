@@ -66,7 +66,9 @@ body { background: var(--bg); height: 100vh; overflow: hidden; }
 .landing-footer { color: var(--text-muted); font-size: .82rem; }
 
 .noaa-import { display: flex; flex-direction: column; gap: .6rem; width: min(560px, 90vw); }
-.noaa-import-row { display: flex; gap: .5rem; }
+.noaa-import-row { display: flex; gap: .5rem; align-items: center; }
+.noaa-import-logo { flex-shrink: 0; display: flex; }
+.noaa-import-logo img { height: 34px; width: 34px; border-radius: 6px; }
 .noaa-import-row input {
   flex: 1; padding: .5rem .75rem; background: var(--surface2, var(--surface));
   color: var(--text); border: 1px solid var(--border); border-radius: 6px; font-size: .875rem;
@@ -447,6 +449,8 @@ body { background: var(--bg); height: 100vh; overflow: hidden; }
 .data-editor { display: flex; flex-direction: column; overflow: hidden; height: 100%; }
 .data-editor.empty { padding: 1.5rem; color: var(--text-muted); }
 .data-editor-toolbar { display: flex; align-items: center; gap: .75rem; padding: .6rem 1rem; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.data-editor-io { display: flex; gap: .5rem; margin-left: auto; }
+.data-editor-io label.btn-add-row { display: inline-block; }
 .data-editor-toolbar select { background: var(--surface2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: .3rem .6rem; font-size: .82rem; }
 .row-count { font-size: .78rem; color: var(--text-muted); }
 .btn-add-row { margin-left: auto; background: var(--surface2); color: var(--accent); border: 1px solid var(--accent); border-radius: 6px; padding: .28rem .7rem; font-size: .8rem; cursor: pointer; }

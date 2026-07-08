@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useMemo, useEffect, useTransition } from 'react'
 import type { LipdMetadata } from '../types/lipd'
-import { getTables, updateCellValue, deleteTableRow, addTableRow } from '../lib/lipd'
+import { getTables, updateCellValue, deleteTableRow, addTableRow, replaceTableData } from '../lib/lipd'
+import { parseTabular } from '../lib/tabular'
 
 interface Props {
   metadata: LipdMetadata
@@ -104,6 +105,50 @@ export function DataEditor({ metadata, onChange, selectedPath }: Props) {
     onChange(addTableRow(metadata, entry.path))
   }
 
+  // CSV cell escaping: quote when the value contains a comma, quote, or newline
+  function csvCell(s: string): string {
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+  }
+
+  function downloadCsv() {
+    if (!entry) return
+    const header = cols.map(c =>
+      csvCell(c.units ? `${c.variableName} (${c.units as string})` : c.variableName)
+    ).join(',')
+    const lines = [header]
+    for (let row = 0; row < rowCount; row++) {
+      lines.push(cols.map(c => {
+        const v = c.values?.[row]
+        return v === null || v === undefined ? 'NaN' : csvCell(String(v))
+      }).join(','))
+    }
+    const name = `${(metadata.dataSetName ?? 'dataset').replace(/[^\w.\-]+/g, '_')}-${entry.path.replace(/[[\].]/g, '_')}.csv`
+    const blob = new Blob([lines.join('\n') + '\n'], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = name
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  async function importTabular(file: File | undefined) {
+    if (!file || !entry) return
+    try {
+      const parsed = parseTabular(await file.text())
+      if (!window.confirm(
+        `Replace the data in "${entry.label}" with ${parsed.rows.length} rows from ${file.name}?` +
+        (parsed.headers
+          ? ' Columns will be matched to the header names.'
+          : ' The file has no header row, so values are applied by column position.')
+      )) return
+      onChange(replaceTableData(metadata, entry.path, parsed))
+      setEditCell(null)
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Could not parse the file')
+    }
+  }
+
   function deleteRow(row: number) {
     if (!entry) return
     onChange(deleteTableRow(metadata, entry.path, row))
@@ -130,6 +175,20 @@ export function DataEditor({ metadata, onChange, selectedPath }: Props) {
         </select>
         <span className="row-count">{rowCount} rows</span>
         <button className="btn-add-row" onClick={addRow}>+ Add row</button>
+        <div className="data-editor-io">
+          <button className="btn-add-row" onClick={downloadCsv} title="Download this table as a CSV file">
+            Download CSV
+          </button>
+          <label className="btn-add-row" title="Upload comma- or tab-delimited data into this table">
+            Import CSV/TSV
+            <input
+              type="file"
+              accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values,text/plain"
+              style={{ display: 'none' }}
+              onChange={e => { importTabular(e.target.files?.[0]); e.target.value = '' }}
+            />
+          </label>
+        </div>
       </div>
 
       {isPending && (

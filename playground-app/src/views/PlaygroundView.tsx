@@ -119,10 +119,6 @@ export function PlaygroundView() {
           </button>
         </div>
         <NoaaImport onLoad={handleLoad} />
-        <p className="landing-footer">
-          {'based on '}
-          <a href="https://github.com/nickmckay/lipd-studio" target="_blank" rel="noreferrer">LiPD Studio</a>
-        </p>
       </div>
     )
   }

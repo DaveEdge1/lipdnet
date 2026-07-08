@@ -1,6 +1,8 @@
 import JSZip from 'jszip'
 import SparkMD5 from 'spark-md5'
 import type { LipdFile, LipdMetadata, LipdColumn, LipdTable } from '../types/lipd'
+import { makeTSid } from './newDataset'
+import type { ParsedTabular } from './tabular'
 
 // ---- Parse ----------------------------------------------------------------
 
@@ -372,6 +374,51 @@ export function addTableRow(
   for (const col of table.columns ?? []) {
     if (!col.values) col.values = []
     col.values.push(null)
+  }
+  return clone
+}
+
+// Replace a table's data with uploaded tabular content. With a header row,
+// columns are matched to existing ones by variableName (case-insensitive) so
+// their metadata (units, TSid, interpretations) is kept; unmatched headers
+// become new columns and existing columns absent from the upload are dropped.
+// Without a header row, values are applied positionally.
+export function replaceTableData(
+  metadata: LipdMetadata,
+  tablePath: string,
+  parsed: ParsedTabular,
+): LipdMetadata {
+  const clone = JSON.parse(JSON.stringify(metadata)) as LipdMetadata
+  reattachAllValues(metadata, clone)
+  const table = resolveTableFromPath(clone, tablePath)
+  if (!table) return metadata
+
+  const width = Math.max(0, ...parsed.rows.map(r => r.length))
+  const colValues = (i: number) => parsed.rows.map(r => r[i] ?? null)
+
+  if (parsed.headers) {
+    const existing = table.columns ?? []
+    table.columns = parsed.headers.map((header, i) => {
+      const match = existing.find(c => c.variableName?.toLowerCase() === header.toLowerCase())
+      const col: LipdColumn = match
+        ? { ...match }
+        : { number: 0, variableName: header, TSid: makeTSid() }
+      col.number = i + 1
+      col.values = colValues(i)
+      return col
+    })
+  } else {
+    const existing = [...(table.columns ?? [])].sort((a, b) => (a.number ?? 0) - (b.number ?? 0))
+    const columns: LipdColumn[] = []
+    for (let i = 0; i < width; i++) {
+      const col: LipdColumn = existing[i]
+        ? { ...existing[i] }
+        : { number: 0, variableName: `column${i + 1}`, TSid: makeTSid() }
+      col.number = i + 1
+      col.values = colValues(i)
+      columns.push(col)
+    }
+    table.columns = columns
   }
   return clone
 }

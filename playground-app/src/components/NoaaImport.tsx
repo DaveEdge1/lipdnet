@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { searchNoaaStudies, noaaStudyToLipd, type NoaaStudy } from '../lib/noaa'
 import type { LipdFile } from '../types/lipd'
+import pyleotupsLogo from '../assets/pyleotups_logo.png'
 
 interface Props {
   onLoad: (lipd: LipdFile) => void
@@ -53,6 +54,15 @@ export function NoaaImport({ onLoad }: Props) {
   return (
     <div className="noaa-import">
       <div className="noaa-import-row">
+        <a
+          className="noaa-import-logo"
+          href="https://github.com/LinkedEarth/PyleoTUPS"
+          target="_blank"
+          rel="noreferrer"
+          title="NOAA import based on PyleoTUPS — view on GitHub"
+        >
+          <img src={pyleotupsLogo} alt="PyleoTUPS" />
+        </a>
         <input
           type="text"
           placeholder="Import from NOAA: study ID, study URL, or search terms"
