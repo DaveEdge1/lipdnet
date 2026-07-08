@@ -12,6 +12,7 @@ import { DataEditor } from '../components/DataEditor'
 import { StructureView } from '../components/StructureView'
 import { JsonEditor } from '../components/JsonEditor'
 import { serializeLipd, appendChangelog, parseLipd } from '../lib/lipd'
+import { downloadNoaa } from '../lib/noaaExport'
 import { createNewLipd } from '../lib/newDataset'
 import { validateLipd } from '../lib/validate'
 import { proxiedLpdUrl } from '../lib/remote'
@@ -142,6 +143,13 @@ export function PlaygroundView() {
           <span className="toolbar-version">v{lipd.metadata.datasetVersion}</span>
         )}
         <div className="toolbar-actions">
+          <button
+            onClick={() => { downloadNoaa(lipd).catch(e => alert(e instanceof Error ? e.message : String(e))) }}
+            className="btn-close"
+            title="Download this dataset in the NOAA WDS-Paleo template format"
+          >
+            NOAA .txt
+          </button>
           <button onClick={handleSave} disabled={saving} className="btn-save">
             {saving ? 'Saving…' : 'Save .lpd'}
           </button>

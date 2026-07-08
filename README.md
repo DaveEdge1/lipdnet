@@ -69,6 +69,15 @@ and NOAA study import (`src/lib/noaa.ts`) modeled on
 [PyleoTUPS](https://github.com/LinkedEarth/PyleoTUPS) — it queries the NCEI
 paleo-search API and parses NOAA-templated text files directly in the browser
 (both endpoints send CORS headers), assembling the result as a LiPD dataset.
+The editor can also export the open dataset back to the NOAA WDS-Paleo
+template format (`src/lib/noaaExport.ts`, "NOAA .txt" toolbar button — one
+.txt per measurement table, zipped when there are several).
+
+The Python Flask backend (`lipdnet_flask/`, formerly proxied at `/flask/*`)
+is no longer used by the site — NOAA conversion now runs in the browser and
+the pages that used its autocomplete/ML endpoints are retired. The proxy has
+been removed from `website/app.js`; the flask container no longer needs to be
+deployed.
 LiPD parsing, editing, validation, plotting (Plotly), mapping (Leaflet/OSM —
 no API token needed), and BagIt-compliant export all run in the browser — no
 server round-trip.
