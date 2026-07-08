@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo, useRef } from 'react'
 import { DropZone } from './components/DropZone'
+import { NoaaImport } from './components/NoaaImport'
 import { MetadataPanel } from './components/MetadataPanel'
 import { ChangelogPanel } from './components/ChangelogPanel'
 import { ColumnList } from './components/ColumnList'
@@ -87,6 +88,7 @@ export default function App() {
             Start a new dataset
           </button>
         </div>
+        <NoaaImport onLoad={handleLoad} />
         <p className="landing-footer">
           <a href="/">lipd.net home</a>
           {' · based on '}

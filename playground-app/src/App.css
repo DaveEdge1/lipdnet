@@ -31,6 +31,23 @@ body { background: var(--bg); height: 100vh; overflow: hidden; }
 .landing-header p { color: var(--text-muted); margin-top: .4rem; }
 .landing-actions { display: flex; align-items: center; gap: .75rem; color: var(--text-muted); }
 .landing-footer { color: var(--text-muted); font-size: .82rem; }
+
+.noaa-import { display: flex; flex-direction: column; gap: .6rem; width: min(560px, 90vw); }
+.noaa-import-row { display: flex; gap: .5rem; }
+.noaa-import-row input {
+  flex: 1; padding: .5rem .75rem; background: var(--surface2, var(--surface));
+  color: var(--text); border: 1px solid var(--border); border-radius: 6px; font-size: .875rem;
+}
+.noaa-import-status { color: var(--text-muted); font-size: .85rem; }
+.noaa-import-results { list-style: none; max-height: 260px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; }
+.noaa-import-results li + li { border-top: 1px solid var(--border); }
+.noaa-import-results button {
+  display: flex; flex-direction: column; gap: .15rem; width: 100%; text-align: left;
+  padding: .55rem .8rem; background: none; border: none; color: var(--text); cursor: pointer;
+}
+.noaa-import-results button:hover { background: rgba(74,144,217,.1); }
+.noaa-study-name { font-size: .875rem; font-weight: 500; }
+.noaa-study-meta { font-size: .72rem; color: var(--text-muted); }
 .landing-footer a { color: var(--accent); text-decoration: none; }
 .landing-footer a:hover { text-decoration: underline; }
 

@@ -57,8 +57,12 @@ The project is licensed under the [GNU Public License](https://github.com/nickmc
 
 The `/playground` page is a React SPA (in `/playground-app`) based on
 [lipd-studio](https://github.com/nickmckay/lipd-studio), with a few lipd.net
-additions: a "Start a new dataset" flow and a controlled vocabulary generated
-from [lipdjs](https://github.com/LinkedEarth/lipdjs) (synced with lipdverse).
+additions: a "Start a new dataset" flow, a controlled vocabulary generated
+from [lipdjs](https://github.com/LinkedEarth/lipdjs) (synced with lipdverse),
+and NOAA study import (`src/lib/noaa.ts`) modeled on
+[PyleoTUPS](https://github.com/LinkedEarth/PyleoTUPS) — it queries the NCEI
+paleo-search API and parses NOAA-templated text files directly in the browser
+(both endpoints send CORS headers), assembling the result as a LiPD dataset.
 LiPD parsing, editing, validation, plotting (Plotly), mapping (Leaflet/OSM —
 no API token needed), and BagIt-compliant export all run in the browser — no
 server round-trip.
