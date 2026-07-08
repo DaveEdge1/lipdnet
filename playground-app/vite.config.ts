@@ -11,45 +11,8 @@ export default defineConfig({
     outDir: '../website/public/playground-app',
     emptyOutDir: true
   },
-  define: {
-    global: 'globalThis',
-    'process.env': {}
-  },
-  resolve: {
-    alias: {
-      buffer: 'buffer',
-    },
-    dedupe: [
-      'react',
-      'react-dom',
-      '@emotion/react',
-      '@emotion/styled',
-      '@mui/material',
-      '@mui/system',
-      '@mui/styled-engine'
-    ]
-  },
   optimizeDeps: {
-    include: [
-      'react',
-      'react-dom',
-      'zustand',
-      'mapbox-gl',
-      '@mui/material',
-      '@mui/icons-material',
-      '@emotion/react',
-      '@emotion/styled',
-      '@mui/system',
-      '@mui/styled-engine',
-      'buffer'
-    ]
-  },
-  css: {
-    preprocessorOptions: {
-      css: {
-        charset: false
-      }
-    }
+    include: ['plotly.js-dist-min']
   },
   server: {
     port: 3001

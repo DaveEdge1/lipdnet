@@ -1,176 +1,244 @@
-import React, { useState } from 'react';
-import {
-  ThemeProvider,
-  createTheme,
-  CssBaseline,
-  AppBar,
-  Toolbar,
-  Typography,
-  Link,
-  Container,
-  Grid,
-  Paper,
-  Switch,
-  FormControlLabel,
-  Box,
-  CircularProgress,
-  Snackbar,
-  Alert,
-  Button
-} from '@mui/material';
-import { FileUpload as FileUploadIcon, NoteAdd as NoteAddIcon } from '@mui/icons-material';
-import {
-  LiPDApp,
-  useLiPDStore,
-  setLiPDStoreCallbacks,
-  RouterProvider,
-  SyncProgressBar
-} from '@linkedearth/lipd-ui';
+import { useState, useCallback, useMemo, useRef } from 'react'
+import { DropZone } from './components/DropZone'
+import { MetadataPanel } from './components/MetadataPanel'
+import { ChangelogPanel } from './components/ChangelogPanel'
+import { ColumnList } from './components/ColumnList'
+import { ColumnEditor } from './components/ColumnEditor'
+import { ValidationPanel } from './components/ValidationPanel'
+import { TimeSeriesPlot } from './components/TimeSeriesPlot'
+import { SiteMap } from './components/SiteMap'
+import { DataEditor } from './components/DataEditor'
+import { StructureView } from './components/StructureView'
+import { JsonEditor } from './components/JsonEditor'
+import { serializeLipd, appendChangelog } from './lib/lipd'
+import { createNewLipd } from './lib/newDataset'
+import { validateLipd } from './lib/validate'
+import type { LipdFile, LipdMetadata } from './types/lipd'
+import './App.css'
 
-import BrowserAppBarActions from './BrowserAppBarActions';
+function contentHash(metadata: LipdMetadata): string {
+  const { changelog: _c, datasetVersion: _v, ...rest } = metadata
+  return JSON.stringify(rest)
+}
 
-// Set up empty callbacks for browser environment.
-// The browser uses the custom BrowserAppBarActions instead of store callbacks.
-setLiPDStoreCallbacks({});
+export default function App() {
+  const [lipd, setLipd] = useState<LipdFile | null>(null)
+  const [selectedTSid, setSelectedTSid] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
 
-const App: React.FC = () => {
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  // Per-panel tab state
+  const [tlTab, setTlTab] = useState<'metadata' | 'issues' | 'json'>('metadata')
+  const [blTab, setBlTab] = useState<'map' | 'plot'>('map')
+  const [brTab, setBrTab] = useState<'column' | 'data'>('column')
+  const [dataTablePath, setDataTablePath] = useState<string | undefined>(undefined)
 
-  const {
-    setThemeMode,
-    dataset,
-    isLoading,
-    loadingMessage,
-    notification
-  } = useLiPDStore(state => ({
-    setThemeMode: state.setThemeMode,
-    dataset: state.dataset,
-    isLoading: state.isLoading,
-    loadingMessage: state.loadingMessage,
-    notification: state.notification
-  }));
+  const savedHashRef = useRef<string>('')
 
-  const theme = createTheme({
-    palette: {
-      mode: isDarkMode ? 'dark' : 'light',
-    },
-  });
+  const handleLoad = useCallback((f: LipdFile) => {
+    setLipd(f)
+    setSelectedTSid(null)
+    savedHashRef.current = contentHash(f.metadata)
+  }, [])
 
-  React.useEffect(() => {
-    setThemeMode(isDarkMode ? 'dark' : 'light');
-  }, [isDarkMode, setThemeMode]);
+  const handleMetadataChange = useCallback((updated: LipdMetadata) => {
+    setLipd(prev => prev ? { ...prev, metadata: updated } : null)
+  }, [])
 
-  const handleNotificationClose = () => {
-    useLiPDStore.setState({ notification: null });
-  };
+  const handleSave = useCallback(async () => {
+    if (!lipd) return
+    setSaving(true)
+    try {
+      const isDirty = contentHash(lipd.metadata) !== savedHashRef.current
+      const finalMetadata = isDirty
+        ? appendChangelog(lipd.metadata, 'Edited with the lipd.net playground')
+        : lipd.metadata
+      const finalLipd = isDirty ? { ...lipd, metadata: finalMetadata } : lipd
+      if (isDirty) {
+        setLipd(finalLipd)
+        savedHashRef.current = contentHash(finalMetadata)
+      }
+      const blob = await serializeLipd(finalLipd)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = finalLipd.filename
+      a.click()
+      URL.revokeObjectURL(url)
+    } finally {
+      setSaving(false)
+    }
+  }, [lipd])
+
+  const issues = useMemo(() => lipd ? validateLipd(lipd.metadata) : [], [lipd])
+  const errorCount = issues.filter(i => i.severity === 'error').length
+  const warningCount = issues.filter(i => i.severity === 'warning').length
+
+  if (!lipd) {
+    return (
+      <div className="app landing">
+        <div className="landing-header">
+          <h1>LiPD Playground</h1>
+          <p>Open, edit, and visualize paleoclimate data files</p>
+        </div>
+        <DropZone onLoad={handleLoad} />
+        <div className="landing-actions">
+          <span>or</span>
+          <button className="btn" onClick={() => handleLoad(createNewLipd())}>
+            Start a new dataset
+          </button>
+        </div>
+        <p className="landing-footer">
+          <a href="/">lipd.net home</a>
+          {' · based on '}
+          <a href="https://github.com/nickmckay/lipd-studio" target="_blank" rel="noreferrer">LiPD Studio</a>
+        </p>
+      </div>
+    )
+  }
+
+  const issuesBadge = (errorCount > 0 || warningCount > 0) && (
+    <span className={`tab-issues-count ${errorCount > 0 ? 'has-errors' : 'has-warnings'}`}>
+      {errorCount > 0 ? errorCount : warningCount}
+    </span>
+  )
 
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <AppBar position="static" color="default" elevation={0} sx={{ borderBottom: 1, borderColor: 'divider' }}>
-        <Toolbar variant="dense" sx={{ minHeight: 48, px: 2 }}>
-          <Typography variant="subtitle1" component="div" sx={{ fontWeight: 600 }}>
-            LiPD Playground
-          </Typography>
-          <Link href="/" underline="hover" variant="caption" sx={{ ml: 2, flexGrow: 1 }}>
-            lipd.net home
-          </Link>
+    <div className="app workspace">
+      <header className="toolbar">
+        <a className="toolbar-home" href="/">lipd.net</a>
+        <span className="toolbar-title">
+          {lipd.metadata.dataSetName ?? lipd.filename}
+        </span>
+        {lipd.metadata.datasetVersion && (
+          <span className="toolbar-version">v{lipd.metadata.datasetVersion}</span>
+        )}
+        <div className="toolbar-actions">
+          <button onClick={handleSave} disabled={saving} className="btn-save">
+            {saving ? 'Saving…' : 'Save .lpd'}
+          </button>
+          <button onClick={() => { setLipd(null); setSelectedTSid(null) }} className="btn-close">
+            Close
+          </button>
+        </div>
+      </header>
 
-          {/* File operations */}
-          <BrowserAppBarActions />
+      <div className="workspace-grid">
 
-          {/* Settings toggles - compact */}
-          <Box sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 0.5,
-            ml: 2,
-            '& .MuiFormControlLabel-root': {
-              mr: 0.5,
-            },
-            '& .MuiFormControlLabel-label': {
-              fontSize: '0.75rem',
-              display: { xs: 'none', sm: 'block' }
-            }
-          }}>
-            <FormControlLabel
-              control={
-                <Switch
-                  size="small"
-                  checked={isDarkMode}
-                  onChange={(e) => setIsDarkMode(e.target.checked)}
-                />
-              }
-              label="Dark"
+        {/* ── Top-left: Metadata / Issues ───────────────────────────────── */}
+        <div className="panel-cell">
+          <div className="panel-tabbar">
+            <button
+              className={`panel-tab ${tlTab === 'metadata' ? 'active' : ''}`}
+              onClick={() => setTlTab('metadata')}
+            >Metadata</button>
+            <button
+              className={`panel-tab ${tlTab === 'issues' ? 'active' : ''}`}
+              onClick={() => setTlTab('issues')}
+            >Issues{issuesBadge}</button>
+            <button
+              className={`panel-tab ${tlTab === 'json' ? 'active' : ''}`}
+              onClick={() => setTlTab('json')}
+            >JSON</button>
+          </div>
+          <div className="panel-body">
+            {tlTab === 'metadata' && (
+              <div className="metadata-tab">
+                <MetadataPanel metadata={lipd.metadata} onChange={handleMetadataChange} />
+                <ChangelogPanel metadata={lipd.metadata} />
+              </div>
+            )}
+            {tlTab === 'issues' && (
+              <ValidationPanel metadata={lipd.metadata} />
+            )}
+            {tlTab === 'json' && (
+              <JsonEditor metadata={lipd.metadata} onChange={handleMetadataChange} />
+            )}
+          </div>
+        </div>
+
+        {/* ── Top-right: Structure ──────────────────────────────────────── */}
+        <div className="panel-cell">
+          <div className="panel-tabbar">
+            <span className="panel-label">Structure</span>
+          </div>
+          <div className="panel-body">
+            <StructureView
+              metadata={lipd.metadata}
+              selectedTSid={selectedTSid}
+              onSelect={tsid => { setSelectedTSid(tsid) }}
+              onNavigate={t => { if (t === 'plot') setBlTab('plot') }}
+              onOpenData={path => { setDataTablePath(path); setBrTab('data') }}
             />
-          </Box>
-        </Toolbar>
-      </AppBar>
+          </div>
+        </div>
 
-      <Container maxWidth={false} sx={{ mt: 2, height: 'calc(100vh - 64px)', display: 'flex', flexDirection: 'column' }}>
-        <Grid container spacing={3} sx={{ flex: 1, minHeight: 0 }}>
-          <Grid item xs={12} sx={{ height: '100%', minHeight: 0 }}>
-            <Paper variant="outlined" sx={{ height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column', borderRadius: 2 }}>
-              <RouterProvider>
-                {isLoading ? (
-                  <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%', textAlign: 'center', gap: 2, p: 4 }}>
-                    <CircularProgress size={40} />
-                    <Typography variant="h5">Loading dataset...</Typography>
-                    {loadingMessage && (
-                      <Typography variant="body2" color="text.secondary">
-                        {loadingMessage}
-                      </Typography>
-                    )}
-                  </Box>
-                ) : dataset ? (
-                  <LiPDApp
-                    headerProps={{ showAppBarActions: false }}
+        {/* ── Bottom-left: Map / Plot ───────────────────────────────────── */}
+        <div className="panel-cell">
+          <div className="panel-tabbar">
+            <button
+              className={`panel-tab ${blTab === 'map' ? 'active' : ''}`}
+              onClick={() => setBlTab('map')}
+            >Map</button>
+            <button
+              className={`panel-tab ${blTab === 'plot' ? 'active' : ''}`}
+              onClick={() => setBlTab('plot')}
+            >Plot</button>
+          </div>
+          <div className="panel-body">
+            {blTab === 'map' && <SiteMap metadata={lipd.metadata} />}
+            {blTab === 'plot' && (
+              <div className="panel-split">
+                <ColumnList
+                  className="panel-sidebar"
+                  metadata={lipd.metadata}
+                  selectedTSid={selectedTSid}
+                  onSelect={tsid => { setSelectedTSid(tsid) }}
+                />
+                <div className="panel-split-main">
+                  <TimeSeriesPlot metadata={lipd.metadata} selectedTSid={selectedTSid} />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── Bottom-right: Column / Data ───────────────────────────────── */}
+        <div className="panel-cell">
+          <div className="panel-tabbar">
+            <button
+              className={`panel-tab ${brTab === 'column' ? 'active' : ''}`}
+              onClick={() => setBrTab('column')}
+            >Column</button>
+            <button
+              className={`panel-tab ${brTab === 'data' ? 'active' : ''}`}
+              onClick={() => setBrTab('data')}
+            >Data</button>
+          </div>
+          <div className="panel-body">
+            {brTab === 'column' && (
+              <div className="panel-split">
+                <ColumnList
+                  className="panel-sidebar"
+                  metadata={lipd.metadata}
+                  selectedTSid={selectedTSid}
+                  onSelect={tsid => { setSelectedTSid(tsid); setBrTab('column') }}
+                />
+                <div className="panel-split-main">
+                  <ColumnEditor
+                    metadata={lipd.metadata}
+                    selectedTSid={selectedTSid}
+                    onChange={handleMetadataChange}
                   />
-                ) : (
-                  <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%', textAlign: 'center', gap: 2, p: 4 }}>
-                    <Typography variant="h4">Welcome to the LiPD Playground</Typography>
-                    <Typography variant="body1" color="text.secondary" sx={{ maxWidth: 560 }}>
-                      Create, edit, validate, and download LiPD (Linked Paleo Data) files
-                      right in your browser. Open a local <code>.lpd</code> file, load a
-                      dataset from the LiPDverse GraphDB, or start a new dataset from scratch.
-                    </Typography>
-                    <Box sx={{ display: 'flex', gap: 2, mt: 1 }}>
-                      <Button variant="contained" startIcon={<NoteAddIcon />} onClick={() => window.dispatchEvent(new CustomEvent('playground-new'))}>
-                        New Dataset
-                      </Button>
-                      <Button variant="outlined" startIcon={<FileUploadIcon />} onClick={() => window.dispatchEvent(new CustomEvent('playground-open'))}>
-                        Open .lpd File
-                      </Button>
-                    </Box>
-                  </Box>
-                )}
-              </RouterProvider>
-            </Paper>
-          </Grid>
-        </Grid>
-      </Container>
+                </div>
+              </div>
+            )}
+            {brTab === 'data' && (
+              <DataEditor metadata={lipd.metadata} onChange={handleMetadataChange} selectedPath={dataTablePath} />
+            )}
+          </div>
+        </div>
 
-      {/* Sync Progress Bar - shown when syncing */}
-      <SyncProgressBar />
-
-      {/* Notification Snackbar */}
-      <Snackbar
-        open={Boolean(notification)}
-        autoHideDuration={notification?.type === 'error' ? 8000 : 4000}
-        onClose={handleNotificationClose}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert
-          onClose={handleNotificationClose}
-          severity={notification?.type === 'error' ? 'error' : notification?.type === 'success' ? 'success' : 'info'}
-          variant="filled"
-          sx={{ width: '100%' }}
-        >
-          {notification?.message}
-        </Alert>
-      </Snackbar>
-    </ThemeProvider>
-  );
-};
-
-export default App;
+      </div>
+    </div>
+  )
+}
