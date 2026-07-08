@@ -1,5 +1,6 @@
 const LINKS = [
   { href: '/', label: 'Home' },
+  { href: '/format', label: 'Format' },
   { href: '/playground', label: 'Playground' },
   { href: '/query', label: 'Query' },
   { href: '/merge', label: 'Merge' },
