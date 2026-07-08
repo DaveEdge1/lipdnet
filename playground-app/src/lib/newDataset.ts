@@ -3,40 +3,65 @@ import type { LipdFile, LipdColumn } from '../types/lipd'
 // Generate a TSid for columns created in the playground. Follows the legacy
 // playground convention of a WEB- prefix so provenance is visible.
 export function makeTSid(): string {
-  const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789'
-  let id = ''
-  for (let i = 0; i < 10; i++) {
-    id += alphabet[Math.floor(Math.random() * alphabet.length)]
-  }
-  return `WEB-${id}`
+  return `WEB-${randomId(10)}`
 }
 
-function column(number: number, variableName: string, units: string, rows: number): LipdColumn {
+function randomId(len: number): string {
+  const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789'
+  let id = ''
+  for (let i = 0; i < len; i++) {
+    id += alphabet[Math.floor(Math.random() * alphabet.length)]
+  }
+  return id
+}
+
+function column(number: number, variableName: string, units: string | undefined, rows: number): LipdColumn {
   return {
     number,
     variableName,
     TSid: makeTSid(),
-    units,
+    ...(units ? { units } : {}),
     values: Array(rows).fill(null),
   }
 }
 
-// A minimal-but-valid starting point: one paleo measurement table with
-// depth/age/value columns the user can rename, plus empty rows to fill in.
-export function createNewLipd(): LipdFile {
+export interface NewDatasetOptions {
+  dataSetName: string
+  archiveType?: string
+  siteName?: string
+  latitude?: number
+  longitude?: number
+  elevation?: number
+  investigators?: string
+  variableName?: string
+  units?: string
+}
+
+// Build a valid starting dataset from the wizard's answers: one paleo
+// measurement table with depth/age plus the user's primary variable, geo from
+// the given coordinates, and an auto-generated datasetId.
+export function createNewLipd(opts: NewDatasetOptions): LipdFile {
   const rows = 5
+  const primaryVar = opts.variableName?.trim() || 'temperature'
+  const primaryUnits = opts.units?.trim() || undefined
+  const name = opts.dataSetName.trim() || 'MyDataset'
   return {
-    filename: 'MyDataset.lpd',
+    filename: `${name.replace(/[^\w.\-]+/g, '_')}.lpd`,
     metadata: {
       lipdVersion: 1.3,
       createdBy: 'lipd.net playground',
-      dataSetName: 'MyDataset',
+      dataSetName: name,
+      datasetId: `WEB${randomId(17)}`,
       datasetVersion: '1.0.0',
-      archiveType: undefined,
+      archiveType: opts.archiveType?.trim() || undefined,
+      investigators: opts.investigators?.trim() || undefined,
       geo: {
         type: 'Feature',
-        geometry: { type: 'Point', coordinates: [0, 0, 0] },
-        properties: { siteName: '' },
+        geometry: {
+          type: 'Point',
+          coordinates: [opts.longitude ?? 0, opts.latitude ?? 0, opts.elevation ?? 0],
+        },
+        properties: { siteName: opts.siteName?.trim() ?? '' },
       },
       pub: [],
       paleoData: [
@@ -49,7 +74,7 @@ export function createNewLipd(): LipdFile {
               columns: [
                 column(1, 'depth', 'cm', rows),
                 column(2, 'age', 'yr BP', rows),
-                column(3, 'temperature', 'degC', rows),
+                column(3, primaryVar, primaryUnits, rows),
               ],
             },
           ],

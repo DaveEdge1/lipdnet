@@ -13,7 +13,7 @@ import { StructureView } from '../components/StructureView'
 import { JsonEditor } from '../components/JsonEditor'
 import { serializeLipd, appendChangelog, parseLipd } from '../lib/lipd'
 import { downloadNoaa } from '../lib/noaaExport'
-import { createNewLipd } from '../lib/newDataset'
+import { NewDatasetWizard } from '../components/NewDatasetWizard'
 import { validateLipd } from '../lib/validate'
 import { proxiedLpdUrl } from '../lib/remote'
 import type { LipdFile, LipdMetadata } from '../types/lipd'
@@ -28,6 +28,7 @@ export function PlaygroundView() {
   const [selectedTSid, setSelectedTSid] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [remoteStatus, setRemoteStatus] = useState<string | null>(null)
+  const [showWizard, setShowWizard] = useState(false)
 
   // Per-panel tab state
   const [tlTab, setTlTab] = useState<'metadata' | 'issues' | 'json'>('metadata')
@@ -114,11 +115,17 @@ export function PlaygroundView() {
         <DropZone onLoad={handleLoad} />
         <div className="landing-actions">
           <span>or</span>
-          <button className="btn" onClick={() => handleLoad(createNewLipd())}>
+          <button className="btn" onClick={() => setShowWizard(true)}>
             Start a new dataset
           </button>
         </div>
         <NoaaImport onLoad={handleLoad} />
+        {showWizard && (
+          <NewDatasetWizard
+            onCreate={f => { handleLoad(f); setShowWizard(false) }}
+            onCancel={() => setShowWizard(false)}
+          />
+        )}
       </div>
     )
   }
