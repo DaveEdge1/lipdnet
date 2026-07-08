@@ -1,0 +1,140 @@
+/* LiPD Format Reference page styles */
+
+.format-hero {
+  background: #577d2a;
+  color: white;
+  padding: 40px 0 32px;
+  margin-bottom: 0;
+}
+
+.format-hero h1 {
+  color: white;
+  margin-top: 0;
+  font-size: 36px;
+}
+
+.format-hero .lead {
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 17px;
+  margin-bottom: 0;
+}
+
+#format-body {
+  padding-top: 30px;
+  padding-bottom: 60px;
+}
+
+/* Sticky TOC sidebar */
+#format-toc {
+  position: sticky;
+  top: 20px;
+  padding: 16px;
+  background: #f9f9f9;
+  border-left: 3px solid #a4d070;
+  border-radius: 0 4px 4px 0;
+}
+
+#format-toc h5 {
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #888;
+  font-weight: 700;
+  font-size: 11px;
+  margin: 0 0 10px;
+}
+
+#format-toc .nav > li > a {
+  padding: 3px 8px;
+  color: #555;
+  font-size: 13px;
+  border-radius: 3px;
+}
+
+#format-toc .nav > li > a:hover {
+  background: #eaf3d4;
+  color: #3a5a18;
+}
+
+/* Content sections */
+#format-content section {
+  padding-top: 16px;
+  margin-bottom: 8px;
+}
+
+#format-content h2 {
+  color: #3a5a18;
+  border-bottom: 2px solid #a4d070;
+  padding-bottom: 8px;
+  margin-top: 0;
+  margin-bottom: 18px;
+  font-size: 26px;
+}
+
+#format-content h4 {
+  margin-top: 24px;
+  margin-bottom: 10px;
+  color: #444;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+#format-content pre {
+  background: #f6f8f2;
+  border: 1px solid #d8e8c0;
+  border-radius: 4px;
+  padding: 14px 16px;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+#format-content pre code {
+  background: transparent;
+  padding: 0;
+  font-size: inherit;
+  color: inherit;
+}
+
+#format-content table {
+  font-size: 13.5px;
+}
+
+#format-content table td code,
+#format-content table th code {
+  background: #f0f4e8;
+  color: #3a5a18;
+  border: 1px solid #d0ddb8;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+#format-content .alert ul {
+  margin-bottom: 0;
+  padding-left: 20px;
+}
+
+#format-content .alert ul li {
+  margin-bottom: 4px;
+}
+
+#format-content hr {
+  border-color: #e0e8d0;
+  margin: 32px 0 24px;
+}
+
+/* Inline code in paragraphs */
+#format-content p code,
+#format-content li code {
+  background: #f0f4e8;
+  color: #3a5a18;
+  border: 1px solid #d0ddb8;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 12.5px;
+}
+
+@media (max-width: 991px) {
+  #format-toc {
+    display: none;
+  }
+}

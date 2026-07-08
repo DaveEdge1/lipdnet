@@ -95,3 +95,6 @@ website/node_modules/*
 # Separate repo
 lipdnet_flask/
 
+
+# Runtime analytics logs written by the server
+website/logs/
