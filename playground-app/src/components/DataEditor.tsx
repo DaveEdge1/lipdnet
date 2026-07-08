@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useMemo, useEffect, useTransition } from 'react'
 import type { LipdMetadata } from '../types/lipd'
-import { getTables, updateCellValue, deleteTableRow, addTableRow, replaceTableData } from '../lib/lipd'
+import { getTables, updateCellValue, deleteTableRow, addTableRow, replaceTableData, addTableColumn, deleteTableColumn } from '../lib/lipd'
 import { parseTabular } from '../lib/tabular'
 
 interface Props {
@@ -27,6 +27,7 @@ export function DataEditor({ metadata, onChange, selectedPath }: Props) {
   }, [selectedPath, tables])
   const [editCell, setEditCell] = useState<EditCell | null>(null)
   const [editValue, setEditValue] = useState('')
+  const [copied, setCopied] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const entry = tables[tableIdx]
@@ -132,21 +133,65 @@ export function DataEditor({ metadata, onChange, selectedPath }: Props) {
     URL.revokeObjectURL(url)
   }
 
+  function applyParsed(parsed: ReturnType<typeof parseTabular>, source: string) {
+    if (!entry) return
+    if (!window.confirm(
+      `Replace the data in "${entry.label}" with ${parsed.rows.length} rows from ${source}?` +
+      (parsed.headers
+        ? ' Columns will be matched to the header names.'
+        : ' There is no header row, so values are applied by column position.')
+    )) return
+    onChange(replaceTableData(metadata, entry.path, parsed))
+    setEditCell(null)
+  }
+
   async function importTabular(file: File | undefined) {
     if (!file || !entry) return
     try {
-      const parsed = parseTabular(await file.text())
-      if (!window.confirm(
-        `Replace the data in "${entry.label}" with ${parsed.rows.length} rows from ${file.name}?` +
-        (parsed.headers
-          ? ' Columns will be matched to the header names.'
-          : ' The file has no header row, so values are applied by column position.')
-      )) return
-      onChange(replaceTableData(metadata, entry.path, parsed))
-      setEditCell(null)
+      applyParsed(parseTabular(await file.text()), file.name)
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Could not parse the file')
     }
+  }
+
+  // Copy the table as TSV — pastes cleanly into Google Sheets, Excel, etc.
+  async function copyTable() {
+    const lines = [cols.map(c => c.variableName).join('\t')]
+    for (let row = 0; row < rowCount; row++) {
+      lines.push(cols.map(c => {
+        const v = c.values?.[row]
+        return v === null || v === undefined ? '' : String(v)
+      }).join('\t'))
+    }
+    await navigator.clipboard.writeText(lines.join('\n'))
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+
+  // Paste a range copied from a spreadsheet (clipboard is TSV) back into the table
+  async function pasteTable() {
+    try {
+      const text = await navigator.clipboard.readText()
+      if (!text.trim()) { alert('The clipboard is empty'); return }
+      applyParsed(parseTabular(text), 'the clipboard')
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Could not read the clipboard')
+    }
+  }
+
+  function addColumn() {
+    if (!entry) return
+    const raw = window.prompt('New column name (optionally "name, units"):')
+    if (!raw?.trim()) return
+    const [name, ...unitParts] = raw.split(',')
+    onChange(addTableColumn(metadata, entry.path, name.trim(), unitParts.join(',').trim() || undefined))
+  }
+
+  function deleteColumn(colNumber: number, varName: string) {
+    if (!entry) return
+    if (!window.confirm(`Delete column "${varName}" and its values?`)) return
+    onChange(deleteTableColumn(metadata, entry.path, colNumber))
+    setEditCell(null)
   }
 
   function deleteRow(row: number) {
@@ -175,7 +220,22 @@ export function DataEditor({ metadata, onChange, selectedPath }: Props) {
         </select>
         <span className="row-count">{rowCount} rows</span>
         <button className="btn-add-row" onClick={addRow}>+ Add row</button>
+        <button className="btn-add-row" onClick={addColumn}>+ Add column</button>
         <div className="data-editor-io">
+          <button
+            className="btn-add-row"
+            onClick={copyTable}
+            title="Copy the table — paste it straight into Google Sheets or Excel to edit there"
+          >
+            {copied ? 'Copied ✓' : 'Copy table'}
+          </button>
+          <button
+            className="btn-add-row"
+            onClick={pasteTable}
+            title="Paste data copied from Google Sheets or Excel back into this table"
+          >
+            Paste data
+          </button>
           <button className="btn-add-row" onClick={downloadCsv} title="Download this table as a CSV file">
             Download CSV
           </button>
@@ -208,7 +268,7 @@ export function DataEditor({ metadata, onChange, selectedPath }: Props) {
               {cols.map(col => {
                 const isDup = duplicateNames.has(col.variableName)
                 return (
-                  <th key={col.number}>
+                  <th key={col.number} className="col-header">
                     {isDup
                       ? <>
                           <span className="col-varname col-member">#{col.number}</span>
@@ -219,6 +279,11 @@ export function DataEditor({ metadata, onChange, selectedPath }: Props) {
                           {col.units && <span className="col-units"> ({col.units as string})</span>}
                         </>
                     }
+                    <button
+                      className="btn-delete-col"
+                      title={`Delete column "${col.variableName}"`}
+                      onClick={() => deleteColumn(col.number, col.variableName)}
+                    >×</button>
                   </th>
                 )
               })}

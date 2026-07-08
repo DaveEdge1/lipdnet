@@ -378,6 +378,45 @@ export function addTableRow(
   return clone
 }
 
+export function addTableColumn(
+  metadata: LipdMetadata,
+  tablePath: string,
+  variableName: string,
+  units?: string,
+): LipdMetadata {
+  const clone = JSON.parse(JSON.stringify(metadata)) as LipdMetadata
+  reattachAllValues(metadata, clone)
+  const table = resolveTableFromPath(clone, tablePath)
+  if (!table) return metadata
+  const cols = table.columns ?? (table.columns = [])
+  const rowCount = Math.max(0, ...cols.map(c => c.values?.length ?? 0))
+  cols.push({
+    number: Math.max(0, ...cols.map(c => (typeof c.number === 'number' ? c.number : 0))) + 1,
+    variableName,
+    TSid: makeTSid(),
+    ...(units ? { units } : {}),
+    values: Array(rowCount).fill(null),
+  })
+  return clone
+}
+
+export function deleteTableColumn(
+  metadata: LipdMetadata,
+  tablePath: string,
+  colNumber: number,
+): LipdMetadata {
+  const clone = JSON.parse(JSON.stringify(metadata)) as LipdMetadata
+  reattachAllValues(metadata, clone)
+  const table = resolveTableFromPath(clone, tablePath)
+  if (!table) return metadata
+  table.columns = (table.columns ?? []).filter(c => c.number !== colNumber)
+  // Renumber to keep columns contiguous (CSV rebuild orders by number)
+  table.columns
+    .sort((a, b) => (a.number ?? 0) - (b.number ?? 0))
+    .forEach((c, i) => { c.number = i + 1 })
+  return clone
+}
+
 // Replace a table's data with uploaded tabular content. With a header row,
 // columns are matched to existing ones by variableName (case-insensitive) so
 // their metadata (units, TSid, interpretations) is kept; unmatched headers

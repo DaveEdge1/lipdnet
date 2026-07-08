@@ -451,6 +451,13 @@ body { background: var(--bg); height: 100vh; overflow: hidden; }
 .data-editor-toolbar { display: flex; align-items: center; gap: .75rem; padding: .6rem 1rem; border-bottom: 1px solid var(--border); flex-shrink: 0; }
 .data-editor-io { display: flex; gap: .5rem; margin-left: auto; }
 .data-editor-io label.btn-add-row { display: inline-block; }
+.col-header { position: relative; padding-right: 1.2rem !important; }
+.btn-delete-col {
+  display: none; position: absolute; top: 50%; right: .25rem; transform: translateY(-50%);
+  background: none; border: none; color: var(--danger); cursor: pointer;
+  font-size: .85rem; line-height: 1; padding: 0 .15rem;
+}
+.col-header:hover .btn-delete-col { display: inline; }
 .data-editor-toolbar select { background: var(--surface2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: .3rem .6rem; font-size: .82rem; }
 .row-count { font-size: .78rem; color: var(--text-muted); }
 .btn-add-row { margin-left: auto; background: var(--surface2); color: var(--accent); border: 1px solid var(--accent); border-radius: 6px; padding: .28rem .7rem; font-size: .8rem; cursor: pointer; }
