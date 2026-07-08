@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import type { LipdMetadata } from '../types/lipd'
 
 // ---- Layout constants (vertical tree: depth → Y, siblings → X) -------------
@@ -271,6 +271,82 @@ export function StructureView({ metadata, selectedTSid, onSelect, onNavigate, on
     [tree, collapsed]
   )
 
+  // ---- Zoom & pan (translate x/y + scale k applied to the scene group) ----
+  const canvasRef = useRef<HTMLDivElement>(null)
+  const [view, setView] = useState({ x: 0, y: 0, k: 1 })
+  const viewRef = useRef(view)
+  viewRef.current = view
+  const sizeRef = useRef({ w, h })
+  sizeRef.current = { w, h }
+  const panRef = useRef<{ startX: number; startY: number; ox: number; oy: number } | null>(null)
+  const movedRef = useRef(false)
+
+  // Fit the full structure into the canvas ("reset" behavior)
+  const fitView = useCallback(() => {
+    const el = canvasRef.current
+    if (!el) return
+    const { w: sw, h: sh } = sizeRef.current
+    const k = Math.min(el.clientWidth / sw, el.clientHeight / sh, 1.5) * 0.97
+    setView({
+      x: (el.clientWidth - sw * k) / 2,
+      y: Math.max(4, (el.clientHeight - sh * k) / 2),
+      k,
+    })
+  }, [])
+
+  useEffect(() => { fitView() }, [fitView]) // fit once on mount
+
+  // Wheel zoom around the cursor (native listener: React's onWheel is passive)
+  useEffect(() => {
+    const el = canvasRef.current
+    if (!el) return
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      const rect = el.getBoundingClientRect()
+      const px = e.clientX - rect.left
+      const py = e.clientY - rect.top
+      const { x, y, k } = viewRef.current
+      const k2 = Math.min(4, Math.max(0.1, k * Math.exp(-e.deltaY * 0.0012)))
+      setView({
+        x: px - ((px - x) / k) * k2,
+        y: py - ((py - y) / k) * k2,
+        k: k2,
+      })
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [])
+
+  function onPointerDown(e: React.PointerEvent) {
+    if (e.button !== 0) return
+    panRef.current = { startX: e.clientX, startY: e.clientY, ox: view.x, oy: view.y }
+    movedRef.current = false
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+  }
+  function onPointerMove(e: React.PointerEvent) {
+    const p = panRef.current
+    if (!p) return
+    const dx = e.clientX - p.startX
+    const dy = e.clientY - p.startY
+    if (Math.abs(dx) + Math.abs(dy) > 4) movedRef.current = true
+    if (movedRef.current) setView(v => ({ ...v, x: p.ox + dx, y: p.oy + dy }))
+  }
+  function onPointerUp() { panRef.current = null }
+  // A drag shouldn't fire the node click underneath it
+  function onClickCapture(e: React.MouseEvent) {
+    if (movedRef.current) { e.stopPropagation(); movedRef.current = false }
+  }
+  const zoomBy = (f: number) => {
+    const el = canvasRef.current
+    if (!el) return
+    const cx = el.clientWidth / 2
+    const cy = el.clientHeight / 2
+    setView(({ x, y, k }) => {
+      const k2 = Math.min(4, Math.max(0.1, k * f))
+      return { x: cx - ((cx - x) / k) * k2, y: cy - ((cy - y) / k) * k2, k: k2 }
+    })
+  }
+
   function toggleCollapse(id: string) {
     setCollapsed(prev => {
       const next = new Set(prev)
@@ -311,10 +387,24 @@ export function StructureView({ metadata, selectedTSid, onSelect, onNavigate, on
           </span>
         ))}
         <span className="legend-sep" />
-        <span className="structure-hint-text">Click column to plot · click node to expand/collapse</span>
+        <span className="structure-hint-text">Click column to plot · click node to expand/collapse · scroll to zoom · drag to pan</span>
       </div>
-      <div className="structure-scroll">
-        <svg width={w} height={h} style={{ display: 'block' }}>
+      <div
+        className="structure-canvas"
+        ref={canvasRef}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerLeave={onPointerUp}
+        onClickCapture={onClickCapture}
+      >
+        <div className="structure-zoom-controls">
+          <button title="Zoom in" onClick={() => zoomBy(1.3)}>+</button>
+          <button title="Zoom out" onClick={() => zoomBy(1 / 1.3)}>−</button>
+          <button title="Fit the full structure" onClick={fitView}>⛶</button>
+        </div>
+        <svg width="100%" height="100%" style={{ display: 'block' }}>
+          <g transform={`translate(${view.x},${view.y}) scale(${view.k})`}>
           {/* Edges */}
           <g>
             {edges.map(([from, to]) => (
@@ -431,6 +521,7 @@ export function StructureView({ metadata, selectedTSid, onSelect, onNavigate, on
               </g>
             )
           })}
+          </g>
         </svg>
       </div>
     </div>

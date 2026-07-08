@@ -242,15 +242,25 @@ body { background: var(--bg); height: 100vh; overflow: hidden; }
 
 /* ---- 2×2 panel grid ---- */
 .workspace-grid {
-  display: grid;
-  grid-template-columns: 35fr 65fr;
-  grid-template-rows: 1fr 1fr;
+  display: flex;
   flex: 1;
   overflow: hidden;
-  gap: 3px;
   padding: 3px;
   background: var(--bg);
 }
+.workspace-col {
+  display: flex; flex-direction: column;
+  min-width: 0; min-height: 0; overflow: hidden;
+}
+.col-divider {
+  flex: 0 0 6px; cursor: col-resize; border-radius: 3px;
+  background: transparent; transition: background .15s;
+}
+.row-divider {
+  flex: 0 0 6px; cursor: row-resize; border-radius: 3px;
+  background: transparent; transition: background .15s;
+}
+.col-divider:hover, .row-divider:hover { background: rgba(113,164,54,.35); }
 
 .panel-cell {
   display: flex;
@@ -260,6 +270,13 @@ body { background: var(--bg); height: 100vh; overflow: hidden; }
   border-radius: 6px;
   border: 1px solid var(--border);
 }
+.panel-cell.collapsed .panel-body { display: none; }
+.panel-collapse {
+  margin-left: auto; background: none; border: none; cursor: pointer;
+  color: var(--text-muted); font-size: .8rem; line-height: 1; padding: .2rem .4rem;
+  border-radius: 4px;
+}
+.panel-collapse:hover { color: var(--text); background: rgba(0,0,0,.05); }
 
 /* ---- Panel tab bar ---- */
 .panel-tabbar {
@@ -469,7 +486,21 @@ body { background: var(--bg); height: 100vh; overflow: hidden; }
 .legend-item { display: flex; align-items: center; gap: .3rem; font-size: .7rem; color: var(--text-muted); text-transform: capitalize; }
 .legend-sep { flex: 1; }
 .structure-hint-text { font-size: .7rem; color: var(--text-muted); }
-.structure-scroll { flex: 1; overflow: auto; }
+.structure-canvas {
+  flex: 1; overflow: hidden; position: relative;
+  cursor: grab; touch-action: none;
+}
+.structure-canvas:active { cursor: grabbing; }
+.structure-zoom-controls {
+  position: absolute; top: .5rem; right: .5rem; z-index: 5;
+  display: flex; flex-direction: column; gap: .25rem;
+}
+.structure-zoom-controls button {
+  width: 26px; height: 26px; background: var(--surface2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
+  font-size: .9rem; line-height: 1; display: flex; align-items: center; justify-content: center;
+}
+.structure-zoom-controls button:hover { border-color: var(--accent); color: var(--accent); }
 
 /* ---- Data editor ---- */
 .data-editor { display: flex; flex-direction: column; overflow: hidden; height: 100%; }

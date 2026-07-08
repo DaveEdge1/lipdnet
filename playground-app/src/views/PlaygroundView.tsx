@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
+import type { CSSProperties } from 'react'
 import { DropZone } from '../components/DropZone'
 import { NoaaImport } from '../components/NoaaImport'
 import { MetadataPanel } from '../components/MetadataPanel'
@@ -23,6 +24,41 @@ function contentHash(metadata: LipdMetadata): string {
   return JSON.stringify(rest)
 }
 
+// ---- Workspace layout (resizable + collapsible panes) -----------------------
+
+type PaneKey = 'tl' | 'bl' | 'tr' | 'br'
+
+interface Layout {
+  colPct: number     // left column width as % of the grid
+  leftFrac: number   // top pane fraction of the left column
+  rightFrac: number  // top pane fraction of the right column
+  collapsed: Record<PaneKey, boolean>
+}
+
+const DEFAULT_LAYOUT: Layout = {
+  colPct: 35,
+  leftFrac: 0.5,
+  rightFrac: 0.5,
+  collapsed: { tl: false, bl: false, tr: false, br: false },
+}
+
+const LAYOUT_KEY = 'pg-workspace-layout'
+
+function loadLayout(): Layout {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LAYOUT_KEY) ?? '')
+    return {
+      ...DEFAULT_LAYOUT,
+      ...saved,
+      collapsed: { ...DEFAULT_LAYOUT.collapsed, ...(saved.collapsed ?? {}) },
+    }
+  } catch {
+    return DEFAULT_LAYOUT
+  }
+}
+
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
+
 export function PlaygroundView() {
   const [lipd, setLipd] = useState<LipdFile | null>(null)
   const [selectedTSid, setSelectedTSid] = useState<string | null>(null)
@@ -37,6 +73,65 @@ export function PlaygroundView() {
   const [dataTablePath, setDataTablePath] = useState<string | undefined>(undefined)
 
   const savedHashRef = useRef<string>('')
+
+  // Workspace layout
+  const [layout, setLayout] = useState<Layout>(loadLayout)
+  const gridRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout)) } catch { /* private mode */ }
+  }, [layout])
+
+  const togglePane = (k: PaneKey) =>
+    setLayout(l => ({ ...l, collapsed: { ...l.collapsed, [k]: !l.collapsed[k] } }))
+
+  const startColDrag = (e: React.PointerEvent) => {
+    e.preventDefault()
+    const grid = gridRef.current
+    if (!grid) return
+    const move = (ev: PointerEvent) => {
+      const rect = grid.getBoundingClientRect()
+      setLayout(l => ({ ...l, colPct: clamp(((ev.clientX - rect.left) / rect.width) * 100, 15, 85) }))
+    }
+    const up = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+  }
+
+  const startRowDrag = (side: 'left' | 'right') => (e: React.PointerEvent) => {
+    e.preventDefault()
+    const col = (e.currentTarget as HTMLElement).parentElement
+    if (!col) return
+    const move = (ev: PointerEvent) => {
+      const rect = col.getBoundingClientRect()
+      const frac = clamp((ev.clientY - rect.top) / rect.height, 0.15, 0.85)
+      setLayout(l => (side === 'left' ? { ...l, leftFrac: frac } : { ...l, rightFrac: frac }))
+    }
+    const up = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+  }
+
+  // Flex sizing for a pane given its own and its sibling's collapse state
+  const paneStyle = (self: boolean, sibling: boolean, frac: number): CSSProperties =>
+    self ? { flex: '0 0 auto' }
+    : sibling ? { flex: '1 1 0', minHeight: 0 }
+    : { flex: `${frac} 1 0`, minHeight: 0 }
+
+  const collapseBtn = (k: PaneKey) => (
+    <button
+      className="panel-collapse"
+      title={layout.collapsed[k] ? 'Expand pane' : 'Collapse pane'}
+      onClick={() => togglePane(k)}
+    >
+      {layout.collapsed[k] ? '⊞' : '—'}
+    </button>
+  )
 
   const handleLoad = useCallback((f: LipdFile) => {
     setLipd(f)
@@ -136,6 +231,8 @@ export function PlaygroundView() {
     </span>
   )
 
+  const c = layout.collapsed
+
   return (
     <div className="app workspace">
       <header className="toolbar">
@@ -162,119 +259,133 @@ export function PlaygroundView() {
         </div>
       </header>
 
-      <div className="workspace-grid">
+      <div className="workspace-grid" ref={gridRef}>
 
-        {/* ── Top-left: Metadata / Issues ───────────────────────────────── */}
-        <div className="panel-cell">
-          <div className="panel-tabbar">
-            <button
-              className={`panel-tab ${tlTab === 'metadata' ? 'active' : ''}`}
-              onClick={() => setTlTab('metadata')}
-            >Metadata</button>
-            <button
-              className={`panel-tab ${tlTab === 'issues' ? 'active' : ''}`}
-              onClick={() => setTlTab('issues')}
-            >Issues{issuesBadge}</button>
-            <button
-              className={`panel-tab ${tlTab === 'json' ? 'active' : ''}`}
-              onClick={() => setTlTab('json')}
-            >JSON</button>
-          </div>
-          <div className="panel-body">
-            {tlTab === 'metadata' && (
-              <div className="metadata-tab">
-                <MetadataPanel metadata={lipd.metadata} onChange={handleMetadataChange} />
-                <ChangelogPanel metadata={lipd.metadata} />
-              </div>
-            )}
-            {tlTab === 'issues' && (
-              <ValidationPanel metadata={lipd.metadata} />
-            )}
-            {tlTab === 'json' && (
-              <JsonEditor metadata={lipd.metadata} onChange={handleMetadataChange} />
-            )}
-          </div>
-        </div>
+        {/* ── Left column: Metadata/Issues/JSON over Map/Plot ─────────────── */}
+        <div className="workspace-col" style={{ width: `calc(${layout.colPct}% - 3px)` }}>
 
-        {/* ── Top-right: Structure ──────────────────────────────────────── */}
-        <div className="panel-cell">
-          <div className="panel-tabbar">
-            <span className="panel-label">Structure</span>
-          </div>
-          <div className="panel-body">
-            <StructureView
-              metadata={lipd.metadata}
-              selectedTSid={selectedTSid}
-              onSelect={tsid => { setSelectedTSid(tsid) }}
-              onNavigate={t => { if (t === 'plot') setBlTab('plot') }}
-              onOpenData={path => { setDataTablePath(path); setBrTab('data') }}
-            />
-          </div>
-        </div>
-
-        {/* ── Bottom-left: Map / Plot ───────────────────────────────────── */}
-        <div className="panel-cell">
-          <div className="panel-tabbar">
-            <button
-              className={`panel-tab ${blTab === 'map' ? 'active' : ''}`}
-              onClick={() => setBlTab('map')}
-            >Map</button>
-            <button
-              className={`panel-tab ${blTab === 'plot' ? 'active' : ''}`}
-              onClick={() => setBlTab('plot')}
-            >Plot</button>
-          </div>
-          <div className="panel-body">
-            {blTab === 'map' && <SiteMap metadata={lipd.metadata} />}
-            {blTab === 'plot' && (
-              <div className="panel-split">
-                <ColumnList
-                  className="panel-sidebar"
-                  metadata={lipd.metadata}
-                  selectedTSid={selectedTSid}
-                  onSelect={tsid => { setSelectedTSid(tsid) }}
-                />
-                <div className="panel-split-main">
-                  <TimeSeriesPlot metadata={lipd.metadata} selectedTSid={selectedTSid} />
+          <div className={`panel-cell ${c.tl ? 'collapsed' : ''}`} style={paneStyle(c.tl, c.bl, layout.leftFrac)}>
+            <div className="panel-tabbar">
+              <button
+                className={`panel-tab ${tlTab === 'metadata' ? 'active' : ''}`}
+                onClick={() => setTlTab('metadata')}
+              >Metadata</button>
+              <button
+                className={`panel-tab ${tlTab === 'issues' ? 'active' : ''}`}
+                onClick={() => setTlTab('issues')}
+              >Issues{issuesBadge}</button>
+              <button
+                className={`panel-tab ${tlTab === 'json' ? 'active' : ''}`}
+                onClick={() => setTlTab('json')}
+              >JSON</button>
+              {collapseBtn('tl')}
+            </div>
+            <div className="panel-body">
+              {tlTab === 'metadata' && (
+                <div className="metadata-tab">
+                  <MetadataPanel metadata={lipd.metadata} onChange={handleMetadataChange} />
+                  <ChangelogPanel metadata={lipd.metadata} />
                 </div>
-              </div>
-            )}
+              )}
+              {tlTab === 'issues' && (
+                <ValidationPanel metadata={lipd.metadata} />
+              )}
+              {tlTab === 'json' && (
+                <JsonEditor metadata={lipd.metadata} onChange={handleMetadataChange} />
+              )}
+            </div>
           </div>
-        </div>
 
-        {/* ── Bottom-right: Column / Data ───────────────────────────────── */}
-        <div className="panel-cell">
-          <div className="panel-tabbar">
-            <button
-              className={`panel-tab ${brTab === 'column' ? 'active' : ''}`}
-              onClick={() => setBrTab('column')}
-            >Column</button>
-            <button
-              className={`panel-tab ${brTab === 'data' ? 'active' : ''}`}
-              onClick={() => setBrTab('data')}
-            >Data</button>
-          </div>
-          <div className="panel-body">
-            {brTab === 'column' && (
-              <div className="panel-split">
-                <ColumnList
-                  className="panel-sidebar"
-                  metadata={lipd.metadata}
-                  selectedTSid={selectedTSid}
-                  onSelect={tsid => { setSelectedTSid(tsid); setBrTab('column') }}
-                />
-                <div className="panel-split-main">
-                  <ColumnEditor
+          {!c.tl && !c.bl && <div className="row-divider" onPointerDown={startRowDrag('left')} />}
+
+          <div className={`panel-cell ${c.bl ? 'collapsed' : ''}`} style={paneStyle(c.bl, c.tl, 1 - layout.leftFrac)}>
+            <div className="panel-tabbar">
+              <button
+                className={`panel-tab ${blTab === 'map' ? 'active' : ''}`}
+                onClick={() => setBlTab('map')}
+              >Map</button>
+              <button
+                className={`panel-tab ${blTab === 'plot' ? 'active' : ''}`}
+                onClick={() => setBlTab('plot')}
+              >Plot</button>
+              {collapseBtn('bl')}
+            </div>
+            <div className="panel-body">
+              {blTab === 'map' && <SiteMap metadata={lipd.metadata} />}
+              {blTab === 'plot' && (
+                <div className="panel-split">
+                  <ColumnList
+                    className="panel-sidebar"
                     metadata={lipd.metadata}
                     selectedTSid={selectedTSid}
-                    onChange={handleMetadataChange}
+                    onSelect={tsid => { setSelectedTSid(tsid) }}
                   />
+                  <div className="panel-split-main">
+                    <TimeSeriesPlot metadata={lipd.metadata} selectedTSid={selectedTSid} />
+                  </div>
                 </div>
-              </div>
-            )}
-            {brTab === 'data' && (
-              <DataEditor metadata={lipd.metadata} onChange={handleMetadataChange} selectedPath={dataTablePath} />
-            )}
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="col-divider" onPointerDown={startColDrag} />
+
+        {/* ── Right column: Structure over Column/Data ────────────────────── */}
+        <div className="workspace-col" style={{ flex: 1, minWidth: 0 }}>
+
+          <div className={`panel-cell ${c.tr ? 'collapsed' : ''}`} style={paneStyle(c.tr, c.br, layout.rightFrac)}>
+            <div className="panel-tabbar">
+              <span className="panel-label">Structure</span>
+              {collapseBtn('tr')}
+            </div>
+            <div className="panel-body">
+              <StructureView
+                metadata={lipd.metadata}
+                selectedTSid={selectedTSid}
+                onSelect={tsid => { setSelectedTSid(tsid) }}
+                onNavigate={t => { if (t === 'plot') setBlTab('plot') }}
+                onOpenData={path => { setDataTablePath(path); setBrTab('data') }}
+              />
+            </div>
+          </div>
+
+          {!c.tr && !c.br && <div className="row-divider" onPointerDown={startRowDrag('right')} />}
+
+          <div className={`panel-cell ${c.br ? 'collapsed' : ''}`} style={paneStyle(c.br, c.tr, 1 - layout.rightFrac)}>
+            <div className="panel-tabbar">
+              <button
+                className={`panel-tab ${brTab === 'column' ? 'active' : ''}`}
+                onClick={() => setBrTab('column')}
+              >Column</button>
+              <button
+                className={`panel-tab ${brTab === 'data' ? 'active' : ''}`}
+                onClick={() => setBrTab('data')}
+              >Data</button>
+              {collapseBtn('br')}
+            </div>
+            <div className="panel-body">
+              {brTab === 'column' && (
+                <div className="panel-split">
+                  <ColumnList
+                    className="panel-sidebar"
+                    metadata={lipd.metadata}
+                    selectedTSid={selectedTSid}
+                    onSelect={tsid => { setSelectedTSid(tsid); setBrTab('column') }}
+                  />
+                  <div className="panel-split-main">
+                    <ColumnEditor
+                      metadata={lipd.metadata}
+                      selectedTSid={selectedTSid}
+                      onChange={handleMetadataChange}
+                    />
+                  </div>
+                </div>
+              )}
+              {brTab === 'data' && (
+                <DataEditor metadata={lipd.metadata} onChange={handleMetadataChange} selectedPath={dataTablePath} />
+              )}
+            </div>
           </div>
         </div>
 
