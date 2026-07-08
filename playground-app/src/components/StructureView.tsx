@@ -16,16 +16,18 @@ type NType =
   | 'measurement' | 'ensemble' | 'summary' | 'distribution'
   | 'col'
 
+// Light-theme node palette (pale fill, hue-coded stroke, dark text) to match
+// the lipd.net site theme
 const STYLE: Record<NType, { fill: string; stroke: string; text: string; sub: string }> = {
-  root:         { fill: '#162033', stroke: '#4a90d9', text: '#9ecfff', sub: '#4a7aaa' },
-  paleo:        { fill: '#192009', stroke: '#8abd28', text: '#c8f060', sub: '#527818' },
-  chron:        { fill: '#2a0e0e', stroke: '#d45242', text: '#f0a090', sub: '#8a3828' },
-  model:        { fill: '#1e1a2e', stroke: '#6658a8', text: '#b0a0e0', sub: '#504878' },
-  measurement:  { fill: '#1c1230', stroke: '#8455d4', text: '#c8a8ff', sub: '#584080' },
-  ensemble:     { fill: '#2a1e08', stroke: '#cc8820', text: '#f0c060', sub: '#8a5e18' },
-  summary:      { fill: '#0e2228', stroke: '#2896b0', text: '#60c8e0', sub: '#206878' },
-  distribution: { fill: '#141e14', stroke: '#4a7a4a', text: '#80b080', sub: '#305030' },
-  col:          { fill: '#111826', stroke: '#445566', text: '#a0b4c8', sub: '#445566' },
+  root:         { fill: '#eef4fb', stroke: '#4a90d9', text: '#1f4e79', sub: '#5b83a8' },
+  paleo:        { fill: '#f2f8e4', stroke: '#8abd28', text: '#43610d', sub: '#7a9b45' },
+  chron:        { fill: '#fbeae8', stroke: '#d45242', text: '#8a2618', sub: '#b06a5e' },
+  model:        { fill: '#efecf8', stroke: '#6658a8', text: '#3d3370', sub: '#7a70a8' },
+  measurement:  { fill: '#f2ebfc', stroke: '#8455d4', text: '#4d2d85', sub: '#8a70b0' },
+  ensemble:     { fill: '#fdf3e0', stroke: '#cc8820', text: '#7a4e0d', sub: '#a8823f' },
+  summary:      { fill: '#e6f5f9', stroke: '#2896b0', text: '#155f70', sub: '#57909f' },
+  distribution: { fill: '#ebf3eb', stroke: '#4a7a4a', text: '#2c4f2c', sub: '#6b8f6b' },
+  col:          { fill: '#f5f7fa', stroke: '#9aa8b5', text: '#3c4a58', sub: '#78909c' },
 }
 
 // ---- Tree node types --------------------------------------------------------

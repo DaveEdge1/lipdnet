@@ -10,24 +10,29 @@ interface Props {
   active: string // pathname of the current view, e.g. "/playground"
 }
 
+// Mirrors the home page header (views/include/navbar.jade) so the site chrome
+// is identical on every page.
 export function NavBar({ active }: Props) {
   return (
-    <nav className="site-nav">
-      <a className="site-nav-brand" href="/">
-        LiPD<span className="site-nav-brand-accent">.net</span>
-      </a>
-      <div className="site-nav-links">
-        {LINKS.map(l => (
-          <a
-            key={l.href}
-            href={l.href}
-            className={l.href === active ? 'active' : ''}
-            {...(l.external ? { target: '_blank', rel: 'noreferrer' } : {})}
-          >
-            {l.label}
-          </a>
-        ))}
+    <header className="site-nav">
+      <div className="site-nav-inner">
+        <a className="site-nav-brand" href="/">
+          <img src="/img/lipd-nav-brand.jpg" alt="LiPD" />
+        </a>
+        <ul className="site-nav-links">
+          {LINKS.map(l => (
+            <li key={l.href}>
+              <a
+                href={l.href}
+                className={l.href === active ? 'active' : ''}
+                {...(l.external ? { target: '_blank', rel: 'noreferrer' } : {})}
+              >
+                {l.label}
+              </a>
+            </li>
+          ))}
+        </ul>
       </div>
-    </nav>
+    </header>
   )
 }
