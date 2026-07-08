@@ -1,6 +1,5 @@
 const LINKS = [
   { href: '/', label: 'Home' },
-  { href: 'http://linked.earth/ontology/', label: 'Ontology', external: true },
   { href: '/playground', label: 'Playground' },
   { href: '/query', label: 'Query' },
   { href: '/merge', label: 'Merge' },
@@ -22,11 +21,7 @@ export function NavBar({ active }: Props) {
         <ul className="site-nav-links">
           {LINKS.map(l => (
             <li key={l.href}>
-              <a
-                href={l.href}
-                className={l.href === active ? 'active' : ''}
-                {...(l.external ? { target: '_blank', rel: 'noreferrer' } : {})}
-              >
+              <a href={l.href} className={l.href === active ? 'active' : ''}>
                 {l.label}
               </a>
             </li>

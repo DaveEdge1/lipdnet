@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { queryDatasets, type DatasetResult, type QueryFilters } from '../lib/sparql'
 import { proxiedLpdUrl } from '../lib/remote'
+import { QueryMap } from '../components/QueryMap'
 
 // Ontology archive types (local names) with display labels
 const ARCHIVES = [
@@ -36,6 +37,7 @@ export function QueryView() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [results, setResults] = useState<DatasetResult[] | null>(null)
+  const [view, setView] = useState<'list' | 'map'>('list')
 
   const toggleArchive = (a: string) => {
     setArchives(prev => {
@@ -116,9 +118,23 @@ export function QueryView() {
         {results !== null && (
           <>
             <div className="query-results-header">
-              {results.length} dataset{results.length === 1 ? '' : 's'}
-              {results.length >= 200 && ' (showing first 200 — narrow your filters)'}
+              <span>
+                {results.length} dataset{results.length === 1 ? '' : 's'}
+                {results.length >= 200 && ' (showing first 200 — narrow your filters)'}
+              </span>
+              {results.length > 0 && (
+                <div className="query-view-toggle">
+                  <button className={view === 'list' ? 'active' : ''} onClick={() => setView('list')}>
+                    List
+                  </button>
+                  <button className={view === 'map' ? 'active' : ''} onClick={() => setView('map')}>
+                    Map
+                  </button>
+                </div>
+              )}
             </div>
+            {view === 'map' && <QueryMap results={results} />}
+            {view === 'list' && (
             <ul className="query-results-list">
               {results.map(r => (
                 <li key={r.name}>
@@ -147,6 +163,7 @@ export function QueryView() {
                 </li>
               ))}
             </ul>
+            )}
           </>
         )}
       </div>
