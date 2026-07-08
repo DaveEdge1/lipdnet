@@ -53,9 +53,15 @@ If you are having issues, please report them here on github in the issue tracker
 
 The project is licensed under the [GNU Public License](https://github.com/nickmckay/LiPD-utilities/blob/master/Python/LICENSE).
 
-## Playground app
+## Playground app (also serves /query and /merge)
 
-The `/playground` page is a React SPA (in `/playground-app`) based on
+The `/playground`, `/query`, and `/merge` pages are all served by one React SPA
+(in `/playground-app`); the view is picked from the pathname and a shared nav
+bar links the pages. Query searches the LiPDverse GraphDB SPARQL endpoint
+directly from the browser and can open results in the playground editor (via
+the Express `GET /lpd-proxy` route, since lipdverse.org sends no CORS headers).
+Merge diffs two .lpd files in the browser and downloads the resolved result.
+The editor itself is based on
 [lipd-studio](https://github.com/nickmckay/lipd-studio), with a few lipd.net
 additions: a "Start a new dataset" flow, a controlled vocabulary generated
 from [lipdjs](https://github.com/LinkedEarth/lipdjs) (synced with lipdverse),

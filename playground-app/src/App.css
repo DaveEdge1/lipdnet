@@ -21,10 +21,30 @@
 body { background: var(--bg); height: 100vh; overflow: hidden; }
 #root { height: 100vh; display: flex; flex-direction: column; }
 
+/* ---- Site shell (nav + routed view) ---- */
+.site-shell { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.site-view { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; }
+.site-view > .app { flex: 1; min-height: 0; }
+
+.site-nav {
+  display: flex; align-items: center; gap: 1.5rem; padding: 0 1.25rem;
+  height: 46px; background: var(--surface); border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.site-nav-brand { font-size: 1.05rem; font-weight: 700; color: var(--text); text-decoration: none; }
+.site-nav-brand-accent { color: var(--accent); }
+.site-nav-links { display: flex; gap: 1.1rem; margin-left: auto; }
+.site-nav-links a {
+  color: var(--text-muted); text-decoration: none; font-size: .875rem;
+  padding: .3rem 0; border-bottom: 2px solid transparent;
+}
+.site-nav-links a:hover { color: var(--text); }
+.site-nav-links a.active { color: var(--accent); border-bottom-color: var(--accent); }
+
 /* ---- Landing ---- */
 .app.landing {
   display: flex; flex-direction: column; align-items: center;
-  justify-content: center; height: 100vh; gap: 2rem;
+  justify-content: center; height: 100%; gap: 2rem;
 }
 .landing-header { text-align: center; }
 .landing-header h1 { font-size: 2.4rem; font-weight: 700; color: var(--accent); }
@@ -69,7 +89,78 @@ body { background: var(--bg); height: 100vh; overflow: hidden; }
 .error { color: var(--danger); font-size: .85rem; }
 
 /* ---- Workspace shell ---- */
-.app.workspace { display: flex; flex-direction: column; height: 100vh; }
+.app.workspace { display: flex; flex-direction: column; height: 100%; }
+
+/* ---- Query page ---- */
+.app.query-page {
+  display: flex; gap: 0; align-items: stretch; min-height: 0;
+}
+.query-filters {
+  width: 340px; flex-shrink: 0; padding: 1.25rem; overflow-y: auto;
+  background: var(--surface); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: .9rem;
+}
+.query-filters h2 { font-size: 1.15rem; }
+.query-hint { color: var(--text-muted); font-size: .82rem; }
+.query-hint a { color: var(--accent); }
+.query-field { display: flex; flex-direction: column; gap: .3rem; font-size: .82rem; color: var(--text-muted); }
+.query-field input, .query-range input {
+  padding: .45rem .6rem; background: var(--surface2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px; font-size: .85rem; width: 100%;
+}
+.query-archives { border: 1px solid var(--border); border-radius: 8px; padding: .6rem .75rem; }
+.query-archives legend { font-size: .78rem; color: var(--text-muted); padding: 0 .3rem; }
+.query-archives label {
+  display: inline-flex; align-items: center; gap: .35rem;
+  font-size: .8rem; width: 49%; padding: .15rem 0; cursor: pointer;
+}
+.query-range { display: grid; grid-template-columns: 1fr 1fr; gap: .4rem; }
+.query-range-title { grid-column: 1 / -1; font-size: .78rem; color: var(--text-muted); }
+.query-search-btn { align-self: flex-start; }
+.query-results { flex: 1; min-width: 0; overflow-y: auto; padding: 1.25rem; }
+.query-empty { color: var(--text-muted); padding: 2rem 0; text-align: center; }
+.query-results-header { color: var(--text-muted); font-size: .82rem; margin-bottom: .75rem; }
+.query-results-list { list-style: none; display: flex; flex-direction: column; gap: .5rem; }
+.query-results-list li {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  padding: .65rem .9rem; background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+}
+.query-result-main { display: flex; flex-direction: column; gap: .15rem; min-width: 0; }
+.query-result-name { font-weight: 600; font-size: .9rem; }
+.query-result-meta { color: var(--text-muted); font-size: .76rem; }
+.query-result-actions { display: flex; gap: .8rem; flex-shrink: 0; }
+.query-result-actions a { color: var(--accent); font-size: .8rem; text-decoration: none; white-space: nowrap; }
+.query-result-actions a:hover { text-decoration: underline; }
+
+/* ---- Merge page ---- */
+.app.merge-page { display: flex; flex-direction: column; min-height: 0; }
+.merge-header { padding: 1.25rem; border-bottom: 1px solid var(--border); background: var(--surface); }
+.merge-header h2 { font-size: 1.15rem; margin-bottom: .4rem; }
+.merge-slots { display: flex; gap: 1rem; margin-top: 1rem; align-items: center; }
+.merge-slot {
+  display: flex; align-items: center; gap: .6rem; padding: .6rem .9rem;
+  border: 1px dashed var(--border); border-radius: 8px;
+}
+.merge-slot.loaded { border-style: solid; border-color: var(--success); }
+.merge-slot-label { font-size: .8rem; color: var(--text-muted); }
+.merge-slot-file { font-size: .85rem; font-weight: 600; }
+.merge-body { flex: 1; min-height: 0; overflow-y: auto; padding: 1.25rem; }
+.merge-toolbar { display: flex; align-items: center; gap: .75rem; margin-bottom: 1rem; color: var(--text-muted); font-size: .85rem; }
+.merge-toolbar button {
+  padding: .3rem .7rem; background: var(--surface2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: .8rem;
+}
+.merge-toolbar button.btn-save { background: var(--success); color: #111; border: none; font-weight: 600; }
+.merge-diff-list { list-style: none; display: flex; flex-direction: column; gap: .6rem; }
+.merge-diff-list li { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: .6rem .9rem; }
+.merge-diff-path { font-family: monospace; font-size: .78rem; color: var(--accent); margin-bottom: .4rem; }
+.merge-diff-options { display: flex; flex-direction: column; gap: .25rem; }
+.merge-diff-options label {
+  display: flex; align-items: baseline; gap: .5rem; font-size: .82rem;
+  padding: .2rem .4rem; border-radius: 4px; cursor: pointer; color: var(--text-muted);
+}
+.merge-diff-options label.chosen { background: rgba(74,144,217,.12); color: var(--text); }
+.merge-diff-side { font-weight: 600; flex-shrink: 0; }
 
 .toolbar {
   display: flex; align-items: center; gap: .75rem; padding: 0 1rem;
