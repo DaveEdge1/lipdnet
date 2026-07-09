@@ -17,9 +17,20 @@ export function NoaaImport({ onLoad }: Props) {
     setBusy(`Importing "${study.studyName}"…`)
     setError(null)
     try {
-      const { lipd, skippedFiles } = await noaaStudyToLipd(study)
+      const { lipd, skippedFiles, metadataOnly } = await noaaStudyToLipd(study)
       if (skippedFiles.length) {
-        console.warn('NOAA import skipped non-template files:', skippedFiles)
+        console.warn('NOAA import skipped files:', skippedFiles)
+      }
+      if (metadataOnly) {
+        const names = skippedFiles.map(f => f.split('/').pop()).join(', ')
+        if (!window.confirm(
+          `The data file(s) in this study (${names}) aren't in a format that can be ` +
+          `converted automatically. Import the study metadata with an empty data table? ` +
+          `You can add the values in the Data tab via "Import CSV/TSV" or "Paste data".`
+        )) {
+          setBusy(null)
+          return
+        }
       }
       onLoad(lipd)
     } catch (e) {

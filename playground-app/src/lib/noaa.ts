@@ -83,13 +83,95 @@ export interface ParsedNoaaFile {
   missingValue?: string
 }
 
+// Pick the delimiter that splits the sample line into the most fields:
+// tab > comma > 2+ spaces > any whitespace
+function makeSplitter(sample: string): (l: string) => string[] {
+  const candidates: Array<(l: string) => string[]> = [
+    l => l.split('\t'),
+    l => l.split(','),
+    l => l.trim().split(/\s{2,}/),
+    l => l.trim().split(/\s+/),
+  ]
+  let best = candidates[3]
+  let bestCount = 1
+  for (const c of candidates) {
+    const n = c(sample).length
+    if (n > bestCount) { best = c; bestCount = n }
+  }
+  return (l: string) => best(l).map(t => t.trim())
+}
+
+// Does this row look like a column-header row rather than data?
+function looksLikeHeader(cells: string[]): boolean {
+  const nonEmpty = cells.filter(c => c !== '')
+  if (!nonEmpty.length) return false
+  const nonNumeric = nonEmpty.filter(c => isNaN(Number(c))).length
+  return nonNumeric >= Math.max(1, nonEmpty.length / 2)
+}
+
+// Reject prose/non-tabular content masquerading as a table: real data tables
+// have a consistent column count and are mostly numeric. A description
+// paragraph split on whitespace has neither.
+function assertTabular(rows: string[][]): void {
+  if (rows.length < 2) throw new Error('Not a data table (too few rows)')
+  const counts = new Map<number, number>()
+  for (const r of rows) counts.set(r.length, (counts.get(r.length) ?? 0) + 1)
+  const modalShare = Math.max(...counts.values()) / rows.length
+  if (modalShare < 0.6) throw new Error('Not a data table (irregular column counts)')
+  let numeric = 0, cells = 0
+  for (const r of rows) for (const c of r) {
+    if (c.trim() === '') continue
+    cells++
+    if (!isNaN(Number(c))) numeric++
+  }
+  if (cells === 0 || numeric / cells < 0.25) {
+    throw new Error('Not a data table (mostly non-numeric content)')
+  }
+}
+
+// knownNames: variable shortnames already parsed from the '##' block. When
+// present, row 0 is only dropped if it repeats those names — otherwise the
+// header heuristic can eat a legitimate text-first-column data row.
+function finishRows(
+  dataLines: string[],
+  knownNames?: string[],
+): { variables: NoaaVariable[] | null; rows: string[][] } {
+  const split = makeSplitter(dataLines[0])
+  let rows = dataLines.map(split)
+  let variables: NoaaVariable[] | null = null
+
+  if (knownNames?.length) {
+    const first = rows[0].map(c => c.toLowerCase())
+    const repeatsHeader = knownNames.every((n, i) => first[i] === n.toLowerCase())
+    if (repeatsHeader) rows = rows.slice(1)
+  } else if (looksLikeHeader(rows[0])) {
+    variables = rows[0].map((name, i) => ({ name: name || `column${i + 1}` }))
+    rows = rows.slice(1)
+  }
+
+  if (!rows.length) throw new Error('No data rows found')
+  assertTabular(rows)
+  const width = Math.max(...rows.map(r => r.length))
+  rows = rows.map(r => (r.length < width ? [...r, ...Array(width - r.length).fill('')] : r))
+  return { variables, rows }
+}
+
 export function parseNoaaTemplate(text: string): ParsedNoaaFile {
   const lines = text.split(/\r\n|\n|\r/)
   const metaIdx = lines
     .map((l, i) => (l.trimStart().startsWith('#') ? i : -1))
     .filter(i => i >= 0)
-  if (!metaIdx.length) throw new Error('Not a NOAA-templated file (no metadata block)')
-  const metaEnd = metaIdx[metaIdx.length - 1]
+
+  // Plain delimited text file (no '#' metadata at all) — parse it directly
+  if (!metaIdx.length) {
+    const dataLines = lines.filter(l => l.trim())
+    if (dataLines.length < 2) throw new Error('No data rows found')
+    const { variables, rows } = finishRows(dataLines)
+    return {
+      variables: variables ?? rows[0].map((_, i) => ({ name: `column${i + 1}` })),
+      rows,
+    }
+  }
 
   // Declared missing value, e.g. "# Missing Value: -999"
   let missingValue: string | undefined
@@ -102,7 +184,7 @@ export function parseNoaaTemplate(text: string): ParsedNoaaFile {
   let variables: NoaaVariable[] = []
   const varMarker = metaIdx.find(i => /^#\s*variables/i.test(lines[i]))
   if (varMarker !== undefined) {
-    for (let i = varMarker + 1; i <= metaEnd; i++) {
+    for (let i = varMarker + 1; i <= metaIdx[metaIdx.length - 1]; i++) {
       const line = lines[i]
       if (!line.trimStart().startsWith('##')) continue
       const body = line.replace(/^\s*#+\s*/, '')
@@ -121,31 +203,28 @@ export function parseNoaaTemplate(text: string): ParsedNoaaFile {
   }
   const varsFromMetadata = variables.length > 0
 
-  // Data block: skip blank lines after metadata, then (if variables came from
-  // metadata) skip the repeated header row
-  let idx = metaEnd + 1
-  while (idx < lines.length && !lines[idx].trim()) idx++
-  const dataLines = lines.slice(idx).filter(l => l.trim())
+  // Data block: everything after the last '#' line. If that leaves nothing
+  // (some files put '#' footnotes AFTER the data), fall back to everything
+  // after the first '#' block, dropping interspersed comment lines.
+  const metaEnd = metaIdx[metaIdx.length - 1]
+  let dataLines = lines.slice(metaEnd + 1).filter(l => l.trim())
+  if (!dataLines.length) {
+    const firstNonHash = lines.findIndex(
+      (l, i) => i > metaIdx[0] && l.trim() !== '' && !l.trimStart().startsWith('#')
+    )
+    if (firstNonHash === -1) throw new Error('No data rows found')
+    dataLines = lines.slice(firstNonHash).filter(l => l.trim() && !l.trimStart().startsWith('#'))
+  }
   if (!dataLines.length) throw new Error('No data rows found')
 
-  const splitRow = (l: string) => {
-    const tabs = l.split('\t')
-    return tabs.length > 1 ? tabs.map(t => t.trim()) : l.trim().split(/\s{2,}|\t/).map(t => t.trim())
+  const { variables: headerVars, rows } = finishRows(
+    dataLines,
+    varsFromMetadata ? variables.map(v => v.name) : undefined,
+  )
+  if (!varsFromMetadata) {
+    // No '##' block: use the detected header row, or generic names
+    variables = headerVars ?? rows[0].map((_, i) => ({ name: `column${i + 1}` }))
   }
-
-  let rows = dataLines.map(splitRow)
-  if (varsFromMetadata) {
-    rows = rows.slice(1) // header row repeats the shortnames
-  } else {
-    // No Variables block: first row is the header
-    variables = rows[0].map((name, i) => ({ name: name || `column${i + 1}` }))
-    rows = rows.slice(1)
-  }
-  if (!rows.length) throw new Error('No data rows found')
-
-  // Pad ragged rows to a uniform width
-  const width = Math.max(...rows.map(r => r.length))
-  rows = rows.map(r => (r.length < width ? [...r, ...Array(width - r.length).fill('')] : r))
 
   return { variables, rows, missingValue }
 }
@@ -209,7 +288,8 @@ function mapPublications(pubs: Array<Record<string, unknown>> = []): LipdPub[] {
 
 export interface NoaaImportResult {
   lipd: LipdFile
-  skippedFiles: string[] // non-template files we couldn't convert
+  skippedFiles: string[] // files we couldn't convert
+  metadataOnly: boolean  // true when no data file could be parsed (starter table added)
 }
 
 export async function noaaStudyToLipd(study: NoaaStudy): Promise<NoaaImportResult> {
@@ -222,7 +302,11 @@ export async function noaaStudyToLipd(study: NoaaStudy): Promise<NoaaImportResul
     const tables: LipdTable[] = []
     for (const pd of site.paleoData ?? []) {
       for (const df of pd.dataFile ?? []) {
-        if (!df.fileUrl || !/\.txt$/i.test(df.fileUrl)) {
+        // Attempt only generic delimited-text extensions. Prose .txt files are
+        // caught by assertTabular; specialized formats (.fhx fire-scar,
+        // .rwl/.crn tree-ring, .xls, images/PDFs) have no generic parser and
+        // are skipped, triggering the metadata-only fallback.
+        if (!df.fileUrl || !/\.(txt|csv|tsv|dat)$/i.test(df.fileUrl)) {
           if (df.fileUrl) skippedFiles.push(df.fileUrl)
           continue
         }
@@ -254,11 +338,24 @@ export async function noaaStudyToLipd(study: NoaaStudy): Promise<NoaaImportResul
     if (tables.length) paleoData.push({ measurementTable: tables })
   }
 
-  if (!paleoData.length) {
-    throw new Error(
-      'No NOAA-templated .txt data files could be parsed in this study' +
-      (skippedFiles.length ? ` (${skippedFiles.length} file(s) skipped)` : '')
-    )
+  // Nothing auto-convertible (e.g. .fhx/.crn/.xls files): import the study's
+  // metadata with an empty starter table — data can be added in the editor
+  // via CSV upload or spreadsheet paste.
+  const metadataOnly = !paleoData.length
+  if (metadataOnly) {
+    paleoData.push({
+      measurementTable: [{
+        tableName: 'measurementTable0',
+        filename: 'paleo0measurement0.csv',
+        missingValue: 'NaN',
+        columns: [1, 2, 3].map((n, i) => ({
+          number: n,
+          variableName: ['depth', 'age', 'value'][i],
+          TSid: makeTSid(),
+          values: Array(5).fill(null),
+        })),
+      }],
+    })
   }
 
   // Geo from the first site with coordinates. NOAA stores [lat, lon];
@@ -303,5 +400,6 @@ export async function noaaStudyToLipd(study: NoaaStudy): Promise<NoaaImportResul
   return {
     lipd: { metadata, filename: `${dataSetName || 'noaa-import'}.lpd`, csvData },
     skippedFiles,
+    metadataOnly,
   }
 }
