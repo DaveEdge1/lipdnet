@@ -1,5 +1,8 @@
 import { useState } from 'react'
-import { searchNoaaStudies, noaaStudyToLipd, noaaStudyViaService, type NoaaStudy } from '../lib/noaa'
+import {
+  searchNoaaStudies, noaaStudyToLipd, noaaStudyViaService,
+  NOAA_DATA_TYPES, type NoaaStudy, type NoaaSearchFilters,
+} from '../lib/noaa'
 import type { LipdFile } from '../types/lipd'
 import pyleotupsLogo from '../assets/pyleotups_logo.png'
 
@@ -12,6 +15,14 @@ export function NoaaImport({ onLoad }: Props) {
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [results, setResults] = useState<NoaaStudy[] | null>(null)
+
+  // Advanced filters
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [investigators, setInvestigators] = useState('')
+  const [dataTypeId, setDataTypeId] = useState('')
+  const [minLat, setMinLat] = useState(''); const [maxLat, setMaxLat] = useState('')
+  const [minLon, setMinLon] = useState(''); const [maxLon, setMaxLon] = useState('')
+  const [earliestYear, setEarliestYear] = useState(''); const [latestYear, setLatestYear] = useState('')
 
   const importStudy = async (study: NoaaStudy) => {
     setBusy(`Importing "${study.studyName}"…`)
@@ -44,12 +55,22 @@ export function NoaaImport({ onLoad }: Props) {
   }
 
   const search = async () => {
-    if (!query.trim() || busy) return
+    if (busy) return
+    const numOr = (s: string) => (s.trim() === '' ? undefined : Number(s))
+    const filters: NoaaSearchFilters = {
+      investigators: investigators || undefined,
+      dataTypeId: dataTypeId || undefined,
+      minLat: numOr(minLat), maxLat: numOr(maxLat),
+      minLon: numOr(minLon), maxLon: numOr(maxLon),
+      earliestYear: numOr(earliestYear), latestYear: numOr(latestYear),
+    }
+    const anyFilter = Object.values(filters).some(v => v !== undefined)
+    if (!query.trim() && !anyFilter) return
     setBusy('Searching NOAA…')
     setError(null)
     setResults(null)
     try {
-      const studies = await searchNoaaStudies(query)
+      const studies = await searchNoaaStudies(query, filters)
       if (!studies.length) {
         setError('No NOAA studies found for that query.')
       } else if (studies.length === 1) {
@@ -79,16 +100,57 @@ export function NoaaImport({ onLoad }: Props) {
         </a>
         <input
           type="text"
-          placeholder="Import from NOAA: study ID, study URL, or search terms"
+          placeholder="NOAA study ID, study URL, or keywords"
           value={query}
           onChange={e => setQuery(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') search() }}
           disabled={!!busy}
         />
-        <button className="btn" onClick={search} disabled={!!busy || !query.trim()}>
-          Import
+        <button className="btn" onClick={search} disabled={!!busy}>
+          Search
         </button>
       </div>
+
+      <button
+        className="noaa-advanced-toggle"
+        onClick={() => setShowAdvanced(s => !s)}
+        aria-expanded={showAdvanced}
+      >
+        {showAdvanced ? '▾' : '▸'} More filters
+      </button>
+
+      {showAdvanced && (
+        <div className="noaa-advanced">
+          <label className="query-field">
+            <span>Investigator</span>
+            <input value={investigators} onChange={e => setInvestigators(e.target.value)}
+              placeholder="e.g. Khider" onKeyDown={e => { if (e.key === 'Enter') search() }} />
+          </label>
+          <label className="query-field">
+            <span>Archive type</span>
+            <select value={dataTypeId} onChange={e => setDataTypeId(e.target.value)}>
+              <option value="">Any</option>
+              {NOAA_DATA_TYPES.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+            </select>
+          </label>
+          <div className="noaa-range">
+            <span className="noaa-range-title">Latitude</span>
+            <input type="number" step="any" placeholder="min" value={minLat} onChange={e => setMinLat(e.target.value)} />
+            <input type="number" step="any" placeholder="max" value={maxLat} onChange={e => setMaxLat(e.target.value)} />
+          </div>
+          <div className="noaa-range">
+            <span className="noaa-range-title">Longitude</span>
+            <input type="number" step="any" placeholder="min" value={minLon} onChange={e => setMinLon(e.target.value)} />
+            <input type="number" step="any" placeholder="max" value={maxLon} onChange={e => setMaxLon(e.target.value)} />
+          </div>
+          <div className="noaa-range">
+            <span className="noaa-range-title">Year (CE)</span>
+            <input type="number" step="any" placeholder="from" value={earliestYear} onChange={e => setEarliestYear(e.target.value)} />
+            <input type="number" step="any" placeholder="to" value={latestYear} onChange={e => setLatestYear(e.target.value)} />
+          </div>
+        </div>
+      )}
+
       {busy && <p className="noaa-import-status">{busy}</p>}
       {error && <p className="error">{error}</p>}
       {results && (

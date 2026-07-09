@@ -40,21 +40,63 @@ export interface NoaaStudy {
   }>
 }
 
+// NOAA dataType codes for the archive-type filter (from the NCEI
+// study/params.json facet; the search API's dataType param is numeric).
+export const NOAA_DATA_TYPES: Array<{ name: string; id: string }> = [
+  { name: 'Borehole', id: '1' },
+  { name: 'Climate forcing', id: '2' },
+  { name: 'Climate reconstructions', id: '3' },
+  { name: 'Corals and sclerosponges', id: '4' },
+  { name: 'Fire history', id: '12' },
+  { name: 'Historical', id: '6' },
+  { name: 'Ice cores', id: '7' },
+  { name: 'Insect', id: '8' },
+  { name: 'Lake levels', id: '9' },
+  { name: 'Loess and paleosol', id: '10' },
+  { name: 'Paleoceanography', id: '14' },
+  { name: 'Paleoclimatic modeling', id: '11' },
+  { name: 'Paleolimnology', id: '13' },
+  { name: 'Plant macrofossils', id: '15' },
+  { name: 'Pollen', id: '16' },
+  { name: 'Speleothems', id: '17' },
+  { name: 'Tree ring', id: '18' },
+]
+
+export interface NoaaSearchFilters {
+  investigators?: string
+  dataTypeId?: string
+  minLat?: number; maxLat?: number
+  minLon?: number; maxLon?: number
+  earliestYear?: number; latestYear?: number // years CE
+}
+
+const hasFilters = (f: NoaaSearchFilters) =>
+  Object.values(f).some(v => v !== undefined && v !== '' && !Number.isNaN(v))
+
 // Accepts a NOAA study ID, a study URL (…/paleo-search/study/12345), or
-// free-text search terms.
-export async function searchNoaaStudies(query: string): Promise<NoaaStudy[]> {
+// free-text search terms, optionally combined with structured filters.
+export async function searchNoaaStudies(query: string, filters: NoaaSearchFilters = {}): Promise<NoaaStudy[]> {
   const q = query.trim()
-  if (!q) return []
+  if (!q && !hasFilters(filters)) return []
   const params = new URLSearchParams()
+
   const urlMatch = q.match(/paleo-search\/study\/(\d+)/)
+  // A bare ID / study URL is an exact lookup; ignore other filters in that case.
   if (urlMatch) {
     params.set('NOAAStudyId', urlMatch[1])
   } else if (/^\d+$/.test(q)) {
     params.set('NOAAStudyId', q)
   } else {
-    params.set('searchText', q)
-    params.set('limit', '15')
+    if (q) params.set('searchText', q)
+    if (filters.investigators?.trim()) params.set('investigators', filters.investigators.trim())
+    if (filters.dataTypeId) params.set('dataType', filters.dataTypeId)
+    const num = (k: string, v?: number) => { if (v !== undefined && !Number.isNaN(v)) params.set(k, String(v)) }
+    num('minLat', filters.minLat); num('maxLat', filters.maxLat)
+    num('minLon', filters.minLon); num('maxLon', filters.maxLon)
+    num('earliestYear', filters.earliestYear); num('latestYear', filters.latestYear)
+    params.set('limit', '25')
   }
+
   const res = await fetch(`${SEARCH_URL}?${params.toString()}`)
   if (res.status === 204) return [] // NOAA returns 204 + empty body for no matches
   if (!res.ok) throw new Error(`NOAA search failed (HTTP ${res.status})`)
