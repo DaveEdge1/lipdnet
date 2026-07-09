@@ -278,13 +278,12 @@ export function StructureView({ metadata, selectedTSid, onSelect, onNavigate, on
   viewRef.current = view
   const sizeRef = useRef({ w, h })
   sizeRef.current = { w, h }
-  const panRef = useRef<{ startX: number; startY: number; ox: number; oy: number } | null>(null)
   const movedRef = useRef(false)
 
   // Fit the full structure into the canvas ("reset" behavior)
   const fitView = useCallback(() => {
     const el = canvasRef.current
-    if (!el) return
+    if (!el || el.clientWidth < 20 || el.clientHeight < 20) return
     const { w: sw, h: sh } = sizeRef.current
     const k = Math.min(el.clientWidth / sw, el.clientHeight / sh, 1.5) * 0.97
     setView({
@@ -317,21 +316,31 @@ export function StructureView({ metadata, selectedTSid, onSelect, onNavigate, on
     return () => el.removeEventListener('wheel', onWheel)
   }, [])
 
+  // Pan with window-level listeners. Deliberately NO setPointerCapture: it
+  // retargets the derived click event to the canvas, which silently swallows
+  // clicks on the zoom buttons and tree nodes.
   function onPointerDown(e: React.PointerEvent) {
     if (e.button !== 0) return
-    panRef.current = { startX: e.clientX, startY: e.clientY, ox: view.x, oy: view.y }
+    if ((e.target as HTMLElement).closest('.structure-zoom-controls')) return
+    const start = { x: e.clientX, y: e.clientY, ox: viewRef.current.x, oy: viewRef.current.y }
     movedRef.current = false
-    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    const move = (ev: PointerEvent) => {
+      const dx = ev.clientX - start.x
+      const dy = ev.clientY - start.y
+      if (Math.abs(dx) + Math.abs(dy) > 4) movedRef.current = true
+      if (movedRef.current) setView(v => ({ ...v, x: start.ox + dx, y: start.oy + dy }))
+    }
+    const up = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      // The click (if the browser fires one) dispatches synchronously after
+      // pointerup; clear the suppression flag afterwards so a pan that
+      // produces no click can't swallow the NEXT legitimate click.
+      setTimeout(() => { movedRef.current = false }, 0)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
   }
-  function onPointerMove(e: React.PointerEvent) {
-    const p = panRef.current
-    if (!p) return
-    const dx = e.clientX - p.startX
-    const dy = e.clientY - p.startY
-    if (Math.abs(dx) + Math.abs(dy) > 4) movedRef.current = true
-    if (movedRef.current) setView(v => ({ ...v, x: p.ox + dx, y: p.oy + dy }))
-  }
-  function onPointerUp() { panRef.current = null }
   // A drag shouldn't fire the node click underneath it
   function onClickCapture(e: React.MouseEvent) {
     if (movedRef.current) { e.stopPropagation(); movedRef.current = false }
@@ -393,9 +402,6 @@ export function StructureView({ metadata, selectedTSid, onSelect, onNavigate, on
         className="structure-canvas"
         ref={canvasRef}
         onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerLeave={onPointerUp}
         onClickCapture={onClickCapture}
       >
         <div className="structure-zoom-controls">
