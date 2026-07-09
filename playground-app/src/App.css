@@ -16,9 +16,14 @@
   --success: #4CAF50;
   font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   font-size: 14px;
+  font-weight: 300;      /* matches lipd.net home (all.css body) */
+  line-height: 1.6;
   color: var(--text);
   background: var(--bg);
 }
+
+/* Headings match the home page: darker, bolder than body */
+h1, h2, h3, h4, h5, h6 { color: #333; font-weight: 700; line-height: 1.2; }
 
 body { background: var(--bg); height: 100vh; overflow: hidden; }
 #root { height: 100vh; display: flex; flex-direction: column; }
@@ -54,19 +59,45 @@ body { background: var(--bg); height: 100vh; overflow: hidden; }
 .site-nav-links a:hover { color: var(--accent); background: none; }
 .site-nav-links a.active { color: #111; }
 
-/* ---- Landing ---- */
+/* ---- Landing (title at top, card layout) ---- */
 .app.landing {
   display: flex; flex-direction: column; align-items: center;
-  justify-content: center; height: 100%; gap: 2rem;
+  height: 100%; overflow-y: auto; padding: 2.5rem 1.5rem 3rem;
 }
-.landing-header { text-align: center; }
-.landing-header h1 { font-size: 2.4rem; font-weight: 400; color: #656565; }
-.landing-header p { color: var(--text-muted); margin-top: .4rem; }
-.landing-actions { display: flex; align-items: center; gap: .75rem; color: var(--text-muted); }
+.landing-header { text-align: center; margin-bottom: 2rem; }
+.landing-header h1 { font-size: 2.4rem; font-weight: 700; color: #333; }
+.landing-header p { color: var(--text-muted); margin-top: .5rem; font-size: 1rem; }
+
+.landing-cards {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 340px));
+  gap: 1.25rem; width: 100%; max-width: 720px; justify-content: center;
+}
+.dropzone-wrapper { flex: 1; }
+.landing-card {
+  display: flex; flex-direction: column; gap: .8rem;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 1.25rem;
+}
+.landing-card h2 {
+  font-size: 1rem; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--accent-hover);
+}
+.landing-card-hint { color: var(--text-muted); font-size: .85rem; }
+.landing-card .btn { align-self: flex-start; }
+.landing-card-wide { grid-column: 1 / -1; }
 .landing-footer { color: var(--text-muted); font-size: .82rem; }
 
-.noaa-import { display: flex; flex-direction: column; gap: .6rem; width: min(560px, 90vw); }
+@media (max-width: 680px) {
+  .landing-cards { grid-template-columns: minmax(0, 1fr); }
+}
+
+.noaa-import { display: flex; flex-direction: column; gap: .6rem; width: 100%; }
 .noaa-import-row { display: flex; gap: .5rem; align-items: center; }
+.noaa-import-secondary { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.noaa-file-link {
+  color: var(--accent); font-size: .8rem; cursor: pointer;
+}
+.noaa-file-link:hover { text-decoration: underline; }
 .noaa-import-logo { flex-shrink: 0; display: flex; }
 .noaa-import-logo img { height: 34px; width: 34px; border-radius: 6px; }
 .noaa-import-row input {
@@ -74,7 +105,7 @@ body { background: var(--bg); height: 100vh; overflow: hidden; }
   color: var(--text); border: 1px solid var(--border); border-radius: 6px; font-size: .875rem;
 }
 .noaa-advanced-toggle {
-  align-self: flex-start; background: none; border: none; cursor: pointer;
+  background: none; border: none; cursor: pointer;
   color: var(--accent); font-size: .8rem; padding: .1rem 0;
 }
 .noaa-advanced-toggle:hover { text-decoration: underline; }
@@ -107,14 +138,15 @@ body { background: var(--bg); height: 100vh; overflow: hidden; }
 .landing-footer a { color: var(--accent); text-decoration: none; }
 .landing-footer a:hover { text-decoration: underline; }
 
-.dropzone-wrapper { display: flex; flex-direction: column; align-items: center; gap: 1rem; }
+.dropzone-wrapper { display: flex; flex-direction: column; align-items: stretch; gap: 1rem; }
 .dropzone {
-  border: 2px dashed var(--border); border-radius: 12px;
-  padding: 3rem 4rem; text-align: center; cursor: pointer;
+  border: 2px dashed var(--border); border-radius: 10px;
+  padding: 1.75rem 1rem; text-align: center; cursor: pointer;
   transition: border-color .2s, background .2s;
 }
+.dropzone:hover { border-color: var(--accent); }
 .dropzone.dragging { border-color: var(--accent); background: rgba(113,164,54,.07); }
-.dropzone-icon { font-size: 3rem; margin-bottom: 1rem; }
+.dropzone-icon { font-size: 2.4rem; margin-bottom: .6rem; }
 .dropzone p { color: var(--text-muted); margin-bottom: 1rem; }
 .btn {
   display: inline-block; padding: .5rem 1.2rem; background: var(--accent);
@@ -147,6 +179,11 @@ body { background: var(--bg); height: 100vh; overflow: hidden; }
 .wizard-span2 { grid-column: 1 / -1; }
 .wizard-grid .query-field em { font-style: normal; color: #aaa; font-size: .72rem; }
 .wizard-grid input.invalid { border-color: var(--danger); }
+.wizard-grid select {
+  padding: .45rem .6rem; background: var(--surface2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px; font-size: .85rem; width: 100%;
+}
+.wizard-note { font-size: .8rem; color: var(--text-muted); font-style: italic; }
 .wizard-actions { display: flex; justify-content: flex-end; gap: .6rem; }
 .wizard-actions .btn:disabled { opacity: .5; cursor: not-allowed; }
 

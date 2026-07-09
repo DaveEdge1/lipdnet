@@ -202,19 +202,36 @@ export function PlaygroundView() {
   if (!lipd) {
     return (
       <div className="app landing">
-        <div className="landing-header">
+        <header className="landing-header">
           <h1>LiPD Playground</h1>
-          <p>Open, edit, and visualize paleoclimate data files</p>
-        </div>
+          <p>Open, edit, validate, and visualize paleoclimate data — right in your browser.</p>
+        </header>
+
         {remoteStatus && <p className="noaa-import-status">{remoteStatus}</p>}
-        <DropZone onLoad={handleLoad} />
-        <div className="landing-actions">
-          <span>or</span>
-          <button className="btn" onClick={() => setShowWizard(true)}>
-            Start a new dataset
-          </button>
+
+        <div className="landing-cards">
+          <section className="landing-card">
+            <h2>Open a file</h2>
+            <DropZone onLoad={handleLoad} />
+          </section>
+
+          <section className="landing-card">
+            <h2>Start fresh</h2>
+            <p className="landing-card-hint">Create a new dataset with a guided form.</p>
+            <button className="btn" onClick={() => setShowWizard(true)}>
+              Start a new dataset
+            </button>
+          </section>
+
+          <section className="landing-card landing-card-wide">
+            <h2>Import from NOAA</h2>
+            <p className="landing-card-hint">
+              Pull a study from the NOAA NCEI Paleoclimatology archive, or open a NOAA text file.
+            </p>
+            <NoaaImport onLoad={handleLoad} />
+          </section>
         </div>
-        <NoaaImport onLoad={handleLoad} />
+
         {showWizard && (
           <NewDatasetWizard
             onCreate={f => { handleLoad(f); setShowWizard(false) }}

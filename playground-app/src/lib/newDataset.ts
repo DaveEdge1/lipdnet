@@ -33,17 +33,14 @@ export interface NewDatasetOptions {
   longitude?: number
   elevation?: number
   investigators?: string
-  variableName?: string
-  units?: string
 }
 
 // Build a valid starting dataset from the wizard's answers: one paleo
-// measurement table with depth/age plus the user's primary variable, geo from
-// the given coordinates, and an auto-generated datasetId.
+// measurement table with a generic depth/age/value skeleton, geo from the
+// given coordinates, and an auto-generated datasetId. Columns are meant to be
+// added/replaced in the Data tab (CSV/spreadsheet import).
 export function createNewLipd(opts: NewDatasetOptions): LipdFile {
   const rows = 5
-  const primaryVar = opts.variableName?.trim() || 'temperature'
-  const primaryUnits = opts.units?.trim() || undefined
   const name = opts.dataSetName.trim() || 'MyDataset'
   return {
     filename: `${name.replace(/[^\w.\-]+/g, '_')}.lpd`,
@@ -74,7 +71,7 @@ export function createNewLipd(opts: NewDatasetOptions): LipdFile {
               columns: [
                 column(1, 'depth', 'cm', rows),
                 column(2, 'age', 'yr BP', rows),
-                column(3, primaryVar, primaryUnits, rows),
+                column(3, 'value', undefined, rows),
               ],
             },
           ],

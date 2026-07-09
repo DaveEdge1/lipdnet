@@ -1,6 +1,10 @@
 // AUTO-GENERATED from lipdjs — do not edit by hand.
 // Regenerate with: node scripts/generate-vocabulary.mjs
 
+// Canonical lipdverse archiveType vocabulary (CamelCase); use this for pickers.
+export const ARCHIVE_TYPES_CANONICAL = ["Borehole","Coral","Documents","FluvialSediment","GlacierIce","GroundIce","LakeSediment","MarineSediment","Midden","MolluskShell","Other","Peat","Sclerosponge","Shoreline","Speleothem","TerrestrialSediment","Wood"]
+
+// Lenient set (canonical + spaced labels) for validating existing files.
 export const ARCHIVE_TYPES = ["Borehole","Coral","Documents","Fluvial sediment","FluvialSediment","Glacier ice","GlacierIce","Ground ice","GroundIce","Lake sediment","LakeSediment","Marine sediment","MarineSediment","Midden","Mollusk shell","MolluskShell","Other","Peat","Sclerosponge","Shoreline","Speleothem","Terrestrial sediment","TerrestrialSediment","Wood"]
 
 export const INTERP_VARIABLES = ["C3C4Ratio","ELA","P-E","circulationIndex","circulationVariable","dissolvedOxygen","dust","evaporation","fire","growingDegreeDays","hydrologicBalance","lakeWaterIsotope","meltwater","needsToBeReplaced","precipitation","precipitationDeuteriumExcess","precipitationIsotope","productivity","relativeHumidity","salinity","seaIce","seasonality","seawaterIsotope","streamflow","sunlight","surfacePressure","temperature","upwelling","windSpeed"]

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import {
-  searchNoaaStudies, noaaStudyToLipd, noaaStudyViaService,
+  searchNoaaStudies, noaaStudyToLipd, noaaStudyViaService, noaaFileToLipd,
   NOAA_DATA_TYPES, type NoaaStudy, type NoaaSearchFilters,
 } from '../lib/noaa'
 import type { LipdFile } from '../types/lipd'
@@ -49,6 +49,22 @@ export function NoaaImport({ onLoad }: Props) {
       onLoad(lipd)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Import failed')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const openLocalNoaaFile = async (file: File | undefined) => {
+    if (!file) return
+    setBusy(`Reading ${file.name}…`)
+    setError(null)
+    try {
+      onLoad(noaaFileToLipd(await file.text(), file.name))
+    } catch (e) {
+      setError(
+        (e instanceof Error ? e.message : 'Could not read the file') +
+        ' — is this a NOAA-templated text file?'
+      )
     } finally {
       setBusy(null)
     }
@@ -111,13 +127,24 @@ export function NoaaImport({ onLoad }: Props) {
         </button>
       </div>
 
-      <button
-        className="noaa-advanced-toggle"
-        onClick={() => setShowAdvanced(s => !s)}
-        aria-expanded={showAdvanced}
-      >
-        {showAdvanced ? '▾' : '▸'} More filters
-      </button>
+      <div className="noaa-import-secondary">
+        <button
+          className="noaa-advanced-toggle"
+          onClick={() => setShowAdvanced(s => !s)}
+          aria-expanded={showAdvanced}
+        >
+          {showAdvanced ? '▾' : '▸'} More filters
+        </button>
+        <label className="noaa-file-link" title="Open a NOAA-templated .txt file from your computer">
+          or open a local NOAA .txt file
+          <input
+            type="file"
+            accept=".txt,.csv,.tsv,.dat,text/plain"
+            style={{ display: 'none' }}
+            onChange={e => { openLocalNoaaFile(e.target.files?.[0]); e.target.value = '' }}
+          />
+        </label>
+      </div>
 
       {showAdvanced && (
         <div className="noaa-advanced">

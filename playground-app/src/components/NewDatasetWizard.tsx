@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ARCHIVE_TYPES, VARIABLE_NAMES, UNITS } from '../lib/vocabulary'
+import { ARCHIVE_TYPES_CANONICAL } from '../lib/vocabulary'
 import { createNewLipd } from '../lib/newDataset'
 import type { LipdFile } from '../types/lipd'
 
@@ -19,8 +19,6 @@ export function NewDatasetWizard({ onCreate, onCancel }: Props) {
   const [lon, setLon] = useState('')
   const [elev, setElev] = useState('')
   const [investigators, setInvestigators] = useState('')
-  const [variableName, setVariableName] = useState('temperature')
-  const [units, setUnits] = useState('degC')
 
   const latNum = Number(lat)
   const lonNum = Number(lon)
@@ -50,8 +48,6 @@ export function NewDatasetWizard({ onCreate, onCancel }: Props) {
       longitude: lonNum,
       elevation: elev.trim() === '' || isNaN(Number(elev)) ? undefined : Number(elev),
       investigators,
-      variableName,
-      units,
     }))
   }
 
@@ -85,11 +81,10 @@ export function NewDatasetWizard({ onCreate, onCancel }: Props) {
 
           <label className="query-field">
             <span>Archive type *</span>
-            <input list="wizard-archives" value={archiveType} onChange={e => setArchiveType(e.target.value)}
-              placeholder="e.g. Lake sediment" />
-            <datalist id="wizard-archives">
-              {ARCHIVE_TYPES.map(a => <option key={a} value={a} />)}
-            </datalist>
+            <select value={archiveType} onChange={e => setArchiveType(e.target.value)}>
+              <option value="">Select…</option>
+              {ARCHIVE_TYPES_CANONICAL.map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
           </label>
 
           <label className="query-field">
@@ -114,27 +109,15 @@ export function NewDatasetWizard({ onCreate, onCancel }: Props) {
             <input type="number" step="any" value={elev} onChange={e => setElev(e.target.value)} placeholder="optional" />
           </label>
 
-          <label className="query-field">
+          <label className="query-field wizard-span2">
             <span>Investigators <em>(Last, F.; Last, F.)</em></span>
             <input value={investigators} onChange={e => setInvestigators(e.target.value)} placeholder="optional" />
           </label>
-
-          <label className="query-field">
-            <span>Primary variable</span>
-            <input list="wizard-variables" value={variableName} onChange={e => setVariableName(e.target.value)} />
-            <datalist id="wizard-variables">
-              {VARIABLE_NAMES.map(v => <option key={v} value={v} />)}
-            </datalist>
-          </label>
-
-          <label className="query-field">
-            <span>Variable units</span>
-            <input list="wizard-units" value={units} onChange={e => setUnits(e.target.value)} />
-            <datalist id="wizard-units">
-              {UNITS.map(u => <option key={u} value={u} />)}
-            </datalist>
-          </label>
         </div>
+        <p className="wizard-note">
+          A starter data table (depth, age, value) is created automatically — add
+          or replace its columns in the Data tab once the editor opens.
+        </p>
 
         <div className="wizard-actions">
           <button className="btn-close" onClick={onCancel}>Cancel</button>

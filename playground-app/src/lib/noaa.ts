@@ -171,23 +171,27 @@ function assertTabular(rows: string[][]): void {
   }
 }
 
-// knownNames: variable shortnames already parsed from the '##' block. When
-// present, row 0 is only dropped if it repeats those names — otherwise the
-// header heuristic can eat a legitimate text-first-column data row.
+// hasKnownVars: variable names were already parsed from the '##' block, so the
+// detected header row (if any) is only used to decide whether to drop it, not
+// to name columns.
+//
+// Header detection: drop row 0 when it looks like a header AND row 1 looks like
+// data. This drops a real header row (e.g. "Depth  age  ...") whose casing
+// differs from the '##' shortnames, while keeping legitimate text-first-column
+// data (e.g. site codes "846B") where every row is equally header-ish.
 function finishRows(
   dataLines: string[],
-  knownNames?: string[],
+  hasKnownVars = false,
 ): { variables: NoaaVariable[] | null; rows: string[][] } {
   const split = makeSplitter(dataLines[0])
   let rows = dataLines.map(split)
   let variables: NoaaVariable[] | null = null
 
-  if (knownNames?.length) {
-    const first = rows[0].map(c => c.toLowerCase())
-    const repeatsHeader = knownNames.every((n, i) => first[i] === n.toLowerCase())
-    if (repeatsHeader) rows = rows.slice(1)
-  } else if (looksLikeHeader(rows[0])) {
-    variables = rows[0].map((name, i) => ({ name: name || `column${i + 1}` }))
+  const headerRow = looksLikeHeader(rows[0]) && (rows.length < 2 || !looksLikeHeader(rows[1]))
+  if (headerRow) {
+    if (!hasKnownVars) {
+      variables = rows[0].map((name, i) => ({ name: name || `column${i + 1}` }))
+    }
     rows = rows.slice(1)
   }
 
@@ -259,10 +263,7 @@ export function parseNoaaTemplate(text: string): ParsedNoaaFile {
   }
   if (!dataLines.length) throw new Error('No data rows found')
 
-  const { variables: headerVars, rows } = finishRows(
-    dataLines,
-    varsFromMetadata ? variables.map(v => v.name) : undefined,
-  )
+  const { variables: headerVars, rows } = finishRows(dataLines, varsFromMetadata)
   if (!varsFromMetadata) {
     // No '##' block: use the detected header row, or generic names
     variables = headerVars ?? rows[0].map((_, i) => ({ name: `column${i + 1}` }))
@@ -444,6 +445,72 @@ export async function noaaStudyToLipd(study: NoaaStudy): Promise<NoaaImportResul
     skippedFiles,
     metadataOnly,
   }
+}
+
+// ---- Load a local NOAA-template .txt file directly --------------------------
+
+// Pull a "# Key: value" style field out of the metadata block
+function metaField(text: string, keys: string[]): string | undefined {
+  const lines = text.split(/\r\n|\n|\r/)
+  for (const line of lines) {
+    if (!line.trimStart().startsWith('#')) continue
+    const m = line.replace(/^\s*#+\s*/, '').match(/^([^:]+):\s*(\S.*)$/)
+    if (m && keys.some(k => m[1].trim().toLowerCase() === k.toLowerCase())) {
+      return m[2].trim()
+    }
+  }
+  return undefined
+}
+
+// Build a LiPD dataset from a single NOAA-templated text file the user opened
+// locally (as opposed to importing a study by ID).
+export function noaaFileToLipd(text: string, filename: string): LipdFile {
+  const parsed = parseNoaaTemplate(text) // throws on non-tabular files
+
+  const base = (filename.replace(/\.[^.]+$/, '') || 'noaa-dataset')
+  const dataSetName = (metaField(text, ['Study_Name', 'Dataset_Name', 'Site_Name']) || base)
+    .replace(/[^\w.\- ]+/g, '').trim() || base
+
+  const num = (v?: string) => { const n = v ? Number(v) : NaN; return isNaN(n) ? undefined : n }
+  const lat = num(metaField(text, ['Northernmost_Latitude', 'Southernmost_Latitude', 'Latitude']))
+  const lon = num(metaField(text, ['Easternmost_Longitude', 'Westernmost_Longitude', 'Longitude']))
+  const elev = num(metaField(text, ['Elevation', 'Elevation_m']))
+  const siteName = metaField(text, ['Site_Name', 'Location'])
+
+  const geo: LipdMetadata['geo'] = (lat != null && lon != null)
+    ? {
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [lon, lat, elev ?? 0] },
+        properties: { siteName: siteName ?? '' },
+      }
+    : undefined
+
+  const metadata: LipdMetadata = {
+    lipdVersion: 1.3,
+    createdBy: 'lipd.net playground (NOAA file)',
+    dataSetName,
+    datasetVersion: '1.0.0',
+    archiveType: undefined,
+    geo,
+    pub: [],
+    paleoData: [{
+      measurementTable: [{
+        tableName: 'measurementTable0',
+        filename: 'paleo0measurement0.csv',
+        missingValue: 'NaN',
+        columns: parsed.variables.map((v, ci) => ({
+          number: ci + 1,
+          variableName: v.name,
+          TSid: makeTSid(),
+          units: v.units,
+          description: v.detail,
+          values: toValues(parsed.rows.map(r => r[ci] ?? ''), parsed.missingValue),
+        })),
+      }],
+    }],
+  }
+
+  return { metadata, filename: `${dataSetName || base}.lpd`, csvData: {} }
 }
 
 // ---- PyleoTUPS service path -------------------------------------------------
