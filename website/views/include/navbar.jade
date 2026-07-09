@@ -13,14 +13,12 @@ header
                     li
                         a(href='/') Home
                     li
-                        a(href='/format') Format
-                        md-tooltip LiPD file format technical reference
+                        //- Native title tooltips: md-tooltip only renders on pages
+                        //- that load Angular Material (it shows as stray text elsewhere)
+                        a(href='/format' title='LiPD file format technical reference') Format
                     li
-                        a(href='/playground') Playground
-                        md-tooltip Create, edit, and visualize data
+                        a(href='/playground' title='Create, edit, and visualize data') Playground
                     li
-                        a(href='/query') Query
-                        md-tooltip Search datasets on LiPDverse
+                        a(href='/query' title='Search datasets on LiPDverse') Query
                     li
-                        a(href='/merge') Merge
-                        md-tooltip Merge, compare, and resolve differences between two datasets
+                        a(href='/merge' title='Merge, compare, and resolve differences between two datasets') Merge
