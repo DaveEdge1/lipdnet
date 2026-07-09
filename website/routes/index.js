@@ -1691,6 +1691,26 @@ router.get("/query", function(req, res, next){
   });
 });
 
+// Proxy to the optional PyleoTUPS NOAA import service. When NOAA_SERVICE_URL
+// is set and reachable, the playground gets PyleoTUPS-quality parsing; when it
+// isn't, this returns 503 and the playground falls back to its browser parser.
+router.get("/api/noaa/:id", function(req, res){
+  var base = process.env.NOAA_SERVICE_URL;
+  if(!base){
+    return res.status(503).json({error: "NOAA service not configured"});
+  }
+  if(!/^\d+$/.test(req.params.id)){
+    return res.status(400).json({error: "Invalid study id"});
+  }
+  var target = base.replace(/\/$/, "") + "/noaa/" + req.params.id;
+  request({ uri: target, timeout: 60000 }, function(err, res1, body){
+    if(err || !res1){
+      return res.status(503).json({error: "NOAA service unavailable"});
+    }
+    res.status(res1.statusCode).set("Content-Type", "application/json").send(body);
+  });
+});
+
 // lipdverse.org doesn't send CORS headers on .lpd downloads, so the SPA's
 // "Open in playground" and "Download" actions go through this restricted proxy.
 router.get("/lpd-proxy", function(req, res, next){

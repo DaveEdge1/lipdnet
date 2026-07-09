@@ -403,3 +403,110 @@ export async function noaaStudyToLipd(study: NoaaStudy): Promise<NoaaImportResul
     metadataOnly,
   }
 }
+
+// ---- PyleoTUPS service path -------------------------------------------------
+// When the optional NOAA import service is deployed (Express proxies it at
+// /api/noaa/:id), use its PyleoTUPS-parsed output — more robust than the
+// browser parser above. Returns null when the service isn't available so the
+// caller can fall back.
+
+interface ServiceColumn { variableName: string; units?: string | null; values: Array<number | string | null> }
+interface ServiceTable { tableName?: string | null; fileUrl?: string | null; columns: ServiceColumn[] }
+interface ServicePayload {
+  studyId: string
+  dataSetName?: string | null
+  archiveType?: string | null
+  investigators?: string | null
+  originalDataUrl?: string | null
+  geo?: { latitude?: number | null; longitude?: number | null; elevation?: number | null; siteName?: string | null }
+  pub?: Array<{ author?: string | null; title?: string | null; journal?: string | null; year?: number | string | null; volume?: string | null; pages?: string | null; doi?: string | null }>
+  tables: ServiceTable[]
+  skippedFiles: string[]
+  metadataOnly: boolean
+}
+
+function serviceToLipd(p: ServicePayload): NoaaImportResult {
+  const paleoData: LipdPaleoData[] = []
+  const tables: LipdTable[] = p.tables.map((t, ti) => ({
+    tableName: t.tableName || t.fileUrl?.split('/').pop() || `measurementTable${ti}`,
+    filename: `paleo0measurement${ti}.csv`,
+    missingValue: 'NaN',
+    columns: t.columns.map((c, ci) => ({
+      number: ci + 1,
+      variableName: c.variableName,
+      TSid: makeTSid(),
+      units: c.units ?? undefined,
+      values: toValues(c.values.map(v => (v === null || v === undefined ? '' : String(v)))),
+    })),
+  }))
+  const metadataOnly = tables.length === 0
+  paleoData.push({
+    measurementTable: metadataOnly
+      ? [{
+          tableName: 'measurementTable0',
+          filename: 'paleo0measurement0.csv',
+          missingValue: 'NaN',
+          columns: ['depth', 'age', 'value'].map((name, i) => ({
+            number: i + 1, variableName: name, TSid: makeTSid(), values: Array(5).fill(null),
+          })),
+        }]
+      : tables,
+  })
+
+  const lat = p.geo?.latitude
+  const lon = p.geo?.longitude
+  const geo: LipdMetadata['geo'] = (lat != null && lon != null)
+    ? {
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [lon, lat, p.geo?.elevation ?? 0] },
+        properties: { siteName: p.geo?.siteName ?? '' },
+      }
+    : undefined
+
+  const dataSetName = (p.dataSetName || `NOAA-${p.studyId}`).replace(/[^\w.\- ]+/g, '').trim()
+  const metadata: LipdMetadata = {
+    lipdVersion: 1.3,
+    createdBy: 'lipd.net playground (NOAA import via PyleoTUPS)',
+    dataSetName,
+    datasetVersion: '1.0.0',
+    archiveType: p.archiveType ? ARCHIVE_MAP[p.archiveType.toUpperCase()] : undefined,
+    investigators: p.investigators ?? undefined,
+    originalDataUrl: p.originalDataUrl ?? undefined,
+    NOAAStudyId: p.studyId,
+    geo,
+    pub: (p.pub ?? []).map(pub => ({
+      author: pub.author ? pub.author.split(/;\s*|,\s(?=[A-Z]\.)/).filter(Boolean).map(name => ({ name })) : undefined,
+      title: pub.title ?? undefined,
+      journal: pub.journal ?? undefined,
+      year: pub.year ?? undefined,
+      volume: pub.volume ?? undefined,
+      pages: pub.pages ?? undefined,
+      doi: pub.doi ?? undefined,
+    })),
+    paleoData,
+  }
+
+  return {
+    lipd: { metadata, filename: `${dataSetName || 'noaa-import'}.lpd`, csvData: {} },
+    skippedFiles: p.skippedFiles ?? [],
+    metadataOnly,
+  }
+}
+
+// Try the PyleoTUPS service for a study id; null if it's not configured/down.
+export async function noaaStudyViaService(studyId: string): Promise<NoaaImportResult | null> {
+  if (!/^\d+$/.test(studyId)) return null
+  let res: Response
+  try {
+    res = await fetch(`/api/noaa/${studyId}`)
+  } catch {
+    return null
+  }
+  if (res.status === 503 || res.status === 404) return null // not configured / unavailable
+  if (!res.ok) return null
+  try {
+    return serviceToLipd(await res.json() as ServicePayload)
+  } catch {
+    return null
+  }
+}

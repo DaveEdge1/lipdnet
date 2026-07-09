@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { searchNoaaStudies, noaaStudyToLipd, type NoaaStudy } from '../lib/noaa'
+import { searchNoaaStudies, noaaStudyToLipd, noaaStudyViaService, type NoaaStudy } from '../lib/noaa'
 import type { LipdFile } from '../types/lipd'
 import pyleotupsLogo from '../assets/pyleotups_logo.png'
 
@@ -17,7 +17,10 @@ export function NoaaImport({ onLoad }: Props) {
     setBusy(`Importing "${study.studyName}"…`)
     setError(null)
     try {
-      const { lipd, skippedFiles, metadataOnly } = await noaaStudyToLipd(study)
+      // Prefer the PyleoTUPS service (better parsing); fall back to the
+      // browser parser when it isn't deployed.
+      const viaService = await noaaStudyViaService(study.NOAAStudyId)
+      const { lipd, skippedFiles, metadataOnly } = viaService ?? await noaaStudyToLipd(study)
       if (skippedFiles.length) {
         console.warn('NOAA import skipped files:', skippedFiles)
       }
