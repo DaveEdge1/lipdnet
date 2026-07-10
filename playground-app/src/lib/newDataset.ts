@@ -1,4 +1,5 @@
-import type { LipdFile, LipdColumn } from '../types/lipd'
+import type { LipdFile, LipdColumn, LipdMetadata } from '../types/lipd'
+import type { ParsedTabular } from './tabular'
 
 // Generate a TSid for columns created in the playground. Follows the legacy
 // playground convention of a WEB- prefix so provenance is visible.
@@ -80,4 +81,69 @@ export function createNewLipd(opts: NewDatasetOptions): LipdFile {
     },
     csvData: {},
   }
+}
+
+// Shared metadata skeleton for the datasets created below
+function skeleton(name: string): LipdMetadata {
+  return {
+    lipdVersion: 1.3,
+    createdBy: 'lipd.net playground',
+    dataSetName: name,
+    datasetId: `WEB${randomId(17)}`,
+    datasetVersion: '1.0.0',
+    archiveType: undefined,
+    geo: {
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [0, 0, 0] },
+      properties: { siteName: '' },
+    },
+    pub: [],
+    paleoData: [],
+  }
+}
+
+// "From a blank slate": a minimal dataset opened straight into the editor —
+// one empty measurement table the user fills in entirely by hand.
+export function createBlankLipd(name = 'Untitled Dataset'): LipdFile {
+  const rows = 3
+  const metadata = skeleton(name)
+  metadata.paleoData = [{
+    measurementTable: [{
+      tableName: 'measurementTable0',
+      filename: 'paleo0measurement0.csv',
+      missingValue: 'NaN',
+      columns: [
+        column(1, 'depth', undefined, rows),
+        column(2, 'value', undefined, rows),
+      ],
+    }],
+  }]
+  return { filename: `${name.replace(/[^\w.\-]+/g, '_')}.lpd`, metadata, csvData: {} }
+}
+
+// "From a data table": build a dataset whose measurement table is the pasted
+// or uploaded tabular data. Column names come from the header row when present.
+export function createLipdFromTable(name: string, parsed: ParsedTabular): LipdFile {
+  const dsName = name.trim() || 'MyDataset'
+  const width = Math.max(0, ...parsed.rows.map(r => r.length))
+  if (width === 0) throw new Error('No columns found in the data')
+  const names = parsed.headers ?? Array.from({ length: width }, (_, i) => `column${i + 1}`)
+
+  const columns: LipdColumn[] = names.slice(0, width).map((varName, ci) => ({
+    number: ci + 1,
+    variableName: varName || `column${ci + 1}`,
+    TSid: makeTSid(),
+    values: parsed.rows.map(r => r[ci] ?? null),
+  }))
+
+  const metadata = skeleton(dsName)
+  metadata.paleoData = [{
+    measurementTable: [{
+      tableName: 'measurementTable0',
+      filename: 'paleo0measurement0.csv',
+      missingValue: 'NaN',
+      columns,
+    }],
+  }]
+  return { filename: `${dsName.replace(/[^\w.\-]+/g, '_')}.lpd`, metadata, csvData: {} }
 }

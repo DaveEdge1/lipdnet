@@ -84,6 +84,16 @@ body { background: var(--bg); height: 100vh; overflow: hidden; }
 }
 .landing-card-hint { color: var(--text-muted); font-size: .85rem; }
 .landing-card .btn { align-self: flex-start; }
+.landing-choice-list { display: flex; flex-direction: column; gap: .5rem; }
+.landing-choice {
+  display: flex; flex-direction: column; gap: .15rem; text-align: left;
+  padding: .6rem .8rem; background: var(--surface2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px; cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.landing-choice:hover { border-color: var(--accent); background: rgba(113,164,54,.06); }
+.landing-choice-title { font-weight: 600; font-size: .9rem; color: #333; }
+.landing-choice-sub { font-size: .78rem; color: var(--text-muted); }
 .landing-card-wide { grid-column: 1 / -1; }
 .landing-footer { color: var(--text-muted); font-size: .82rem; }
 
@@ -184,6 +194,15 @@ body { background: var(--bg); height: 100vh; overflow: hidden; }
   border: 1px solid var(--border); border-radius: 6px; font-size: .85rem; width: 100%;
 }
 .wizard-note { font-size: .8rem; color: var(--text-muted); font-style: italic; }
+
+.datatable-input {
+  width: 100%; padding: .5rem .6rem; background: var(--surface2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px; font-size: .82rem;
+  font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospace;
+  resize: vertical; white-space: pre; overflow-x: auto;
+}
+.datatable-actions-row { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.datatable-preview-info { font-size: .78rem; color: var(--text-muted); }
 .wizard-actions { display: flex; justify-content: flex-end; gap: .6rem; }
 .wizard-actions .btn:disabled { opacity: .5; cursor: not-allowed; }
 

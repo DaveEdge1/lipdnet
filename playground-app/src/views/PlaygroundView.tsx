@@ -15,6 +15,8 @@ import { JsonEditor } from '../components/JsonEditor'
 import { serializeLipd, appendChangelog, parseLipd } from '../lib/lipd'
 import { downloadNoaa } from '../lib/noaaExport'
 import { NewDatasetWizard } from '../components/NewDatasetWizard'
+import { DataTableDialog } from '../components/DataTableDialog'
+import { createBlankLipd } from '../lib/newDataset'
 import { validateLipd } from '../lib/validate'
 import { proxiedLpdUrl } from '../lib/remote'
 import type { LipdFile, LipdMetadata } from '../types/lipd'
@@ -65,6 +67,7 @@ export function PlaygroundView() {
   const [saving, setSaving] = useState(false)
   const [remoteStatus, setRemoteStatus] = useState<string | null>(null)
   const [showWizard, setShowWizard] = useState(false)
+  const [showDataTable, setShowDataTable] = useState(false)
 
   // Per-panel tab state
   const [tlTab, setTlTab] = useState<'metadata' | 'issues' | 'json'>('metadata')
@@ -217,10 +220,20 @@ export function PlaygroundView() {
 
           <section className="landing-card">
             <h2>Start fresh</h2>
-            <p className="landing-card-hint">Create a new dataset with a guided form.</p>
-            <button className="btn" onClick={() => setShowWizard(true)}>
-              Start a new dataset
-            </button>
+            <div className="landing-choice-list">
+              <button className="landing-choice" onClick={() => setShowWizard(true)}>
+                <span className="landing-choice-title">From a LiPD template</span>
+                <span className="landing-choice-sub">Guided form for a valid LiPD skeleton</span>
+              </button>
+              <button className="landing-choice" onClick={() => setShowDataTable(true)}>
+                <span className="landing-choice-title">From a data table</span>
+                <span className="landing-choice-sub">Paste or upload CSV/TSV data</span>
+              </button>
+              <button className="landing-choice" onClick={() => handleLoad(createBlankLipd())}>
+                <span className="landing-choice-title">From a blank slate</span>
+                <span className="landing-choice-sub">Empty dataset, edit everything by hand</span>
+              </button>
+            </div>
           </section>
 
           <section className="landing-card landing-card-wide">
@@ -236,6 +249,12 @@ export function PlaygroundView() {
           <NewDatasetWizard
             onCreate={f => { handleLoad(f); setShowWizard(false) }}
             onCancel={() => setShowWizard(false)}
+          />
+        )}
+        {showDataTable && (
+          <DataTableDialog
+            onCreate={f => { handleLoad(f); setShowDataTable(false) }}
+            onCancel={() => setShowDataTable(false)}
           />
         )}
       </div>
