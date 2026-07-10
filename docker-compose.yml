@@ -1,0 +1,29 @@
+# Runs the lipd.net web app together with the PyleoTUPS NOAA import service,
+# so PyleoTUPS is always the path for NOAA import/parse (no browser fallback
+# needed in a real deployment).
+#
+#   docker compose up --build
+#
+# The website is on :3000; it reaches the service in-network at
+# http://noaa-service:8000 via NOAA_SERVICE_URL.
+version: "3.8"
+
+services:
+  website:
+    build: .
+    command: npm start
+    environment:
+      - NODE_ENV=production
+      - NOAA_SERVICE_URL=http://noaa-service:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - noaa-service
+
+  noaa-service:
+    build: ./noaa-service
+    # Not published to the host by default — only the website talks to it.
+    # Uncomment to expose for debugging:
+    # ports:
+    #   - "8000:8000"
+    restart: unless-stopped

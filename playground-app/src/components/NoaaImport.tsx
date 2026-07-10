@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import {
-  searchNoaaStudies, noaaStudyToLipd, noaaStudyViaService, noaaFileToLipd,
+  searchNoaaStudies, noaaStudyToLipd, noaaStudyViaService, noaaFileToLipd, noaaFileViaService,
   NOAA_DATA_TYPES, type NoaaStudy, type NoaaSearchFilters,
 } from '../lib/noaa'
 import type { LipdFile } from '../types/lipd'
@@ -59,12 +59,21 @@ export function NoaaImport({ onLoad }: Props) {
     setBusy(`Reading ${file.name}…`)
     setError(null)
     try {
-      onLoad(noaaFileToLipd(await file.text(), file.name))
+      const text = await file.text()
+      // Prefer the PyleoTUPS service (handles old/non-standard formats too)
+      const viaService = await noaaFileViaService(text, file.name)
+      if (viaService.status === 'ok') {
+        onLoad(viaService.result.lipd)
+        return
+      }
+      if (viaService.status === 'error') {
+        setError(viaService.message)
+        return
+      }
+      // Service unavailable → browser parser (standard NOAA templates only)
+      onLoad(noaaFileToLipd(text, file.name))
     } catch (e) {
-      setError(
-        (e instanceof Error ? e.message : 'Could not read the file') +
-        ' — is this a NOAA-templated text file?'
-      )
+      setError(e instanceof Error ? e.message : 'Could not read the file')
     } finally {
       setBusy(null)
     }

@@ -1711,6 +1711,36 @@ router.get("/api/noaa/:id", function(req, res){
   });
 });
 
+// Parse an uploaded NOAA file's text via the PyleoTUPS service. The SPA POSTs
+// the raw file text; 503 when the service isn't configured so the playground
+// falls back to its browser parser.
+router.post("/api/noaa-parse", function(req, res){
+  var base = process.env.NOAA_SERVICE_URL;
+  if(!base){
+    return res.status(503).json({error: "NOAA service not configured"});
+  }
+  var chunks = [];
+  req.on("data", function(c){ chunks.push(c); });
+  req.on("end", function(){
+    var body = Buffer.concat(chunks);
+    if(body.length > 20 * 1024 * 1024){ // 20 MB guard
+      return res.status(413).json({error: "File too large"});
+    }
+    request({
+      uri: base.replace(/\/$/, "") + "/parse",
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: body,
+      timeout: 60000
+    }, function(err, res1, out){
+      if(err || !res1){
+        return res.status(503).json({error: "NOAA service unavailable"});
+      }
+      res.status(res1.statusCode).set("Content-Type", "application/json").send(out);
+    });
+  });
+});
+
 // lipdverse.org doesn't send CORS headers on .lpd downloads, so the SPA's
 // "Open in playground" and "Download" actions go through this restricted proxy.
 router.get("/lpd-proxy", function(req, res, next){

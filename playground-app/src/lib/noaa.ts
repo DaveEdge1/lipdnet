@@ -208,10 +208,29 @@ export function parseNoaaTemplate(text: string): ParsedNoaaFile {
     .map((l, i) => (l.trimStart().startsWith('#') ? i : -1))
     .filter(i => i >= 0)
 
-  // Plain delimited text file (no '#' metadata at all) — parse it directly
+  // No '#' metadata: either a clean delimited table, or an old-style NOAA file
+  // with a prose preamble and possibly multiple data sections. The browser
+  // parser only handles the clean case; the messy old format is left to the
+  // PyleoTUPS service (which has a dedicated NonStandardParser). Detect a prose
+  // preamble by checking whether the file starts with tabular content.
   if (!metaIdx.length) {
     const dataLines = lines.filter(l => l.trim())
     if (dataLines.length < 2) throw new Error('No data rows found')
+    // How many of the first several non-empty lines look like a header or data
+    // row (2+ delimited fields)? A clean table scores high; a prose preamble
+    // scores low.
+    const sample = dataLines.slice(0, 8)
+    const tabularish = sample.filter(l => {
+      const tabs = l.split('\t')
+      const cells = tabs.length > 1 ? tabs : l.trim().split(/\s{2,}|,/)
+      return cells.length >= 2
+    }).length
+    if (tabularish < sample.length * 0.75) {
+      throw new Error(
+        'This looks like an older non-standard NOAA file. ' +
+        'It needs the PyleoTUPS import service, which is not available here.'
+      )
+    }
     const { variables, rows } = finishRows(dataLines)
     return {
       variables: variables ?? rows[0].map((_, i) => ({ name: `column${i + 1}` })),
@@ -617,5 +636,43 @@ export async function noaaStudyViaService(studyId: string): Promise<NoaaImportRe
     return serviceToLipd(await res.json() as ServicePayload)
   } catch {
     return null
+  }
+}
+
+// Result of trying to parse a local NOAA file through the service.
+export type ServiceParseResult =
+  | { status: 'ok'; result: NoaaImportResult }
+  | { status: 'unavailable' }              // service not configured/reachable → caller may fall back
+  | { status: 'error'; message: string }   // service ran but rejected the file
+
+// Parse a local NOAA file's text via the PyleoTUPS service (Express proxies
+// POST /api/noaa-parse). Distinguishes "service down" (fall back) from
+// "service says this file is unparseable" (report honestly).
+export async function noaaFileViaService(text: string, filename: string): Promise<ServiceParseResult> {
+  let res: Response
+  try {
+    res = await fetch('/api/noaa-parse', {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: text,
+    })
+  } catch {
+    return { status: 'unavailable' }
+  }
+  if (res.status === 503) return { status: 'unavailable' }
+  if (!res.ok) {
+    let detail = `HTTP ${res.status}`
+    try { detail = (await res.json())?.detail ?? detail } catch { /* keep default */ }
+    return { status: 'error', message: String(detail) }
+  }
+  try {
+    const payload = await res.json() as ServicePayload
+    const base = filename.replace(/\.[^.]+$/, '') || 'noaa-dataset'
+    if (!payload.dataSetName) payload.dataSetName = base
+    const result = serviceToLipd(payload)
+    result.lipd.filename = `${(payload.dataSetName || base).replace(/[^\w.\-]+/g, '_')}.lpd`
+    return { status: 'ok', result }
+  } catch (e) {
+    return { status: 'error', message: e instanceof Error ? e.message : 'Bad service response' }
   }
 }

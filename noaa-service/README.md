@@ -14,6 +14,10 @@ parser, so the site works with or without it.
 ## Endpoints
 
 - `GET /health` → `{"status": "ok", ...}`
+- `POST /parse` (body: raw NOAA file text, `Content-Type: text/plain`) →
+  the same normalized JSON as below, for a file opened locally in the
+  playground. Handles old/non-standard multi-section files via PyleoTUPS's
+  NonStandardParser.
 - `GET /noaa/{study_id}` → normalized JSON:
 
   ```json
@@ -48,9 +52,19 @@ uvicorn app:app --host 0.0.0.0 --port 8000
 
 ## Run with Docker
 
+Standalone:
+
 ```
 docker build -t lipdnet-noaa-service .
 docker run -p 8000:8000 lipdnet-noaa-service
+```
+
+Or, recommended, run it alongside the web app with the repo-root
+`docker-compose.yml`, which sets `NOAA_SERVICE_URL` automatically so PyleoTUPS
+is always the NOAA path:
+
+```
+docker compose up --build
 ```
 
 ## Wire it to the site

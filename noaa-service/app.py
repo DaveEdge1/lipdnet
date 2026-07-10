@@ -17,11 +17,14 @@ Then point the Express app at it:
 from __future__ import annotations
 
 import math
+import os
+import tempfile
 from typing import Any
 
 import pandas as pd
 import pyleotups as pt
-from fastapi import FastAPI, HTTPException
+import requests
+from fastapi import Body, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="lipd.net NOAA import service", version="1.0.0")
@@ -177,9 +180,89 @@ def _num(v: Any) -> Any:
         return None
 
 
+# Convert a column of a PyleoTUPS DataFrame into a normalized-JSON column
+def _column(df: pd.DataFrame, col: Any, unit_by_name: dict[str, str]) -> dict:
+    unit = unit_by_name.get(str(col))
+    if unit is None:
+        for k, u in unit_by_name.items():
+            if str(col).startswith(k):
+                unit = u
+                break
+    return {
+        "variableName": str(col),
+        "units": unit,
+        "values": [_clean(x) for x in df[col].tolist()],
+    }
+
+
+# Run PyleoTUPS on raw NOAA file text. PyleoTUPS reads by URL/path: its
+# detection step and StandardParser use requests.get, while NonStandardParser
+# reads local paths via open(). So write the text to a temp file AND shim
+# requests.get to return it — covering both parser types.
+def parse_text(text: str) -> list[pd.DataFrame]:
+    class _Resp:
+        def __init__(self, t: str):
+            self.text = t
+            self.content = t.encode("utf-8")
+            self.status_code = 200
+            self.encoding = "utf-8"
+
+        def raise_for_status(self) -> None:
+            pass
+
+    fd, path = tempfile.mkstemp(suffix=".txt")
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(text)
+    orig_get = requests.get
+    requests.get = lambda url, *a, **k: _Resp(text)  # type: ignore[assignment]
+    try:
+        ds = pt.NOAADataset()
+        return ds.get_data(file_urls=[path]) or []
+    finally:
+        requests.get = orig_get
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+
+
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok", "service": "noaa-lipd"}
+
+
+@app.post("/parse")
+def parse(text: str = Body(..., media_type="text/plain")) -> dict:
+    """Parse an uploaded NOAA file's text into normalized tables via PyleoTUPS."""
+    if not text.strip():
+        raise HTTPException(status_code=400, detail="Empty file")
+    try:
+        dfs = parse_text(text)
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=422, detail=f"Could not parse file: {e}") from e
+    tables = []
+    for i, df in enumerate(dfs):
+        columns = [_column(df, c, {}) for c in df.columns]
+        if columns:
+            tables.append({
+                "tableName": _clean(df.attrs.get("StudyName")) or f"table{i}",
+                "fileUrl": None,
+                "columns": columns,
+            })
+    if not tables:
+        raise HTTPException(status_code=422, detail="No data table found in this file")
+    return {
+        "studyId": "",
+        "dataSetName": _clean(dfs[0].attrs.get("StudyName")) if dfs else None,
+        "archiveType": None,
+        "investigators": None,
+        "originalDataUrl": None,
+        "geo": {"latitude": None, "longitude": None, "elevation": None, "siteName": None},
+        "pub": [],
+        "tables": tables,
+        "skippedFiles": [],
+        "metadataOnly": False,
+    }
 
 
 @app.get("/noaa/{study_id}")
