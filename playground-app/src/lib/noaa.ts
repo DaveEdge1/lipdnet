@@ -676,3 +676,58 @@ export async function noaaFileViaService(text: string, filename: string): Promis
     return { status: 'error', message: e instanceof Error ? e.message : 'Bad service response' }
   }
 }
+
+// ---- PANGAEA (service-only; PyleoTUPS PangaeaDataset) ------------------------
+
+export interface PangaeaHit { id: string; name: string }
+export type PangaeaSearchResult =
+  | { status: 'ok'; hits: PangaeaHit[] }
+  | { status: 'unavailable' }
+  | { status: 'error'; message: string }
+
+// Extract a numeric PANGAEA id from a raw id, DOI, or URL.
+export function pangaeaId(input: string): string | null {
+  const m = input.trim().match(/(?:PANGAEA\.)?(\d{3,})\s*$/i)
+  return m ? m[1] : null
+}
+
+export async function pangaeaSearch(q: string): Promise<PangaeaSearchResult> {
+  let res: Response
+  try {
+    res = await fetch(`/api/pangaea-search?q=${encodeURIComponent(q)}`)
+  } catch {
+    return { status: 'unavailable' }
+  }
+  if (res.status === 503) return { status: 'unavailable' }
+  if (!res.ok) return { status: 'error', message: `Search failed (HTTP ${res.status})` }
+  try {
+    const json = await res.json()
+    return { status: 'ok', hits: (json.results ?? []) as PangaeaHit[] }
+  } catch {
+    return { status: 'error', message: 'Bad service response' }
+  }
+}
+
+export async function pangaeaImport(id: string): Promise<ServiceParseResult> {
+  let res: Response
+  try {
+    res = await fetch(`/api/pangaea/${id}`)
+  } catch {
+    return { status: 'unavailable' }
+  }
+  if (res.status === 503) return { status: 'unavailable' }
+  if (!res.ok) {
+    let detail = `HTTP ${res.status}`
+    try { detail = (await res.json())?.detail ?? detail } catch { /* keep default */ }
+    return { status: 'error', message: String(detail) }
+  }
+  try {
+    const payload = await res.json() as ServicePayload
+    if (payload.metadataOnly || !payload.tables.length) {
+      return { status: 'error', message: 'No importable data table found in this PANGAEA dataset.' }
+    }
+    return { status: 'ok', result: serviceToLipd(payload) }
+  } catch (e) {
+    return { status: 'error', message: e instanceof Error ? e.message : 'Bad service response' }
+  }
+}

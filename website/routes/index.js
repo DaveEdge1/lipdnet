@@ -1711,6 +1711,42 @@ router.get("/api/noaa/:id", function(req, res){
   });
 });
 
+// Import a PANGAEA dataset via the PyleoTUPS service (PANGAEA has no browser
+// path, so these require the service; 503 when it isn't configured).
+router.get("/api/pangaea/:id", function(req, res){
+  var base = process.env.NOAA_SERVICE_URL;
+  if(!base){
+    return res.status(503).json({error: "Import service not configured"});
+  }
+  if(!/^\d+$/.test(req.params.id)){
+    return res.status(400).json({error: "Invalid PANGAEA id"});
+  }
+  request({ uri: base.replace(/\/$/, "") + "/pangaea/" + req.params.id, timeout: 90000 }, function(err, res1, body){
+    if(err || !res1){
+      return res.status(503).json({error: "Import service unavailable"});
+    }
+    res.status(res1.statusCode).set("Content-Type", "application/json").send(body);
+  });
+});
+
+router.get("/api/pangaea-search", function(req, res){
+  var base = process.env.NOAA_SERVICE_URL;
+  if(!base){
+    return res.status(503).json({error: "Import service not configured"});
+  }
+  var q = req.query.q || "";
+  request({
+    uri: base.replace(/\/$/, "") + "/pangaea-search",
+    qs: { q: q, limit: 10 },
+    timeout: 120000
+  }, function(err, res1, body){
+    if(err || !res1){
+      return res.status(503).json({error: "Import service unavailable"});
+    }
+    res.status(res1.statusCode).set("Content-Type", "application/json").send(body);
+  });
+});
+
 // Parse an uploaded NOAA file's text via the PyleoTUPS service. The SPA POSTs
 // the raw file text; 503 when the service isn't configured so the playground
 // falls back to its browser parser.

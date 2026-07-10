@@ -195,6 +195,79 @@ def _column(df: pd.DataFrame, col: Any, unit_by_name: dict[str, str]) -> dict:
     }
 
 
+def build_pangaea_payload(study_id: int) -> dict:
+    pg = pt.PangaeaDataset()
+    pg.search_studies(study_ids=study_id)
+    summary = pg.get_summary()
+    if summary is None or len(summary) == 0:
+        raise HTTPException(status_code=404, detail=f"PANGAEA dataset {study_id} not found")
+    row = summary.iloc[0]
+
+    # Geo
+    lat = lon = elev = site_name = None
+    try:
+        geo_df = pg.get_geo()
+        if geo_df is not None and len(geo_df):
+            g = geo_df.iloc[0]
+            lat = _clean(g.get("MinLatitude"))
+            lon = _clean(g.get("MinLongitude"))
+            elev = _num(_clean(g.get("Elevation")))
+            site_name = _clean(g.get("SiteName"))
+    except Exception:
+        pass
+
+    # ShortName -> Unit map
+    unit_by_name: dict[str, str] = {}
+    try:
+        vdf = pg.get_variables(study_id)
+        if vdf is not None:
+            for _, v in vdf.iterrows():
+                name = _clean(v.get("ShortName")) or _clean(v.get("VariableName"))
+                unit = _clean(v.get("Unit"))
+                if name and unit and name not in unit_by_name:
+                    unit_by_name[name] = unit
+    except Exception:
+        pass
+
+    dfs = pg.get_data(study_id)
+    if not isinstance(dfs, list):
+        dfs = [dfs] if dfs is not None else []
+    tables = []
+    for i, df in enumerate(dfs):
+        if df is None or not len(df.columns):
+            continue
+        columns = [_column(df, c, unit_by_name) for c in df.columns]
+        if columns:
+            tables.append({
+                "tableName": _clean(row.get("StudyName")) or f"table{i}",
+                "fileUrl": None,
+                "columns": columns,
+            })
+
+    # Publications may be a full DataFrame; fall back to none
+    pubs: list[dict] = []
+    try:
+        pr = pg.get_publications()
+        pdf = pr[1] if isinstance(pr, tuple) else pr
+        if pdf is not None and hasattr(pdf, "iterrows"):
+            pubs = _publications([r.to_dict() for _, r in pdf.iterrows()])
+    except Exception:
+        pass
+
+    return {
+        "studyId": str(study_id),
+        "dataSetName": _clean(row.get("StudyName")),
+        "archiveType": None,  # PANGAEA has no NOAA-style dataType; user sets it
+        "investigators": _clean(row.get("Investigators")),
+        "originalDataUrl": f"https://doi.pangaea.de/10.1594/PANGAEA.{study_id}",
+        "geo": {"latitude": lat, "longitude": lon, "elevation": elev, "siteName": site_name},
+        "pub": pubs,
+        "tables": tables,
+        "skippedFiles": [],
+        "metadataOnly": len(tables) == 0,
+    }
+
+
 # Run PyleoTUPS on raw NOAA file text. PyleoTUPS reads by URL/path: its
 # detection step and StandardParser use requests.get, while NonStandardParser
 # reads local paths via open(). So write the text to a temp file AND shim
@@ -273,3 +346,37 @@ def noaa(study_id: int) -> dict:
         raise
     except Exception as e:  # noqa: BLE001 — surface any PyleoTUPS failure as 502
         raise HTTPException(status_code=502, detail=f"PyleoTUPS error: {e}") from e
+
+
+@app.get("/pangaea/{study_id}")
+def pangaea(study_id: int) -> dict:
+    try:
+        return build_pangaea_payload(study_id)
+    except HTTPException:
+        raise
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"PyleoTUPS error: {e}") from e
+
+
+@app.get("/pangaea-search")
+def pangaea_search(q: str, limit: int = 20) -> dict:
+    """Free-text PANGAEA search → list of {id, name} for the user to pick from."""
+    if not q.strip():
+        return {"results": []}
+    try:
+        pg = pt.PangaeaDataset()
+        pg.search_studies(search_text=q.strip(), limit=min(limit, 50))
+        summary = pg.get_summary()
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"PyleoTUPS error: {e}") from e
+    results = []
+    if summary is not None:
+        for _, r in summary.iterrows():
+            sid = _clean(r.get("StudyID"))
+            if sid is None:
+                continue
+            # Skip collections (no directly-importable data)
+            if _clean(r.get("CollectionMembers")):
+                continue
+            results.append({"id": str(sid), "name": _clean(r.get("StudyName")) or f"PANGAEA {sid}"})
+    return {"results": results}

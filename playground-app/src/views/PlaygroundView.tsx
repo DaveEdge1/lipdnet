@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import type { CSSProperties } from 'react'
 import { DropZone } from '../components/DropZone'
 import { NoaaImport } from '../components/NoaaImport'
+import { PangaeaImport } from '../components/PangaeaImport'
 import { MetadataPanel } from '../components/MetadataPanel'
 import { ChangelogPanel } from '../components/ChangelogPanel'
 import { ColumnList } from '../components/ColumnList'
@@ -16,7 +17,6 @@ import { serializeLipd, appendChangelog, parseLipd } from '../lib/lipd'
 import { downloadNoaa } from '../lib/noaaExport'
 import { NewDatasetWizard } from '../components/NewDatasetWizard'
 import { DataTableDialog } from '../components/DataTableDialog'
-import { createBlankLipd } from '../lib/newDataset'
 import { validateLipd } from '../lib/validate'
 import { proxiedLpdUrl } from '../lib/remote'
 import type { LipdFile, LipdMetadata } from '../types/lipd'
@@ -169,6 +169,23 @@ export function PlaygroundView() {
     return () => { cancelled = true }
   }, [handleLoad])
 
+  // "From a LiPD template": load an existing .lpd as the starting point for a
+  // new dataset — a fresh datasetId so it's distinct from the original.
+  const openTemplateFile = useCallback(async (file: File | undefined) => {
+    if (!file) return
+    setRemoteStatus(`Loading ${file.name}…`)
+    try {
+      const parsed = await parseLipd(file)
+      const rid = Array.from({ length: 17 }, () =>
+        'abcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(Math.random() * 36)]).join('')
+      parsed.metadata.datasetId = `WEB${rid}`
+      handleLoad(parsed)
+      setRemoteStatus(null)
+    } catch (e) {
+      setRemoteStatus(`Could not read the LiPD file: ${e instanceof Error ? e.message : e}`)
+    }
+  }, [handleLoad])
+
   const handleMetadataChange = useCallback((updated: LipdMetadata) => {
     setLipd(prev => prev ? { ...prev, metadata: updated } : null)
   }, [])
@@ -214,34 +231,49 @@ export function PlaygroundView() {
 
         <div className="landing-cards">
           <section className="landing-card">
-            <h2>Open a file</h2>
+            <h2>Open a LiPD</h2>
             <DropZone onLoad={handleLoad} />
           </section>
 
           <section className="landing-card">
-            <h2>Start fresh</h2>
+            <h2>Create a LiPD</h2>
             <div className="landing-choice-list">
-              <button className="landing-choice" onClick={() => setShowWizard(true)}>
+              <label className="landing-choice">
                 <span className="landing-choice-title">From a LiPD template</span>
-                <span className="landing-choice-sub">Guided form for a valid LiPD skeleton</span>
-              </button>
+                <span className="landing-choice-sub">Start from an existing .lpd file</span>
+                <input
+                  type="file"
+                  accept=".lpd"
+                  style={{ display: 'none' }}
+                  onChange={e => { openTemplateFile(e.target.files?.[0]); e.target.value = '' }}
+                />
+              </label>
               <button className="landing-choice" onClick={() => setShowDataTable(true)}>
                 <span className="landing-choice-title">From a data table</span>
                 <span className="landing-choice-sub">Paste or upload CSV/TSV data</span>
               </button>
-              <button className="landing-choice" onClick={() => handleLoad(createBlankLipd())}>
+              <button className="landing-choice" onClick={() => setShowWizard(true)}>
                 <span className="landing-choice-title">From a blank slate</span>
-                <span className="landing-choice-sub">Empty dataset, edit everything by hand</span>
+                <span className="landing-choice-sub">Guided form for a valid LiPD skeleton</span>
               </button>
             </div>
           </section>
 
           <section className="landing-card landing-card-wide">
-            <h2>Import from NOAA</h2>
+            <h2>NOAA to LiPD</h2>
             <p className="landing-card-hint">
               Pull a study from the NOAA NCEI Paleoclimatology archive, or open a NOAA text file.
             </p>
             <NoaaImport onLoad={handleLoad} />
+          </section>
+
+          <section className="landing-card landing-card-wide">
+            <h2>PANGAEA to LiPD</h2>
+            <p className="landing-card-hint">
+              Import a dataset from the <a href="https://www.pangaea.de" target="_blank" rel="noreferrer">PANGAEA</a> archive
+              by ID or DOI (fast), or by keyword search (slower).
+            </p>
+            <PangaeaImport onLoad={handleLoad} />
           </section>
         </div>
 
