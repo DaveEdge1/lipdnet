@@ -6,3 +6,11 @@ lipdnet.Dockerfile
 website/tokens.json
 website/Procfile
 website/*.log
+
+# Not needed in the web image (the SPA is served from the committed dist in
+# website/public/playground-app; the Python service is a separate image).
+.git
+playground-app/node_modules
+playground-app/.git
+noaa-service/.venv
+noaa-service/__pycache__

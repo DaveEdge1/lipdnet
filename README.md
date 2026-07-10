@@ -99,12 +99,38 @@ The build output in `website/public/playground-app` is committed to git so the
 production Docker image (node 14) can serve it without a build step. The Express
 route `GET /playground` serves the SPA's index.html and records usage stats.
 
-## dev notes:
-The Dockerfile for the production container is located at /root/Dockerfile
-* note that the web address is hard-coded in 2 places in the file "website/public/js/ngContValidate.js"
-The DigitalOcean (http://64.23.255.172:3001/) and lipd.net version are different only in these two lines.
-The two containers in use are docker.io/davidedge/lipd_webapps:lipdnet44 (lipd.net) and docker.io/davidedge/lipd_webapps:lipdnet43 (DigitalOcean)
+## Deployment
 
-The website is launched from a container at port 3000 in both cases
+The site is now **two** containers — the Node web app and the Python
+PyleoTUPS import service (`noaa-service/`) — because NOAA and PANGAEA import
+depend on PyleoTUPS. They're built by GitHub Actions and run together with
+docker-compose.
 
-* The local version of the website does not run correctly (maybe a problem with the node module set)
+**Build (GitHub Actions).** `.github/workflows/docker-build-push.yml` builds
+and pushes both images to Docker Hub on a push to `develop` or
+`playground-react` (the beta branch), on `v*` tags, or via manual dispatch.
+Images: `<DOCKERHUB_USERNAME>/lipdnet` (web) and
+`<DOCKERHUB_USERNAME>/lipdnet-noaa-service` (service), tagged by branch/semver.
+Requires repo secrets `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`.
+
+**Run (on the VPS).** Pull the CI-built images with `docker-compose.prod.yml`:
+
+```
+export IMAGE_PREFIX=davidedge        # Docker Hub user/org
+export IMAGE_TAG=playground-react    # branch tag the workflow pushed
+export WEB_PORT=3001                 # host port (beta); site served at root
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d
+```
+
+The site is then at `http://<host>:${WEB_PORT}/` (playground at `/playground`).
+The web container reaches the service in-network via
+`NOAA_SERVICE_URL=http://noaa-service:8000` (set in the compose); the service
+port is not published to the host. `docker-compose.yml` (no `.prod`) is the
+same topology but builds the images locally from source instead of pulling.
+
+The web image is `node:14-alpine` and can't run Vite, so the playground SPA
+dist in `website/public/playground-app` is committed to git and baked into the
+image (rebuild it with `cd playground-app && npm run build` after SPA changes).
+The app listens on `PORT` (default 3000); everything is served at the domain
+root, so bind it to a host port rather than a path prefix.

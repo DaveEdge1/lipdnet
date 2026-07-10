@@ -1,0 +1,31 @@
+# Production/beta deployment: pulls the images built and pushed by the GitHub
+# Actions workflow (.github/workflows/docker-build-push.yml) instead of building
+# on the host. The node:14 web image can't run Vite, so the SPA dist is baked
+# into the pushed image.
+#
+# On the VPS (e.g. beta on :3001, root-served):
+#   export IMAGE_PREFIX=davidedge        # your Docker Hub username / org
+#   export IMAGE_TAG=playground-react    # branch tag the workflow pushed
+#   export WEB_PORT=3001
+#   docker compose -f docker-compose.prod.yml pull
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# The site is then at http://<host>:${WEB_PORT}/ (playground at /playground).
+version: "3.8"
+
+services:
+  website:
+    image: ${IMAGE_PREFIX:-davidedge}/lipdnet:${IMAGE_TAG:-latest}
+    environment:
+      - NODE_ENV=production
+      - NOAA_SERVICE_URL=http://noaa-service:8000
+    ports:
+      - "${WEB_PORT:-3001}:3000"
+    depends_on:
+      - noaa-service
+    restart: unless-stopped
+
+  noaa-service:
+    image: ${IMAGE_PREFIX:-davidedge}/lipdnet-noaa-service:${IMAGE_TAG:-latest}
+    # Internal only — the website reaches it at http://noaa-service:8000.
+    restart: unless-stopped
