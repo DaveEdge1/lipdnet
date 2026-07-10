@@ -17,6 +17,7 @@ import { serializeLipd, appendChangelog, parseLipd } from '../lib/lipd'
 import { downloadNoaa } from '../lib/noaaExport'
 import { NewDatasetWizard } from '../components/NewDatasetWizard'
 import { DataTableDialog } from '../components/DataTableDialog'
+import { WelcomeDialog } from '../components/WelcomeDialog'
 import { validateLipd } from '../lib/validate'
 import { proxiedLpdUrl } from '../lib/remote'
 import type { LipdFile, LipdMetadata } from '../types/lipd'
@@ -25,6 +26,9 @@ function contentHash(metadata: LipdMetadata): string {
   const { changelog: _c, datasetVersion: _v, ...rest } = metadata
   return JSON.stringify(rest)
 }
+
+// Bump the suffix to re-show the welcome brief after a notable release.
+const WELCOME_KEY = 'pg-welcome-v1'
 
 // ---- Workspace layout (resizable + collapsible panes) -----------------------
 
@@ -68,6 +72,14 @@ export function PlaygroundView() {
   const [remoteStatus, setRemoteStatus] = useState<string | null>(null)
   const [showWizard, setShowWizard] = useState(false)
   const [showDataTable, setShowDataTable] = useState(false)
+  // First-run welcome brief — shown once per browser (persisted), reopenable.
+  const [showWelcome, setShowWelcome] = useState(() => {
+    try { return localStorage.getItem(WELCOME_KEY) !== 'dismissed' } catch { return false }
+  })
+  const dismissWelcome = () => {
+    try { localStorage.setItem(WELCOME_KEY, 'dismissed') } catch { /* private mode */ }
+    setShowWelcome(false)
+  }
 
   // Per-panel tab state
   const [tlTab, setTlTab] = useState<'metadata' | 'issues' | 'json'>('metadata')
@@ -225,7 +237,12 @@ export function PlaygroundView() {
         <header className="landing-header">
           <h1>LiPD Playground</h1>
           <p>Open, edit, validate, and visualize paleoclimate data — right in your browser.</p>
+          <button className="landing-whatsnew" onClick={() => setShowWelcome(true)}>
+            What&rsquo;s new?
+          </button>
         </header>
+
+        {showWelcome && <WelcomeDialog onClose={dismissWelcome} />}
 
         {remoteStatus && <p className="noaa-import-status">{remoteStatus}</p>}
 
