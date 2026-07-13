@@ -17,6 +17,9 @@ services:
       - NOAA_SERVICE_URL=http://noaa-service:8000
     ports:
       - "${WEB_PORT:-3000}:3000"
+    volumes:
+      # Persist usage stats (logs/playground_stats.json) across rebuilds.
+      - weblogs:/app/website/logs
     depends_on:
       - noaa-service
     restart: unless-stopped
@@ -28,3 +31,6 @@ services:
     # ports:
     #   - "8000:8000"
     restart: unless-stopped
+
+volumes:
+  weblogs:

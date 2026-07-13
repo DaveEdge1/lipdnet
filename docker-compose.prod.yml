@@ -21,6 +21,10 @@ services:
       - NOAA_SERVICE_URL=http://noaa-service:8000
     ports:
       - "${WEB_PORT:-3001}:3000"
+    volumes:
+      # Persist usage stats (logs/playground_stats.json) across image pulls —
+      # without this the stats reset every deploy.
+      - weblogs:/app/website/logs
     depends_on:
       - noaa-service
     restart: unless-stopped
@@ -29,3 +33,6 @@ services:
     image: ${IMAGE_PREFIX:-davidedge}/lipdnet-noaa-service:${IMAGE_TAG:-latest}
     # Internal only — the website reaches it at http://noaa-service:8000.
     restart: unless-stopped
+
+volumes:
+  weblogs:
