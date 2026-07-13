@@ -81,3 +81,54 @@ export function validateLipd(metadata: LipdMetadata): Issue[] {
 
   return issues
 }
+
+// NOAA WDS-Paleo submission profile: what a landing page / template submission
+// expects beyond a structurally valid LiPD. Errors = NOAA-required, warnings =
+// strongly recommended. Shown in the validation panel behind a toggle and
+// mirrored by the "NOAA .txt" export fields.
+export function validateNoaa(metadata: LipdMetadata): Issue[] {
+  const issues: Issue[] = []
+  const req = (cond: unknown, path: string, message: string) => {
+    if (!cond) issues.push({ severity: 'error', path, message })
+  }
+  const rec = (cond: unknown, path: string, message: string) => {
+    if (!cond) issues.push({ severity: 'warning', path, message })
+  }
+
+  req(metadata.dataSetName, 'dataSetName', 'NOAA: study name (dataset name) is required')
+  req(metadata.investigators, 'investigators', 'NOAA: investigators are required')
+  req(metadata.timeUnit, 'timeUnit', 'NOAA: time unit is required (e.g. "cal yr BP")')
+  req(metadata.earliestYear != null && metadata.earliestYear !== '', 'earliestYear', 'NOAA: earliest year is required')
+  req(metadata.mostRecentYear != null && metadata.mostRecentYear !== '', 'mostRecentYear', 'NOAA: most recent year is required')
+
+  const geo = metadata.geo
+  const coords = geo?.geometry?.coordinates
+  req(geo?.properties?.siteName ?? geo?.siteName, 'geo.siteName', 'NOAA: site name is required')
+  rec(geo?.properties?.location, 'geo.location', 'NOAA: location (e.g. "Continent>Europe") is recommended')
+  req(coords?.[1] != null || geo?.latitude != null, 'geo.latitude', 'NOAA: latitude is required')
+  req(coords?.[0] != null || geo?.longitude != null, 'geo.longitude', 'NOAA: longitude is required')
+  rec((coords?.[2] ?? geo?.elevation) != null, 'geo.elevation', 'NOAA: elevation is recommended')
+
+  rec(metadata.datasetDOI, 'datasetDOI', 'NOAA: dataset DOI is recommended')
+  rec(metadata.originalDataUrl, 'originalDataUrl', 'NOAA: original source URL is recommended')
+
+  const pubs = metadata.pub ?? []
+  req(pubs.length > 0, 'pub', 'NOAA: at least one publication is required')
+  for (const [i, pub] of pubs.entries()) {
+    req(pub.title, `pub[${i}].title`, `NOAA: publication ${i + 1} needs a title`)
+    req(Array.isArray(pub.author) ? pub.author.length : pub.author, `pub[${i}].author`, `NOAA: publication ${i + 1} needs authors`)
+    req(pub.year, `pub[${i}].year`, `NOAA: publication ${i + 1} needs a year`)
+    rec(pub.abstract, `pub[${i}].abstract`, `NOAA: publication ${i + 1} abstract is recommended`)
+  }
+
+  const tables = [...(metadata.paleoData ?? []), ...(metadata.chronData ?? [])]
+    .flatMap(s => s.measurementTable ?? [])
+  req(tables.length > 0, 'paleoData', 'NOAA: at least one measurement table is required')
+  for (const table of tables) {
+    for (const col of table.columns ?? []) {
+      rec(col.units, `${table.tableName ?? 'table'}.${col.variableName}`, `NOAA: column "${col.variableName}" should have units`)
+    }
+  }
+
+  return issues
+}

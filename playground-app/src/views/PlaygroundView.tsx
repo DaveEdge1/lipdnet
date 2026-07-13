@@ -13,10 +13,11 @@ import { SiteMap } from '../components/SiteMap'
 import { DataEditor } from '../components/DataEditor'
 import { StructureView } from '../components/StructureView'
 import { JsonEditor } from '../components/JsonEditor'
-import { serializeLipd, appendChangelog, parseLipd } from '../lib/lipd'
+import { serializeLipd, appendChangelog, parseLipd, makeTemplate } from '../lib/lipd'
 import { downloadNoaa } from '../lib/noaaExport'
 import { NewDatasetWizard } from '../components/NewDatasetWizard'
 import { DataTableDialog } from '../components/DataTableDialog'
+import { saveSession, loadSession, clearSession } from '../lib/autosaveStore'
 import { WelcomeDialog } from '../components/WelcomeDialog'
 import { validateLipd } from '../lib/validate'
 import { proxiedLpdUrl } from '../lib/remote'
@@ -29,6 +30,22 @@ function contentHash(metadata: LipdMetadata): string {
 
 // Bump the suffix to re-show the welcome brief after a notable release.
 const WELCOME_KEY = 'pg-welcome-v1'
+
+// ---- Session auto-save -------------------------------------------------------
+// The open dataset (metadata incl. values + raw csvData) is persisted to
+// localStorage so a refresh or crash doesn't lose unsaved edits. Cleared on an
+// explicit Close. Oversized datasets simply skip persistence (quota errors).
+
+// Stores metadata (with in-memory column values) but NOT csvData — the raw CSV
+// text is redundant with the values. On restore, measurement CSVs are rebuilt
+// from values; rarely-used extra CSVs (e.g. ensemble) are not recovered by
+// crash-restore, an acceptable tradeoff. Persisted in IndexedDB (see
+// lib/autosaveStore) so large datasets fit.
+interface AutosavePayload {
+  filename: string
+  metadata: LipdMetadata
+  savedAt: string
+}
 
 // ---- Workspace layout (resizable + collapsible panes) -----------------------
 
@@ -80,6 +97,31 @@ export function PlaygroundView() {
     try { localStorage.setItem(WELCOME_KEY, 'dismissed') } catch { /* private mode */ }
     setShowWelcome(false)
   }
+
+  // Unsaved-session recovery: offer to restore an auto-saved dataset on landing
+  const [autosave, setAutosave] = useState<AutosavePayload | null>(null)
+  const autosaveTimer = useRef<number | undefined>(undefined)
+  // Load any previously auto-saved session once on mount
+  useEffect(() => {
+    let cancelled = false
+    loadSession<AutosavePayload>()
+      .then(s => { if (!cancelled && s?.metadata) setAutosave(s) })
+      .catch(() => { /* IndexedDB unavailable — no restore offered */ })
+    return () => { cancelled = true }
+  }, [])
+  // Debounced persist of the open dataset
+  useEffect(() => {
+    if (!lipd) return
+    window.clearTimeout(autosaveTimer.current)
+    autosaveTimer.current = window.setTimeout(() => {
+      saveSession({
+        filename: lipd.filename,
+        metadata: lipd.metadata,
+        savedAt: new Date().toISOString(),
+      } satisfies AutosavePayload).catch(() => { /* storage unavailable — skip */ })
+    }, 1000)
+    return () => window.clearTimeout(autosaveTimer.current)
+  }, [lipd])
 
   // Per-panel tab state
   const [tlTab, setTlTab] = useState<'metadata' | 'issues' | 'json'>('metadata')
@@ -191,6 +233,16 @@ export function PlaygroundView() {
       const rid = Array.from({ length: 17 }, () =>
         'abcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(Math.random() * 36)]).join('')
       parsed.metadata.datasetId = `WEB${rid}`
+      // Structure-only template: keep tables/columns/metadata, drop the values
+      const stripValues = window.confirm(
+        'Clear the data values so only the structure remains?\n\n' +
+        'OK — blank template: keeps tables, columns, and metadata, but empties the data and assigns new TSids.\n' +
+        'Cancel — keep the original data as the starting point.'
+      )
+      if (stripValues) {
+        parsed.metadata = makeTemplate(parsed.metadata)
+        parsed.csvData = {}
+      }
       handleLoad(parsed)
       setRemoteStatus(null)
     } catch (e) {
@@ -245,6 +297,32 @@ export function PlaygroundView() {
         {showWelcome && <WelcomeDialog onClose={dismissWelcome} />}
 
         {remoteStatus && <p className="noaa-import-status">{remoteStatus}</p>}
+
+        {autosave && (
+          <div className="restore-banner">
+            <span>
+              You have unsaved work on{' '}
+              <strong>{autosave.metadata.dataSetName ?? autosave.filename}</strong>
+              {' '}from {new Date(autosave.savedAt).toLocaleString()}.
+            </span>
+            <div className="restore-actions">
+              <button
+                className="btn-restore"
+                onClick={() => {
+                  handleLoad({ metadata: autosave.metadata, filename: autosave.filename, csvData: {} })
+                }}
+              >
+                Restore
+              </button>
+              <button
+                className="btn-discard"
+                onClick={() => { clearSession(); setAutosave(null) }}
+              >
+                Discard
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="landing-cards">
           <section className="landing-card">
@@ -338,7 +416,16 @@ export function PlaygroundView() {
           <button onClick={handleSave} disabled={saving} className="btn-save">
             {saving ? 'Saving…' : 'Save .lpd'}
           </button>
-          <button onClick={() => { setLipd(null); setSelectedTSid(null) }} className="btn-close">
+          <button
+            onClick={() => {
+              window.clearTimeout(autosaveTimer.current)
+              clearSession()
+              setAutosave(null)
+              setLipd(null)
+              setSelectedTSid(null)
+            }}
+            className="btn-close"
+          >
             Close
           </button>
         </div>

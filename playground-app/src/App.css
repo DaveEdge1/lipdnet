@@ -665,3 +665,51 @@ body { background: var(--bg); height: 100vh; overflow: hidden; }
 .row-gutter:hover .btn-delete-row { display: inline; }
 .row-num { font-size: .7rem; color: var(--text-muted); user-select: none; }
 .btn-delete-row { display: none; background: none; border: none; color: #c0392b; cursor: pointer; font-size: .88rem; padding: 0 .2rem; line-height: 1; }
+
+/* ---- Metadata sub-cards (publications, funding, online resources) ---------- */
+.sub-card { border: 1px solid var(--border); border-radius: 8px; padding: .7rem .8rem .4rem; margin-bottom: .8rem; background: var(--surface2); }
+.sub-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: .6rem; font-size: .78rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
+.section-empty { font-size: .8rem; color: var(--text-muted); margin: .2rem 0 .8rem; }
+.section-hint { font-size: .76rem; color: var(--text-muted); margin: .3rem 0 .8rem; }
+.btn-mini { background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 5px; padding: .18rem .55rem; font-size: .74rem; cursor: pointer; }
+.btn-mini:hover { border-color: var(--accent); color: var(--accent); }
+.field-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 .6rem; }
+.field-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0 .6rem; }
+.doi-status { font-size: .74rem; color: var(--text-muted); margin-top: .2rem; }
+
+/* DMS coordinate entry */
+.dms-row { display: flex; align-items: center; gap: .25rem; }
+.dms-row input { width: 4.2rem; }
+.dms-row select { width: auto; }
+.dms-unit { color: var(--text-muted); font-size: .8rem; }
+
+/* NOAA submission fields (collapsible) */
+.noaa-details { margin-bottom: 1.5rem; border: 1px solid var(--border); border-radius: 8px; padding: .5rem .8rem; }
+.noaa-details summary { cursor: pointer; font-size: .8rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; padding: .2rem 0; }
+.noaa-details summary:hover { color: var(--accent); }
+.noaa-details[open] summary { margin-bottom: .6rem; }
+.noaa-details .section-header-row { margin-top: .6rem; }
+
+/* NOAA validation profile toggle */
+.noaa-profile-toggle { display: inline-flex; align-items: center; gap: .35rem; font-size: .78rem; color: var(--text-muted); cursor: pointer; margin-left: auto; white-space: nowrap; }
+.noaa-profile-toggle input { accent-color: var(--accent); cursor: pointer; }
+.validation-panel.empty .noaa-profile-toggle { margin: .6rem 0 0; }
+
+/* Unsaved-session restore banner */
+.restore-banner { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; max-width: 900px; margin: 0 auto 1.2rem; padding: .7rem 1rem; border: 1px solid var(--accent); border-radius: 8px; background: rgba(113,164,54,.07); font-size: .88rem; color: var(--text); }
+.restore-actions { display: flex; gap: .5rem; }
+.btn-restore { background: var(--accent); color: #fff; border: none; border-radius: 6px; padding: .35rem .9rem; font-size: .82rem; cursor: pointer; }
+.btn-restore:hover { background: #577d2a; }
+.btn-discard { background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 6px; padding: .35rem .9rem; font-size: .82rem; cursor: pointer; }
+.btn-discard:hover { border-color: #c0392b; color: #c0392b; }
+
+/* Data editor: table management */
+.btn-add-row.btn-danger { color: #c0392b; border-color: #c0392b; }
+.btn-add-row.btn-danger:hover { background: rgba(192,57,43,.08); }
+.data-editor-empty-actions { display: flex; gap: .5rem; justify-content: center; margin-top: .8rem; }
+.data-editor-empty-actions .btn-add-row { margin-left: 0; }
+
+/* With table-management buttons the toolbar needs to wrap; buttons sit left,
+   the copy/paste/CSV group stays pushed right. */
+.data-editor-toolbar { flex-wrap: wrap; row-gap: .4rem; }
+.data-editor-toolbar > .btn-add-row { margin-left: 0; }

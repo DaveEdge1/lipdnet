@@ -22,6 +22,7 @@ function pubLines(pub: LipdPub, i: number): string[] {
     `Volume: ${pub.volume ?? ''}`,
     `Pages: ${pub.pages ?? ''}`,
     `DOI: ${pub.doi ?? pub.DOI ?? ''}`,
+    `Abstract: ${(pub.abstract as string | undefined) ?? ''}`,
   ])
 }
 
@@ -58,6 +59,7 @@ function tableToNoaaTxt(metadata: LipdMetadata, table: LipdTable): string {
   const cols = [...(table.columns ?? [])].sort((a, b) => (a.number ?? 0) - (b.number ?? 0))
   const rowCount = Math.max(0, ...cols.map(c => c.values?.length ?? 0))
 
+  const onlineResources = (metadata.onlineResource as Array<{ onlineResource?: string; description?: string }> | undefined) ?? []
   const out: string[] = [
     line(metadata.dataSetName ?? 'LiPD dataset'),
     line('-----------------------------------------------------------------------'),
@@ -66,9 +68,12 @@ function tableToNoaaTxt(metadata: LipdMetadata, table: LipdTable): string {
     line('                       NOAA Paleoclimatology Program'),
     line('-----------------------------------------------------------------------'),
     line(`Online_Resource: https://lipd.net`),
+    ...onlineResources
+      .filter(r => r.onlineResource)
+      .map(r => line(`Online_Resource: ${r.onlineResource}${r.description ? ` (${r.description})` : ''}`)),
     line(`Original_Source_URL: ${metadata.originalDataUrl ?? ''}`),
     line(`Archive: ${metadata.archiveType ?? ''}`),
-    line(`Dataset_DOI: `),
+    line(`Dataset_DOI: ${metadata.datasetDOI ?? ''}`),
     line('---------------'),
     ...section('Contribution_Date', [`Date: ${new Date().toISOString().slice(0, 10)}`]),
     ...section('Title', [
@@ -76,8 +81,14 @@ function tableToNoaaTxt(metadata: LipdMetadata, table: LipdTable): string {
       `Table_Name: ${table.tableName ?? ''}`,
     ]),
     ...section('Investigators', [`Investigators: ${metadata.investigators ?? ''}`]),
+    ...(metadata.notes ? section('Description_Notes_and_Keywords', [`Description: ${metadata.notes}`]) : []),
     ...(metadata.pub ?? []).flatMap((p, i) => pubLines(p, i)),
     ...geoLines(metadata),
+    ...section('Data_Collection', [
+      `Earliest_Year: ${metadata.earliestYear ?? ''}`,
+      `Most_Recent_Year: ${metadata.mostRecentYear ?? ''}`,
+      `Time_Unit: ${metadata.timeUnit ?? ''}`,
+    ]),
     line('Variables'),
     line(''),
     line('Data variables follow that are preceded by "##" in columns one and two.'),

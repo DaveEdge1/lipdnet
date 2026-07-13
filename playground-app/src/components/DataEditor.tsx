@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useMemo, useEffect, useTransition } from 'react'
 import type { LipdMetadata } from '../types/lipd'
-import { getTables, updateCellValue, deleteTableRow, addTableRow, replaceTableData, addTableColumn, deleteTableColumn } from '../lib/lipd'
+import { getTables, updateCellValue, deleteTableRow, addTableRow, replaceTableData, addTableColumn, deleteTableColumn, addMeasurementTable, duplicateTable, deleteTable } from '../lib/lipd'
 import { parseTabular } from '../lib/tabular'
 
 interface Props {
@@ -25,6 +25,17 @@ export function DataEditor({ metadata, onChange, selectedPath }: Props) {
     const idx = tables.findIndex(t => t.path === selectedPath)
     if (idx >= 0) startTransition(() => setTableIdx(idx))
   }, [selectedPath, tables])
+
+  // After creating/duplicating a table, select it once the new metadata lands
+  const [pendingPath, setPendingPath] = useState<string | null>(null)
+  useEffect(() => {
+    if (!pendingPath) return
+    const idx = tables.findIndex(t => t.path === pendingPath)
+    if (idx >= 0) {
+      setTableIdx(idx)
+      setPendingPath(null)
+    }
+  }, [pendingPath, tables])
   const [editCell, setEditCell] = useState<EditCell | null>(null)
   const [editValue, setEditValue] = useState('')
   const [copied, setCopied] = useState(false)
@@ -199,10 +210,50 @@ export function DataEditor({ metadata, onChange, selectedPath }: Props) {
     onChange(deleteTableRow(metadata, entry.path, row))
   }
 
+  function newTable(key: 'paleoData' | 'chronData') {
+    const { metadata: updated, path } = addMeasurementTable(metadata, key)
+    onChange(updated)
+    setPendingPath(path)
+    setEditCell(null)
+  }
+
+  function duplicateCurrent() {
+    if (!entry) return
+    const result = duplicateTable(metadata, entry.path)
+    if (!result) { alert('Only measurement tables can be duplicated.'); return }
+    onChange(result.metadata)
+    setPendingPath(result.path)
+    setEditCell(null)
+  }
+
+  function deleteCurrentTable() {
+    if (!entry) return
+    if (!/measurementTable\[\d+\]$/.test(entry.path)) {
+      alert('Only measurement tables can be deleted here. Model tables can be removed in the JSON tab.')
+      return
+    }
+    if (!window.confirm(`Delete the table "${entry.label}" and all of its data?`)) return
+    onChange(deleteTable(metadata, entry.path))
+    setTableIdx(0)
+    setEditCell(null)
+  }
+
+  const newTableButtons = (
+    <>
+      <button className="btn-add-row" onClick={() => newTable('paleoData')} title="Add an empty measurement table to paleoData">
+        + Paleo table
+      </button>
+      <button className="btn-add-row" onClick={() => newTable('chronData')} title="Add an empty chronology (age model) table to chronData">
+        + Chron table
+      </button>
+    </>
+  )
+
   if (!tables.length) {
     return (
       <div className="panel data-editor empty">
         <p>No data tables found in this file.</p>
+        <div className="data-editor-empty-actions">{newTableButtons}</div>
       </div>
     )
   }
@@ -221,6 +272,13 @@ export function DataEditor({ metadata, onChange, selectedPath }: Props) {
         <span className="row-count">{rowCount} rows</span>
         <button className="btn-add-row" onClick={addRow}>+ Add row</button>
         <button className="btn-add-row" onClick={addColumn}>+ Add column</button>
+        {newTableButtons}
+        <button className="btn-add-row" onClick={duplicateCurrent} title="Duplicate this table (fresh TSids)">
+          Duplicate
+        </button>
+        <button className="btn-add-row btn-danger" onClick={deleteCurrentTable} title="Delete this table and its data">
+          Delete table
+        </button>
         <div className="data-editor-io">
           <button
             className="btn-add-row"

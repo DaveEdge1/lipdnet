@@ -462,6 +462,115 @@ export function replaceTableData(
   return clone
 }
 
+// ---- Table / section management --------------------------------------------
+
+type SectionKey = 'paleoData' | 'chronData'
+
+// Next free "<prefix><si>measurement<n>.csv" filename across the whole dataset
+function nextTableFilename(metadata: LipdMetadata, key: SectionKey, si: number): string {
+  const prefix = key === 'chronData' ? 'chron' : 'paleo'
+  const used = new Set<string>()
+  for (const sec of [...(metadata.paleoData ?? []), ...(metadata.chronData ?? [])]) {
+    for (const t of allSectionTables(sec)) {
+      if (t.filename) used.add(t.filename.split('/').pop()!)
+    }
+  }
+  let n = 0
+  while (used.has(`${prefix}${si}measurement${n}.csv`)) n++
+  return `${prefix}${si}measurement${n}.csv`
+}
+
+// Add an empty measurement table (creating the section if needed). Default
+// columns differ: paleo tables start depth/age/value, chron tables start with
+// the usual radiocarbon trio. Returns the new table's path so the caller can
+// select it in the editor.
+export function addMeasurementTable(
+  metadata: LipdMetadata,
+  key: SectionKey,
+): { metadata: LipdMetadata; path: string } {
+  const clone = JSON.parse(JSON.stringify(metadata)) as LipdMetadata
+  reattachAllValues(metadata, clone)
+  const sections = (clone[key] ??= [])
+  if (sections.length === 0) sections.push({})
+  const section = sections[0]
+  const tables = (section.measurementTable ??= [])
+  const si = 0
+  const names = key === 'chronData' ? ['depth', 'age14C', 'age'] : ['depth', 'age', 'value']
+  tables.push({
+    tableName: `measurementTable${tables.length}`,
+    filename: nextTableFilename(clone, key, si),
+    missingValue: 'NaN',
+    columns: names.map((variableName, i) => ({
+      number: i + 1,
+      variableName,
+      TSid: makeTSid(),
+      values: Array(5).fill(null),
+    })),
+  })
+  return { metadata: clone, path: `${key}[${si}].measurementTable[${tables.length - 1}]` }
+}
+
+// Duplicate a measurement table (values copied, fresh TSids + filename)
+export function duplicateTable(
+  metadata: LipdMetadata,
+  tablePath: string,
+): { metadata: LipdMetadata; path: string } | null {
+  const secMatch = tablePath.match(/^(paleoData|chronData)\[(\d+)\]\.measurementTable\[(\d+)\]$/)
+  if (!secMatch) return null
+  const clone = JSON.parse(JSON.stringify(metadata)) as LipdMetadata
+  reattachAllValues(metadata, clone)
+  const key = secMatch[1] as SectionKey
+  const si = Number(secMatch[2])
+  const source = resolveTableFromPath(clone, tablePath)
+  const tables = clone[key]?.[si]?.measurementTable
+  if (!source || !tables) return null
+  const copy = JSON.parse(JSON.stringify(source)) as LipdTable
+  for (const col of copy.columns ?? []) {
+    col.TSid = makeTSid()
+    col.values = source.columns.find(c => c.number === col.number)?.values?.slice() ?? []
+  }
+  copy.tableName = `${source.tableName ?? 'table'} copy`
+  copy.filename = nextTableFilename(clone, key, si)
+  tables.push(copy)
+  return { metadata: clone, path: `${key}[${si}].measurementTable[${tables.length - 1}]` }
+}
+
+// Delete a measurement table; prune the section (and the paleoData/chronData
+// array itself) when nothing is left so validation reflects reality.
+export function deleteTable(metadata: LipdMetadata, tablePath: string): LipdMetadata {
+  const secMatch = tablePath.match(/^(paleoData|chronData)\[(\d+)\]\.measurementTable\[(\d+)\]$/)
+  if (!secMatch) return metadata
+  const clone = JSON.parse(JSON.stringify(metadata)) as LipdMetadata
+  reattachAllValues(metadata, clone)
+  const key = secMatch[1] as SectionKey
+  const sections = clone[key] ?? []
+  const section = sections[Number(secMatch[2])]
+  if (!section?.measurementTable) return metadata
+  section.measurementTable.splice(Number(secMatch[3]), 1)
+  const sectionEmpty = !section.measurementTable.length && !(section.model ?? []).length
+  if (sectionEmpty) sections.splice(Number(secMatch[2]), 1)
+  if (!sections.length) delete clone[key]
+  return clone
+}
+
+// Turn a loaded dataset into a structure-only template: keep tables, columns,
+// and metadata, but clear every data value and assign fresh TSids (matching
+// the old playground's "Upload as Template").
+export function makeTemplate(metadata: LipdMetadata): LipdMetadata {
+  const clone = JSON.parse(JSON.stringify(metadata)) as LipdMetadata
+  for (const section of [...(clone.paleoData ?? []), ...(clone.chronData ?? [])]) {
+    for (const table of allSectionTables(section)) {
+      for (const col of table.columns ?? []) {
+        col.TSid = makeTSid()
+        col.values = []
+      }
+    }
+  }
+  clone.datasetVersion = '1.0.0'
+  delete clone.changelog
+  return clone
+}
+
 // ---- Changelog helpers ----------------------------------------------------
 
 export function bumpVersion(version?: string): string {
