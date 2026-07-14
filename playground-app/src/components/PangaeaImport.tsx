@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { pangaeaId, pangaeaSearch, pangaeaImport, type PangaeaHit } from '../lib/noaa'
+import { pangaeaId, pangaeaSearch, pangaeaImport, PANGAEA_TOPICS, type PangaeaHit, type PangaeaSearchFilters } from '../lib/noaa'
+import { VARIABLE_NAMES } from '../lib/vocabulary'
 import type { LipdFile } from '../types/lipd'
 
 interface Props {
@@ -12,6 +13,14 @@ export function PangaeaImport({ onLoad }: Props) {
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [results, setResults] = useState<PangaeaHit[] | null>(null)
+
+  // Advanced filters (mirror PyleoTUPS search_studies)
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [investigators, setInvestigators] = useState('')
+  const [variableName, setVariableName] = useState('')
+  const [topic, setTopic] = useState('')
+  const [minLat, setMinLat] = useState(''); const [maxLat, setMaxLat] = useState('')
+  const [minLon, setMinLon] = useState(''); const [maxLon, setMaxLon] = useState('')
 
   const unavailableMsg =
     'PANGAEA import needs the PyleoTUPS import service, which is not available here.'
@@ -28,7 +37,16 @@ export function PangaeaImport({ onLoad }: Props) {
 
   const search = async () => {
     const q = query.trim()
-    if (!q || busy) return
+    const numOr = (s: string) => (s.trim() === '' ? undefined : Number(s))
+    const filters: PangaeaSearchFilters = {
+      investigators: investigators || undefined,
+      variableName: variableName || undefined,
+      topic: topic || undefined,
+      minLat: numOr(minLat), maxLat: numOr(maxLat),
+      minLon: numOr(minLon), maxLon: numOr(maxLon),
+    }
+    const anyFilter = Object.values(filters).some(v => v !== undefined)
+    if ((!q && !anyFilter) || busy) return
     // A bare id / DOI / URL is a direct import
     const id = pangaeaId(q)
     if (id && /^\d+$/.test(q.replace(/^.*PANGAEA\./i, ''))) {
@@ -38,7 +56,7 @@ export function PangaeaImport({ onLoad }: Props) {
     setBusy('Searching PANGAEA (this can take up to a minute)…')
     setError(null)
     setResults(null)
-    const res = await pangaeaSearch(q)
+    const res = await pangaeaSearch(q, filters)
     setBusy(null)
     if (res.status === 'unavailable') { setError(unavailableMsg); return }
     if (res.status === 'error') { setError(res.message); return }
@@ -62,6 +80,51 @@ export function PangaeaImport({ onLoad }: Props) {
           Search
         </button>
       </div>
+
+      <div className="noaa-import-secondary">
+        <button
+          className="noaa-advanced-toggle"
+          onClick={() => setShowAdvanced(s => !s)}
+          aria-expanded={showAdvanced}
+        >
+          {showAdvanced ? '▾' : '▸'} More filters
+        </button>
+      </div>
+
+      {showAdvanced && (
+        <div className="noaa-advanced">
+          <label className="query-field">
+            <span>Investigator</span>
+            <input value={investigators} onChange={e => setInvestigators(e.target.value)}
+              placeholder="e.g. Stein" onKeyDown={e => { if (e.key === 'Enter') search() }} />
+          </label>
+          <label className="query-field">
+            <span>Variable / parameter</span>
+            <input list="pangaea-varname-list" value={variableName} onChange={e => setVariableName(e.target.value)}
+              placeholder="e.g. d18O" onKeyDown={e => { if (e.key === 'Enter') search() }} />
+            <datalist id="pangaea-varname-list">{VARIABLE_NAMES.map(v => <option key={v} value={v} />)}</datalist>
+          </label>
+          <label className="query-field">
+            <span>Topic</span>
+            <select value={topic} onChange={e => setTopic(e.target.value)}>
+              <option value="">Any</option>
+              {PANGAEA_TOPICS.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </label>
+          <div className="noaa-range">
+            <span className="noaa-range-title">Latitude</span>
+            <input type="number" step="any" placeholder="min" value={minLat} onChange={e => setMinLat(e.target.value)} />
+            <input type="number" step="any" placeholder="max" value={maxLat} onChange={e => setMaxLat(e.target.value)} />
+          </div>
+          <div className="noaa-range">
+            <span className="noaa-range-title">Longitude</span>
+            <input type="number" step="any" placeholder="min" value={minLon} onChange={e => setMinLon(e.target.value)} />
+            <input type="number" step="any" placeholder="max" value={maxLon} onChange={e => setMaxLon(e.target.value)} />
+          </div>
+          <p className="noaa-advanced-note">A geographic box needs all four bounds filled.</p>
+        </div>
+      )}
+
       {busy && <p className="noaa-import-status">{busy}</p>}
       {error && <p className="error">{error}</p>}
       {results && (

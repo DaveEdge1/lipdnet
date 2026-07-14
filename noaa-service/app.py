@@ -359,13 +359,40 @@ def pangaea(study_id: int) -> dict:
 
 
 @app.get("/pangaea-search")
-def pangaea_search(q: str, limit: int = 20) -> dict:
-    """Free-text PANGAEA search → list of {id, name} for the user to pick from."""
-    if not q.strip():
+def pangaea_search(
+    q: str = "",
+    limit: int = 20,
+    investigators: str | None = None,
+    variable_name: str | None = None,
+    topic: str | None = None,
+    min_lat: float | None = None,
+    max_lat: float | None = None,
+    min_lon: float | None = None,
+    max_lon: float | None = None,
+    skip: int = 0,
+) -> dict:
+    """PANGAEA search → list of {id, name} for the user to pick from. Mirrors the
+    PyleoTUPS search_studies() filters (free text, investigators, variable/
+    parameter, topic, geographic bounds)."""
+    # Build kwargs, omitting empty ones so PyleoTUPS applies its own defaults.
+    kwargs: dict = {"limit": min(limit, 50), "skip": skip}
+    if q.strip():
+        kwargs["search_text"] = q.strip()
+    if investigators:
+        kwargs["investigators"] = investigators
+    if variable_name:
+        kwargs["variable_name"] = variable_name
+    if topic:
+        kwargs["topic"] = topic
+    if None not in (min_lat, max_lat, min_lon, max_lon):
+        kwargs.update(min_lat=min_lat, max_lat=max_lat, min_lon=min_lon, max_lon=max_lon)
+    # Need at least one non-geographic term or a full bounding box
+    has_bbox = "min_lat" in kwargs
+    if not any(k in kwargs for k in ("search_text", "investigators", "variable_name", "topic")) and not has_bbox:
         return {"results": []}
     try:
         pg = pt.PangaeaDataset()
-        pg.search_studies(search_text=q.strip(), limit=min(limit, 50))
+        pg.search_studies(**kwargs)
         summary = pg.get_summary()
     except Exception as e:  # noqa: BLE001
         raise HTTPException(status_code=502, detail=f"PyleoTUPS error: {e}") from e

@@ -64,22 +64,25 @@ PyleoTUPS/its backends expose.
   → **Missing vs PyleoTUPS:** `min_lat`/`max_lat`, `min_lon`/`max_lon`,
   `investigators`, `variable_name`, `topic`, `skip` (paging).
 
-**To do:**
-- [ ] Confirm each NOAA param maps onto the NCEI paleo-search API our browser
-  call uses (vs. needing to route NOAA search through the service like PANGAEA).
-  `cv_materials`/`cv_seasonalities`/`locations` come from controlled
-  vocabularies — get their allowed values (from PyleoTUPS or NCEI).
-- [ ] NOAA: add the missing filters to `NoaaSearchFilters` + `searchNoaaStudies`
-  + the `NoaaImport` "More filters" UI (variable name, elevation range,
-  reconstruction toggle; species for tree-ring, materials/seasonality/location
-  as vocab dropdowns).
-- [ ] PANGAEA: add an advanced-filters panel to `PangaeaImport.tsx` (bounding
-  box, investigators, variable name, topic) and extend the service
-  `/pangaea-search` endpoint + `pangaeaSearch()` client to pass them through to
-  `PangaeaDataset.search_studies`. Add `skip`/paging for the slow keyword path.
-- [ ] Keep the two panels visually consistent (reuse the NOAA "More filters"
-  layout/CSS).
-- [ ] Add headless coverage for the new filters.
+**Done (commit pending):**
+- [x] NOAA: added variable (`cvWhats`), material (`cvMaterials`), seasonality
+  (`cvSeasonalities`), species, location (`locations`), elevation range
+  (`minElev`/`maxElev`), and a reconstructions-only toggle to `NoaaSearchFilters`
+  + `searchNoaaStudies` + the `NoaaImport` "More filters" UI. **Also fixed a bug:
+  we were sending `dataType` where NCEI expects `dataTypeId`, and omitting
+  `dataPublisher=NOAA`.** Note: `cvWhats` uses NOAA's own vocabulary (e.g. "Sea
+  Surface Temperature"), NOT LiPD variable names — the field is free-text with an
+  NCEI-style hint, no LiPD datalist.
+- [x] PANGAEA: added an advanced-filters panel to `PangaeaImport.tsx`
+  (investigators → `author:`, variable → `parameter:`, topic dropdown from the 15
+  PyleoTUPS topics, lat/lon bbox) and extended the service `/pangaea-search`
+  endpoint + Express proxy + `pangaeaSearch()` client to pass them through to
+  `PangaeaDataset.search_studies`.
+- [x] Panels share the NOAA "More filters" layout/CSS.
+- [x] Headless coverage added (parity-labels check, live cvWhats search, PANGAEA
+  advanced-panel render). Suite now 81 checks.
+- [ ] (Deferred) `skip`/paging UI for the slow keyword path — endpoint accepts
+  `skip`, no UI control yet.
 
 ## C. Autofill LiPD metadata from NOAA metadata (synonyms work)
 Goal: reuse the prior synonyms/controlled-vocabulary mapping so a NOAA/PANGAEA

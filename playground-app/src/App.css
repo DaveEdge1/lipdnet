@@ -740,3 +740,8 @@ body { background: var(--bg); height: 100vh; overflow: hidden; }
 .metadata-panel section:first-of-type .infotip-bubble::after,
 .column-editor section:first-of-type .infotip-bubble::after {
   top: auto; bottom: 100%; border-top-color: transparent; border-bottom-color: #333; }
+
+/* Extra NOAA/PANGAEA advanced-filter controls */
+.noaa-check { display: flex; align-items: center; gap: .4rem; font-size: .82rem; color: var(--text-muted); cursor: pointer; }
+.noaa-check input { accent-color: var(--accent); cursor: pointer; }
+.noaa-advanced-note { grid-column: 1 / -1; font-size: .74rem; color: var(--text-muted); margin: 0; }

@@ -1734,10 +1734,15 @@ router.get("/api/pangaea-search", function(req, res){
   if(!base){
     return res.status(503).json({error: "Import service not configured"});
   }
-  var q = req.query.q || "";
+  // Forward q plus the advanced filters (investigators, variable_name, topic,
+  // geographic bounds) to the PyleoTUPS service; only pass through the ones set.
+  var qs = { limit: 10 };
+  ["q", "investigators", "variable_name", "topic", "min_lat", "max_lat", "min_lon", "max_lon", "skip"].forEach(function(k){
+    if(req.query[k] !== undefined && req.query[k] !== "") qs[k] = req.query[k];
+  });
   request({
     uri: base.replace(/\/$/, "") + "/pangaea-search",
-    qs: { q: q, limit: 10 },
+    qs: qs,
     timeout: 120000
   }, function(err, res1, body){
     if(err || !res1){

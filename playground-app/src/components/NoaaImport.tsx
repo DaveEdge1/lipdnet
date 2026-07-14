@@ -3,6 +3,7 @@ import {
   searchNoaaStudies, noaaStudyToLipd, noaaStudyViaService, noaaFileToLipd, noaaFileViaService,
   NOAA_DATA_TYPES, type NoaaStudy, type NoaaSearchFilters,
 } from '../lib/noaa'
+import { SEASONALITY } from '../lib/vocabulary'
 import type { LipdFile } from '../types/lipd'
 import pyleotupsLogo from '../assets/pyleotups_logo.png'
 
@@ -20,9 +21,16 @@ export function NoaaImport({ onLoad }: Props) {
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [investigators, setInvestigators] = useState('')
   const [dataTypeId, setDataTypeId] = useState('')
+  const [variableName, setVariableName] = useState('')
+  const [cvMaterials, setCvMaterials] = useState('')
+  const [cvSeasonalities, setCvSeasonalities] = useState('')
+  const [species, setSpecies] = useState('')
+  const [locations, setLocations] = useState('')
   const [minLat, setMinLat] = useState(''); const [maxLat, setMaxLat] = useState('')
   const [minLon, setMinLon] = useState(''); const [maxLon, setMaxLon] = useState('')
+  const [minElevation, setMinElevation] = useState(''); const [maxElevation, setMaxElevation] = useState('')
   const [earliestYear, setEarliestYear] = useState(''); const [latestYear, setLatestYear] = useState('')
+  const [reconstructionOnly, setReconstructionOnly] = useState(false)
 
   const importStudy = async (study: NoaaStudy) => {
     setBusy(`Importing "${study.studyName}"…`)
@@ -85,9 +93,16 @@ export function NoaaImport({ onLoad }: Props) {
     const filters: NoaaSearchFilters = {
       investigators: investigators || undefined,
       dataTypeId: dataTypeId || undefined,
+      variableName: variableName || undefined,
+      cvMaterials: cvMaterials || undefined,
+      cvSeasonalities: cvSeasonalities || undefined,
+      species: species || undefined,
+      locations: locations || undefined,
       minLat: numOr(minLat), maxLat: numOr(maxLat),
       minLon: numOr(minLon), maxLon: numOr(maxLon),
+      minElevation: numOr(minElevation), maxElevation: numOr(maxElevation),
       earliestYear: numOr(earliestYear), latestYear: numOr(latestYear),
+      reconstructionOnly: reconstructionOnly || undefined,
     }
     const anyFilter = Object.values(filters).some(v => v !== undefined)
     if (!query.trim() && !anyFilter) return
@@ -169,6 +184,33 @@ export function NoaaImport({ onLoad }: Props) {
               {NOAA_DATA_TYPES.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
             </select>
           </label>
+          <label className="query-field">
+            <span>Variable</span>
+            {/* NOAA's cvWhats uses its own vocabulary (not LiPD names), e.g. "Sea Surface Temperature" */}
+            <input value={variableName} onChange={e => setVariableName(e.target.value)}
+              placeholder="e.g. Sea Surface Temperature" onKeyDown={e => { if (e.key === 'Enter') search() }} />
+          </label>
+          <label className="query-field">
+            <span>Material</span>
+            <input value={cvMaterials} onChange={e => setCvMaterials(e.target.value)}
+              placeholder="e.g. calcite" onKeyDown={e => { if (e.key === 'Enter') search() }} />
+          </label>
+          <label className="query-field">
+            <span>Seasonality</span>
+            <input list="noaa-seasonality-list" value={cvSeasonalities} onChange={e => setCvSeasonalities(e.target.value)}
+              placeholder="e.g. Annual" onKeyDown={e => { if (e.key === 'Enter') search() }} />
+            <datalist id="noaa-seasonality-list">{SEASONALITY.map(v => <option key={v} value={v} />)}</datalist>
+          </label>
+          <label className="query-field">
+            <span>Species <em>(4-letter code)</em></span>
+            <input value={species} onChange={e => setSpecies(e.target.value)}
+              placeholder="e.g. PCGL" onKeyDown={e => { if (e.key === 'Enter') search() }} />
+          </label>
+          <label className="query-field">
+            <span>Location</span>
+            <input value={locations} onChange={e => setLocations(e.target.value)}
+              placeholder="e.g. Continent>Africa" onKeyDown={e => { if (e.key === 'Enter') search() }} />
+          </label>
           <div className="noaa-range">
             <span className="noaa-range-title">Latitude</span>
             <input type="number" step="any" placeholder="min" value={minLat} onChange={e => setMinLat(e.target.value)} />
@@ -180,10 +222,19 @@ export function NoaaImport({ onLoad }: Props) {
             <input type="number" step="any" placeholder="max" value={maxLon} onChange={e => setMaxLon(e.target.value)} />
           </div>
           <div className="noaa-range">
+            <span className="noaa-range-title">Elevation (m)</span>
+            <input type="number" step="any" placeholder="min" value={minElevation} onChange={e => setMinElevation(e.target.value)} />
+            <input type="number" step="any" placeholder="max" value={maxElevation} onChange={e => setMaxElevation(e.target.value)} />
+          </div>
+          <div className="noaa-range">
             <span className="noaa-range-title">Year (CE)</span>
             <input type="number" step="any" placeholder="from" value={earliestYear} onChange={e => setEarliestYear(e.target.value)} />
             <input type="number" step="any" placeholder="to" value={latestYear} onChange={e => setLatestYear(e.target.value)} />
           </div>
+          <label className="noaa-check">
+            <input type="checkbox" checked={reconstructionOnly} onChange={e => setReconstructionOnly(e.target.checked)} />
+            Reconstructions only
+          </label>
         </div>
       )}
 

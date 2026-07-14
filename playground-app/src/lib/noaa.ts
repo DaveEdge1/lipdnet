@@ -62,16 +62,26 @@ export const NOAA_DATA_TYPES: Array<{ name: string; id: string }> = [
   { name: 'Tree ring', id: '18' },
 ]
 
+// Advanced NOAA search filters. Field names mirror the PyleoTUPS
+// search_studies() parameters; each maps to the NCEI paleo-search API param
+// noted in searchNoaaStudies (kept in sync with pyleotups' query_builder).
 export interface NoaaSearchFilters {
   investigators?: string
   dataTypeId?: string
+  variableName?: string      // → cvWhats
+  cvMaterials?: string       // → cvMaterials
+  cvSeasonalities?: string   // → cvSeasonalities
+  species?: string           // → species (4-letter tree codes)
+  locations?: string         // → locations (hierarchical, e.g. "Continent>Africa")
   minLat?: number; maxLat?: number
   minLon?: number; maxLon?: number
+  minElevation?: number; maxElevation?: number
   earliestYear?: number; latestYear?: number // years CE
+  reconstructionOnly?: boolean
 }
 
 const hasFilters = (f: NoaaSearchFilters) =>
-  Object.values(f).some(v => v !== undefined && v !== '' && !Number.isNaN(v))
+  Object.values(f).some(v => v !== undefined && v !== '' && v !== false && !Number.isNaN(v))
 
 // Accepts a NOAA study ID, a study URL (…/paleo-search/study/12345), or
 // free-text search terms, optionally combined with structured filters.
@@ -87,13 +97,24 @@ export async function searchNoaaStudies(query: string, filters: NoaaSearchFilter
   } else if (/^\d+$/.test(q)) {
     params.set('NOAAStudyId', q)
   } else {
+    params.set('dataPublisher', 'NOAA')
     if (q) params.set('searchText', q)
-    if (filters.investigators?.trim()) params.set('investigators', filters.investigators.trim())
-    if (filters.dataTypeId) params.set('dataType', filters.dataTypeId)
+    const str = (k: string, v?: string) => { if (v?.trim()) params.set(k, v.trim()) }
+    str('investigators', filters.investigators)
+    str('dataTypeId', filters.dataTypeId)
+    str('cvWhats', filters.variableName)
+    str('cvMaterials', filters.cvMaterials)
+    str('cvSeasonalities', filters.cvSeasonalities)
+    str('species', filters.species)
+    str('locations', filters.locations)
     const num = (k: string, v?: number) => { if (v !== undefined && !Number.isNaN(v)) params.set(k, String(v)) }
     num('minLat', filters.minLat); num('maxLat', filters.maxLat)
     num('minLon', filters.minLon); num('maxLon', filters.maxLon)
-    num('earliestYear', filters.earliestYear); num('latestYear', filters.latestYear)
+    num('minElev', filters.minElevation); num('maxElev', filters.maxElevation)
+    if (filters.earliestYear !== undefined && !Number.isNaN(filters.earliestYear)) params.set('earliestYear', String(filters.earliestYear))
+    if (filters.latestYear !== undefined && !Number.isNaN(filters.latestYear)) params.set('latestYear', String(filters.latestYear))
+    if (params.has('earliestYear') || params.has('latestYear')) params.set('timeFormat', 'CE')
+    if (filters.reconstructionOnly) params.set('reconstructionsOnly', 'Y')
     params.set('limit', '25')
   }
 
@@ -691,10 +712,37 @@ export function pangaeaId(input: string): string | null {
   return m ? m[1] : null
 }
 
-export async function pangaeaSearch(q: string): Promise<PangaeaSearchResult> {
+// Advanced PANGAEA search filters — mirror the PyleoTUPS search_studies params.
+export interface PangaeaSearchFilters {
+  investigators?: string
+  variableName?: string
+  topic?: string
+  minLat?: number; maxLat?: number
+  minLon?: number; maxLon?: number
+}
+
+// PANGAEA topic classifications PyleoTUPS accepts (for the UI dropdown).
+export const PANGAEA_TOPICS = [
+  'agriculture', 'atmosphere', 'biological classification', 'biosphere', 'chemistry',
+  'cryosphere', 'ecology', 'fisheries', 'geophysics', 'human dimensions',
+  'lakes & rivers', 'land surface', 'lithosphere', 'oceans', 'paleontology',
+]
+
+export async function pangaeaSearch(q: string, filters: PangaeaSearchFilters = {}): Promise<PangaeaSearchResult> {
+  const params = new URLSearchParams()
+  if (q.trim()) params.set('q', q.trim())
+  if (filters.investigators?.trim()) params.set('investigators', filters.investigators.trim())
+  if (filters.variableName?.trim()) params.set('variable_name', filters.variableName.trim())
+  if (filters.topic?.trim()) params.set('topic', filters.topic.trim())
+  const num = (k: string, v?: number) => { if (v !== undefined && !Number.isNaN(v)) params.set(k, String(v)) }
+  // PANGAEA needs a full bounding box or none
+  if ([filters.minLat, filters.maxLat, filters.minLon, filters.maxLon].every(v => v !== undefined && !Number.isNaN(v as number))) {
+    num('min_lat', filters.minLat); num('max_lat', filters.maxLat)
+    num('min_lon', filters.minLon); num('max_lon', filters.maxLon)
+  }
   let res: Response
   try {
-    res = await fetch(`/api/pangaea-search?q=${encodeURIComponent(q)}`)
+    res = await fetch(`/api/pangaea-search?${params.toString()}`)
   } catch {
     return { status: 'unavailable' }
   }
