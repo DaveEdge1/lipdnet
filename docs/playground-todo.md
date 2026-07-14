@@ -33,12 +33,14 @@ Tutorials: <https://linked.earth/pyleotupsTutorials/>
   13156 (metadata-only), **33213 (8 tables, TEX86H+SST)**, 27490 (coral,
   age+d18O), 10420 (13 tables, multi-site), 36778; PANGAEA 965772, 830587,
   868935. No parsing failures / garbage tables.
-- [ ] **Known limitation found: PANGAEA collections import as metadata-only.**
-  830589 (3 members) and 971943 (48 members) return `metadataOnly=true` — our
-  `/pangaea/{id}` path fetches a single dataset and doesn't expand
-  `CollectionMembers`. The tutorials' 03_b flow expands them into one dataset per
-  member. Follow-up: detect a collection in `build_pangaea_payload` and either
-  import members as multiple tables/datasets or tell the user to pick a member.
+- [x] **PANGAEA collection expansion — done.** `/pangaea/{id}` now detects a
+  collection (via `CollectionMembers`) and returns a member pick-list; the
+  PangaeaImport UI shows the members plus an "Import all N together" button.
+  `?expand=1` merges the members into one dataset (one table each, capped at 25
+  with a truncation note), metadata/geo from the parent + first member. Verified:
+  830589 → 3-member picker, "import all" → 3 merged tables (isotopes + age +
+  Pb-210, site MD98-2177); 971943 → 48-member picker. Headless suite now 84
+  checks.
 - [ ] Consider adding NOAA 33213 (8-table flagship) to the headless verify suite
   as an end-to-end regression case.
 

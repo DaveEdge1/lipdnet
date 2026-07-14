@@ -195,13 +195,34 @@ def _column(df: pd.DataFrame, col: Any, unit_by_name: dict[str, str]) -> dict:
     }
 
 
-def build_pangaea_payload(study_id: int) -> dict:
+# Max collection members to fetch+merge in one expand request (keeps latency
+# and payload size sane; large compilations are flagged as truncated).
+PANGAEA_EXPAND_MAX = 25
+
+
+def build_pangaea_payload(study_id: int, expand: bool = False) -> dict:
     pg = pt.PangaeaDataset()
     pg.search_studies(study_ids=study_id)
     summary = pg.get_summary()
     if summary is None or len(summary) == 0:
         raise HTTPException(status_code=404, detail=f"PANGAEA dataset {study_id} not found")
     row = summary.iloc[0]
+
+    # A PANGAEA collection has no directly-importable data; PyleoTUPS exposes its
+    # child datasets via CollectionMembers. Without expand, return the member
+    # list so the user can pick one; with expand, merge members into one dataset.
+    members = row.get("CollectionMembers")
+    member_ids = [str(m) for m in members] if isinstance(members, (list, tuple)) and len(members) else []
+    if member_ids and not expand:
+        return {
+            "studyId": str(study_id),
+            "dataSetName": _clean(row.get("StudyName")),
+            "originalDataUrl": f"https://doi.pangaea.de/10.1594/PANGAEA.{study_id}",
+            "collection": True,
+            "members": [{"id": mid} for mid in member_ids],
+        }
+    if member_ids and expand:
+        return _expand_collection(study_id, row, member_ids)
 
     # Geo
     lat = lon = elev = site_name = None
@@ -264,6 +285,57 @@ def build_pangaea_payload(study_id: int) -> dict:
         "pub": pubs,
         "tables": tables,
         "skippedFiles": [],
+        "metadataOnly": len(tables) == 0,
+    }
+
+
+def _expand_collection(study_id: int, row, member_ids: list[str]) -> dict:
+    """Merge a PANGAEA collection's member datasets into one payload: each
+    member becomes one or more measurement tables. Metadata (name, site,
+    publications) is taken from the parent, falling back to the first member."""
+    use_ids = member_ids[:PANGAEA_EXPAND_MAX]
+    truncated = len(member_ids) - len(use_ids)
+
+    tables: list[dict] = []
+    notes: list[str] = []
+    geo = {"latitude": None, "longitude": None, "elevation": None, "siteName": None}
+    pubs: list[dict] = []
+    for mid in use_ids:
+        try:
+            mp = build_pangaea_payload(int(mid), expand=False)
+        except Exception as e:  # noqa: BLE001 — one bad member shouldn't fail the whole import
+            notes.append(f"PANGAEA {mid}: {e}")
+            continue
+        mname = mp.get("dataSetName") or f"PANGAEA {mid}"
+        m_tables = mp.get("tables", [])
+        for j, t in enumerate(m_tables):
+            # Label each merged table with its source member so they stay distinct.
+            # A member usually has one table already named after the study; only
+            # add an index when a member contributes several.
+            t = dict(t)
+            base = t.get("tableName") or mname
+            t["tableName"] = base if len(m_tables) == 1 else f"{base} ({j + 1})"
+            tables.append(t)
+        # First member with coordinates seeds the dataset geo / publications
+        mg = mp.get("geo") or {}
+        if geo["latitude"] is None and mg.get("latitude") is not None:
+            geo = mg
+        if not pubs and mp.get("pub"):
+            pubs = mp["pub"]
+
+    if truncated:
+        notes.append(f"+{truncated} more collection members not imported (limit {PANGAEA_EXPAND_MAX}).")
+
+    return {
+        "studyId": str(study_id),
+        "dataSetName": _clean(row.get("StudyName")),
+        "archiveType": None,
+        "investigators": _clean(row.get("Investigators")),
+        "originalDataUrl": f"https://doi.pangaea.de/10.1594/PANGAEA.{study_id}",
+        "geo": geo,
+        "pub": pubs,
+        "tables": tables,
+        "skippedFiles": notes,
         "metadataOnly": len(tables) == 0,
     }
 
@@ -349,9 +421,9 @@ def noaa(study_id: int) -> dict:
 
 
 @app.get("/pangaea/{study_id}")
-def pangaea(study_id: int) -> dict:
+def pangaea(study_id: int, expand: bool = False) -> dict:
     try:
-        return build_pangaea_payload(study_id)
+        return build_pangaea_payload(study_id, expand=expand)
     except HTTPException:
         raise
     except Exception as e:  # noqa: BLE001

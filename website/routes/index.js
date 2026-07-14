@@ -1721,7 +1721,13 @@ router.get("/api/pangaea/:id", function(req, res){
   if(!/^\d+$/.test(req.params.id)){
     return res.status(400).json({error: "Invalid PANGAEA id"});
   }
-  request({ uri: base.replace(/\/$/, "") + "/pangaea/" + req.params.id, timeout: 90000 }, function(err, res1, body){
+  // expand=1 merges a collection's member datasets; give it a longer timeout.
+  var expand = req.query.expand === "1" || req.query.expand === "true";
+  request({
+    uri: base.replace(/\/$/, "") + "/pangaea/" + req.params.id,
+    qs: expand ? { expand: "true" } : {},
+    timeout: expand ? 240000 : 90000
+  }, function(err, res1, body){
     if(err || !res1){
       return res.status(503).json({error: "Import service unavailable"});
     }

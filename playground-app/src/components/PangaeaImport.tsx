@@ -13,6 +13,7 @@ export function PangaeaImport({ onLoad }: Props) {
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [results, setResults] = useState<PangaeaHit[] | null>(null)
+  const [collection, setCollection] = useState<{ id: string; name?: string; members: PangaeaHit[] } | null>(null)
 
   // Advanced filters (mirror PyleoTUPS search_studies)
   const [showAdvanced, setShowAdvanced] = useState(false)
@@ -25,12 +26,16 @@ export function PangaeaImport({ onLoad }: Props) {
   const unavailableMsg =
     'PANGAEA import needs the PyleoTUPS import service, which is not available here.'
 
-  const importId = async (id: string, label?: string) => {
-    setBusy(`Importing ${label ?? `PANGAEA ${id}`}…`)
+  const importId = async (id: string, opts: { label?: string; expand?: boolean } = {}) => {
+    const { label, expand } = opts
+    setBusy(expand
+      ? `Importing all datasets in ${label ?? `collection ${id}`} — this can take a while…`
+      : `Importing ${label ?? `PANGAEA ${id}`}…`)
     setError(null)
-    const res = await pangaeaImport(id)
+    const res = await pangaeaImport(id, expand)
     setBusy(null)
-    if (res.status === 'ok') onLoad(res.result.lipd)
+    if (res.status === 'ok') { setCollection(null); onLoad(res.result.lipd) }
+    else if (res.status === 'collection') { setResults(null); setCollection({ id: res.id, name: res.name, members: res.members }) }
     else if (res.status === 'unavailable') setError(unavailableMsg)
     else setError(res.message)
   }
@@ -53,15 +58,17 @@ export function PangaeaImport({ onLoad }: Props) {
       await importId(id)
       return
     }
+    setCollection(null)
     setBusy('Searching PANGAEA (this can take up to a minute)…')
     setError(null)
     setResults(null)
+    setCollection(null)
     const res = await pangaeaSearch(q, filters)
     setBusy(null)
     if (res.status === 'unavailable') { setError(unavailableMsg); return }
     if (res.status === 'error') { setError(res.message); return }
     if (!res.hits.length) { setError('No PANGAEA datasets found for that query.'); return }
-    if (res.hits.length === 1) { await importId(res.hits[0].id, res.hits[0].name); return }
+    if (res.hits.length === 1) { await importId(res.hits[0].id, { label: res.hits[0].name }); return }
     setResults(res.hits)
   }
 
@@ -127,11 +134,34 @@ export function PangaeaImport({ onLoad }: Props) {
 
       {busy && <p className="noaa-import-status">{busy}</p>}
       {error && <p className="error">{error}</p>}
+
+      {collection && (
+        <div className="pangaea-collection">
+          <p className="pangaea-collection-note">
+            <strong>{collection.name ?? `PANGAEA ${collection.id}`}</strong> is a collection of{' '}
+            {collection.members.length} datasets. Import them all as one dataset (one table each), or pick one:
+          </p>
+          <button className="btn" onClick={() => importId(collection.id, { expand: true, label: collection.name })} disabled={!!busy}>
+            Import all {collection.members.length} together
+          </button>
+          <ul className="noaa-import-results">
+            {collection.members.map(m => (
+              <li key={m.id}>
+                <button onClick={() => importId(m.id, { label: m.name })} disabled={!!busy}>
+                  <span className="noaa-study-name">{m.name}</span>
+                  <span className="noaa-study-meta">PANGAEA {m.id}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {results && (
         <ul className="noaa-import-results">
           {results.map(h => (
             <li key={h.id}>
-              <button onClick={() => importId(h.id, h.name)} disabled={!!busy}>
+              <button onClick={() => importId(h.id, { label: h.name })} disabled={!!busy}>
                 <span className="noaa-study-name">{h.name}</span>
                 <span className="noaa-study-meta">PANGAEA {h.id}</span>
               </button>

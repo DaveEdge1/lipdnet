@@ -573,6 +573,9 @@ interface ServicePayload {
   tables: ServiceTable[]
   skippedFiles: string[]
   metadataOnly: boolean
+  // Present when the PANGAEA id is a collection (no direct data of its own)
+  collection?: boolean
+  members?: Array<{ id: string; name?: string }>
 }
 
 function serviceToLipd(p: ServicePayload): NoaaImportResult {
@@ -773,10 +776,16 @@ export async function pangaeaSearch(q: string, filters: PangaeaSearchFilters = {
   }
 }
 
-export async function pangaeaImport(id: string): Promise<ServiceParseResult> {
+// A PANGAEA id can be a collection with no data of its own; the service then
+// returns its member datasets to choose from (unless expand merges them).
+export type PangaeaImportResult =
+  | ServiceParseResult
+  | { status: 'collection'; id: string; name?: string; members: PangaeaHit[] }
+
+export async function pangaeaImport(id: string, expand = false): Promise<PangaeaImportResult> {
   let res: Response
   try {
-    res = await fetch(`/api/pangaea/${id}`)
+    res = await fetch(`/api/pangaea/${id}${expand ? '?expand=1' : ''}`)
   } catch {
     return { status: 'unavailable' }
   }
@@ -788,6 +797,14 @@ export async function pangaeaImport(id: string): Promise<ServiceParseResult> {
   }
   try {
     const payload = await res.json() as ServicePayload
+    if (payload.collection && payload.members?.length) {
+      return {
+        status: 'collection',
+        id: payload.studyId,
+        name: payload.dataSetName ?? undefined,
+        members: payload.members.map(m => ({ id: m.id, name: m.name ?? `PANGAEA ${m.id}` })),
+      }
+    }
     if (payload.metadataOnly || !payload.tables.length) {
       return { status: 'error', message: 'No importable data table found in this PANGAEA dataset.' }
     }

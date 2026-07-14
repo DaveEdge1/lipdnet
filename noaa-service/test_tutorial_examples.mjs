@@ -67,12 +67,16 @@ await pangaea(830587, b => rec('PANGAEA 830587 imports (radiocarbon table)', (b.
 
 await pangaea(868935, b => rec('PANGAEA 868935 imports', b.studyId != null, `${b.tables?.length ?? 0} tables`))
 
-// Collections — the tutorials note get_data() on the parent is refused/warned;
-// document how our single-dataset import path handles them (not necessarily a pass).
-await pangaea(830589, b => rec('PANGAEA 830589 (3-member collection) — behavior', true,
-  `tables=${b.tables?.length ?? 0} metadataOnly=${b.metadataOnly} skipped=${(b.skippedFiles ?? []).length}`))
-await pangaea(971943, b => rec('PANGAEA 971943 (48-member collection) — behavior', true,
-  `tables=${b.tables?.length ?? 0} metadataOnly=${b.metadataOnly}`), 180000)
+// Collections — return a member pick-list by default; ?expand merges members.
+await pangaea(830589, b => rec('PANGAEA 830589 → collection of 3 members', b.collection === true && b.members?.length === 3,
+  `collection=${b.collection} members=${b.members?.length}`))
+{
+  const { status, body } = await get('/pangaea/830589?expand=true', 200000)
+  rec('PANGAEA 830589 expand → merged 3 tables', status === 200 && body?.tables?.length === 3 && !body.metadataOnly,
+    `tables=${body?.tables?.length}`)
+}
+await pangaea(971943, b => rec('PANGAEA 971943 → collection of 48 members', b.collection === true && (b.members?.length ?? 0) >= 40,
+  `collection=${b.collection} members=${b.members?.length}`), 180000)
 
 // ---- report ----
 const fails = results.filter(r => !r.ok)
