@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react'
 import { ARCHIVE_TYPES_CANONICAL } from '../lib/vocabulary'
 import { createNewLipd } from '../lib/newDataset'
 import type { LipdFile } from '../types/lipd'
+import { InfoTip } from './InfoTip'
+import { tip } from '../lib/tooltips'
 
 interface Props {
   onCreate: (lipd: LipdFile) => void
@@ -74,13 +76,13 @@ export function NewDatasetWizard({ onCreate, onCancel }: Props) {
 
         <div className="wizard-grid">
           <label className="query-field wizard-span2">
-            <span>Dataset name * <em>(convention: Site.Investigator.Year, e.g. CrystalCave.McCabe-Glynn.2013)</em></span>
+            <span>Dataset name * <em>(convention: Site.Investigator.Year, e.g. CrystalCave.McCabe-Glynn.2013)</em><InfoTip text={tip('dataSetName')} /></span>
             <input value={dataSetName} onChange={e => setDataSetName(e.target.value)}
               placeholder="e.g. CrystalCave.McCabe-Glynn.2013" autoFocus />
           </label>
 
           <label className="query-field">
-            <span>Archive type *</span>
+            <span>Archive type *<InfoTip text={tip('archiveType')} /></span>
             <select value={archiveType} onChange={e => setArchiveType(e.target.value)}>
               <option value="">Select…</option>
               {ARCHIVE_TYPES_CANONICAL.map(a => <option key={a} value={a}>{a}</option>)}
@@ -88,29 +90,29 @@ export function NewDatasetWizard({ onCreate, onCancel }: Props) {
           </label>
 
           <label className="query-field">
-            <span>Site name *</span>
+            <span>Site name *<InfoTip text={tip('siteName')} /></span>
             <input value={siteName} onChange={e => setSiteName(e.target.value)} placeholder="e.g. Crystal Cave" />
           </label>
 
           <label className="query-field">
-            <span>Latitude * <em>(-90 to 90)</em></span>
+            <span>Latitude * <em>(-90 to 90)</em><InfoTip text={tip('latitude')} /></span>
             <input type="number" step="any" value={lat} onChange={e => setLat(e.target.value)}
               className={lat && !latOk ? 'invalid' : ''} placeholder="e.g. 36.59" />
           </label>
 
           <label className="query-field">
-            <span>Longitude * <em>(-180 to 180)</em></span>
+            <span>Longitude * <em>(-180 to 180)</em><InfoTip text={tip('longitude')} /></span>
             <input type="number" step="any" value={lon} onChange={e => setLon(e.target.value)}
               className={lon && !lonOk ? 'invalid' : ''} placeholder="e.g. -118.82" />
           </label>
 
           <label className="query-field">
-            <span>Elevation (m)</span>
+            <span>Elevation (m)<InfoTip text={tip('elevation')} /></span>
             <input type="number" step="any" value={elev} onChange={e => setElev(e.target.value)} placeholder="optional" />
           </label>
 
           <label className="query-field wizard-span2">
-            <span>Investigators <em>(Last, F.; Last, F.)</em></span>
+            <span>Investigators <em>(Last, F.; Last, F.)</em><InfoTip text={tip('investigators')} /></span>
             <input value={investigators} onChange={e => setInvestigators(e.target.value)} placeholder="optional" />
           </label>
         </div>

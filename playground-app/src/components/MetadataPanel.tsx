@@ -3,21 +3,24 @@ import type { LipdMetadata, LipdPub } from '../types/lipd'
 import { getSiteName } from '../lib/lipd'
 import { fetchDoiMetadata } from '../lib/crossref'
 import { ARCHIVE_TYPES_CANONICAL } from '../lib/vocabulary'
+import { InfoTip } from './InfoTip'
+import { tip } from '../lib/tooltips'
 
 interface Props {
   metadata: LipdMetadata
   onChange: (updated: LipdMetadata) => void
 }
 
-function Field({ label, value, onEdit, textarea }: {
+function Field({ label, value, onEdit, textarea, tipKey }: {
   label: string
   value: string
   onEdit: (v: string) => void
   textarea?: boolean
+  tipKey?: string
 }) {
   return (
     <div className="field">
-      <label>{label}</label>
+      <label>{label}{tipKey && <InfoTip text={tip(tipKey)} />}</label>
       {textarea
         ? <textarea rows={3} value={value} onChange={e => onEdit(e.target.value)} />
         : <input value={value} onChange={e => onEdit(e.target.value)} />}
@@ -61,7 +64,7 @@ function DmsInput({ label, value, hemis, onCommit }: {
   }
   return (
     <div className="field">
-      <label>{label}</label>
+      <label>{label}<InfoTip text={tip(label.toLowerCase())} /></label>
       <div className="dms-row">
         <input type="number" min="0" value={dms.d} onChange={e => update({ d: e.target.value })} title="Degrees" />
         <span className="dms-unit">°</span>
@@ -174,9 +177,9 @@ export function MetadataPanel({ metadata, onChange }: Props) {
 
       <section>
         <h3>Dataset</h3>
-        <Field label="Name" value={metadata.dataSetName ?? ''} onEdit={v => set('dataSetName', v)} />
+        <Field label="Name" value={metadata.dataSetName ?? ''} onEdit={v => set('dataSetName', v)} tipKey="dataSetName" />
         <div className="field">
-          <label>Archive type</label>
+          <label>Archive type<InfoTip text={tip('archiveType')} /></label>
           <input
             list="archive-list"
             value={metadata.archiveType ?? ''}
@@ -186,11 +189,11 @@ export function MetadataPanel({ metadata, onChange }: Props) {
             {ARCHIVE_TYPES_CANONICAL.map(a => <option key={a} value={a} />)}
           </datalist>
         </div>
-        <Field label="Investigators" value={metadata.investigators ?? ''} onEdit={v => set('investigators', v)} />
-        <Field label="Created by" value={metadata.createdBy ?? ''} onEdit={v => set('createdBy', v)} />
-        <Field label="Notes" value={(metadata.notes ?? '') as string} onEdit={v => set('notes', v)} textarea />
+        <Field label="Investigators" value={metadata.investigators ?? ''} onEdit={v => set('investigators', v)} tipKey="investigators" />
+        <Field label="Created by" value={metadata.createdBy ?? ''} onEdit={v => set('createdBy', v)} tipKey="createdBy" />
+        <Field label="Notes" value={(metadata.notes ?? '') as string} onEdit={v => set('notes', v)} textarea tipKey="notes" />
         <div className="field">
-          <label>Dataset ID</label>
+          <label>Dataset ID<InfoTip text={tip('datasetId')} /></label>
           <input value={metadata.datasetId ?? ''} readOnly className="readonly" />
         </div>
       </section>
@@ -206,7 +209,7 @@ export function MetadataPanel({ metadata, onChange }: Props) {
             {dmsMode ? 'Use decimal' : 'Use ° ′ ″'}
           </button>
         </div>
-        <Field label="Site name" value={getSiteName(metadata)} onEdit={v => setGeoProp('siteName', v)} />
+        <Field label="Site name" value={getSiteName(metadata)} onEdit={v => setGeoProp('siteName', v)} tipKey="siteName" />
         {dmsMode ? (
           <>
             <DmsInput key={`lat${coords[1]}`} label="Latitude" value={Number(coords[1]) || 0} hemis={['N', 'S']} onCommit={v => setCoord(1, v)} />
@@ -214,12 +217,12 @@ export function MetadataPanel({ metadata, onChange }: Props) {
           </>
         ) : (
           <>
-            <Field label="Latitude" value={String(coords[1] ?? '')} onEdit={v => setCoord(1, Number(v))} />
-            <Field label="Longitude" value={String(coords[0] ?? '')} onEdit={v => setCoord(0, Number(v))} />
+            <Field label="Latitude" value={String(coords[1] ?? '')} onEdit={v => setCoord(1, Number(v))} tipKey="latitude" />
+            <Field label="Longitude" value={String(coords[0] ?? '')} onEdit={v => setCoord(0, Number(v))} tipKey="longitude" />
           </>
         )}
-        <Field label="Elevation (m)" value={String(coords[2] ?? '')} onEdit={v => setCoord(2, Number(v))} />
-        <Field label="Location" value={(geo.properties?.location ?? '') as string} onEdit={v => setGeoProp('location', v)} />
+        <Field label="Elevation (m)" value={String(coords[2] ?? '')} onEdit={v => setCoord(2, Number(v))} tipKey="elevation" />
+        <Field label="Location" value={(geo.properties?.location ?? '') as string} onEdit={v => setGeoProp('location', v)} tipKey="location" />
       </section>
 
       <section>
@@ -235,7 +238,7 @@ export function MetadataPanel({ metadata, onChange }: Props) {
               <button className="btn-remove-field" onClick={() => removePub(i)} title="Remove this publication">×</button>
             </div>
             <div className="field">
-              <label>DOI</label>
+              <label>DOI<InfoTip text={tip('pub.doi')} /></label>
               <div className="field-extra-row">
                 <input
                   value={(pub.doi ?? pub.DOI ?? '') as string}
@@ -253,15 +256,15 @@ export function MetadataPanel({ metadata, onChange }: Props) {
               </div>
               {doiStatus[i] && <span className="doi-status">{doiStatus[i]}</span>}
             </div>
-            <Field label="Title" value={(pub.title ?? '') as string} onEdit={v => setPub(i, { title: v })} />
-            <Field label="Authors (semicolon-separated)" value={authorStr(pub)} onEdit={v => setAuthors(i, v)} />
-            <Field label="Journal" value={(pub.journal ?? '') as string} onEdit={v => setPub(i, { journal: v })} />
+            <Field label="Title" value={(pub.title ?? '') as string} onEdit={v => setPub(i, { title: v })} tipKey="pub.title" />
+            <Field label="Authors (semicolon-separated)" value={authorStr(pub)} onEdit={v => setAuthors(i, v)} tipKey="pub.author" />
+            <Field label="Journal" value={(pub.journal ?? '') as string} onEdit={v => setPub(i, { journal: v })} tipKey="pub.journal" />
             <div className="field-grid-3">
-              <Field label="Year" value={String(pub.year ?? '')} onEdit={v => setPub(i, { year: Number(v) || v })} />
-              <Field label="Volume" value={(pub.volume ?? '') as string} onEdit={v => setPub(i, { volume: v })} />
-              <Field label="Pages" value={(pub.pages ?? '') as string} onEdit={v => setPub(i, { pages: v })} />
+              <Field label="Year" value={String(pub.year ?? '')} onEdit={v => setPub(i, { year: Number(v) || v })} tipKey="pub.year" />
+              <Field label="Volume" value={(pub.volume ?? '') as string} onEdit={v => setPub(i, { volume: v })} tipKey="pub.volume" />
+              <Field label="Pages" value={(pub.pages ?? '') as string} onEdit={v => setPub(i, { pages: v })} tipKey="pub.pages" />
             </div>
-            <Field label="Abstract" value={(pub.abstract ?? '') as string} onEdit={v => setPub(i, { abstract: v })} textarea />
+            <Field label="Abstract" value={(pub.abstract ?? '') as string} onEdit={v => setPub(i, { abstract: v })} textarea tipKey="pub.abstract" />
           </div>
         ))}
       </section>
@@ -279,12 +282,12 @@ export function MetadataPanel({ metadata, onChange }: Props) {
               <button className="btn-remove-field" onClick={() => removeFunding(i)} title="Remove this funding entry">×</button>
             </div>
             <div className="field-grid-2">
-              <Field label="Agency" value={(f.agency ?? '') as string} onEdit={v => setFunding(i, 'agency', v)} />
-              <Field label="Grant" value={(f.grant ?? '') as string} onEdit={v => setFunding(i, 'grant', v)} />
+              <Field label="Agency" value={(f.agency ?? '') as string} onEdit={v => setFunding(i, 'agency', v)} tipKey="funding.agency" />
+              <Field label="Grant" value={(f.grant ?? '') as string} onEdit={v => setFunding(i, 'grant', v)} tipKey="funding.grant" />
             </div>
             <div className="field-grid-2">
-              <Field label="Principal investigator" value={(f.investigator ?? '') as string} onEdit={v => setFunding(i, 'investigator', v)} />
-              <Field label="Country" value={(f.country ?? '') as string} onEdit={v => setFunding(i, 'country', v)} />
+              <Field label="Principal investigator" value={(f.investigator ?? '') as string} onEdit={v => setFunding(i, 'investigator', v)} tipKey="funding.investigator" />
+              <Field label="Country" value={(f.country ?? '') as string} onEdit={v => setFunding(i, 'country', v)} tipKey="funding.country" />
             </div>
           </div>
         ))}
@@ -296,12 +299,12 @@ export function MetadataPanel({ metadata, onChange }: Props) {
           Used by the NOAA .txt export and the NOAA checks in the Issues tab.
         </p>
         <div className="field-grid-3">
-          <Field label="Earliest year" value={String(metadata.earliestYear ?? '')} onEdit={v => set('earliestYear', Number(v) || v || undefined)} />
-          <Field label="Most recent year" value={String(metadata.mostRecentYear ?? '')} onEdit={v => set('mostRecentYear', Number(v) || v || undefined)} />
-          <Field label="Time unit" value={(metadata.timeUnit ?? '') as string} onEdit={v => set('timeUnit', v || undefined)} />
+          <Field label="Earliest year" value={String(metadata.earliestYear ?? '')} onEdit={v => set('earliestYear', Number(v) || v || undefined)} tipKey="earliestYear" />
+          <Field label="Most recent year" value={String(metadata.mostRecentYear ?? '')} onEdit={v => set('mostRecentYear', Number(v) || v || undefined)} tipKey="mostRecentYear" />
+          <Field label="Time unit" value={(metadata.timeUnit ?? '') as string} onEdit={v => set('timeUnit', v || undefined)} tipKey="timeUnit" />
         </div>
-        <Field label="Dataset DOI" value={(metadata.datasetDOI ?? '') as string} onEdit={v => set('datasetDOI', v || undefined)} />
-        <Field label="Original source URL" value={(metadata.originalDataUrl ?? '') as string} onEdit={v => set('originalDataUrl', v || undefined)} />
+        <Field label="Dataset DOI" value={(metadata.datasetDOI ?? '') as string} onEdit={v => set('datasetDOI', v || undefined)} tipKey="datasetDOI" />
+        <Field label="Original source URL" value={(metadata.originalDataUrl ?? '') as string} onEdit={v => set('originalDataUrl', v || undefined)} tipKey="originalDataUrl" />
         <div className="section-header-row">
           <h3>Online resources</h3>
           <button className="btn-mini" onClick={() => onChange({ ...metadata, onlineResource: [...onlineRes, {}] })}>+ Add</button>

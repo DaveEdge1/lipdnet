@@ -713,3 +713,30 @@ body { background: var(--bg); height: 100vh; overflow: hidden; }
    the copy/paste/CSV group stays pushed right. */
 .data-editor-toolbar { flex-wrap: wrap; row-gap: .4rem; }
 .data-editor-toolbar > .btn-add-row { margin-left: 0; }
+
+/* ---- Field help tooltips (InfoTip) ---------------------------------------- */
+.infotip { position: relative; display: inline-flex; align-items: center; justify-content: center;
+  width: 13px; height: 13px; margin-left: .35rem; border-radius: 50%;
+  border: 1px solid var(--border); color: var(--text-muted); background: var(--surface2);
+  font-size: 9px; line-height: 1; cursor: help; vertical-align: middle; user-select: none; }
+.infotip:hover, .infotip:focus-visible { border-color: var(--accent); color: var(--accent); outline: none; }
+.infotip-mark { font-weight: 700; font-family: Georgia, 'Times New Roman', serif; }
+.infotip-bubble {
+  position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+  width: max-content; max-width: 240px; padding: .45rem .6rem;
+  background: #333; color: #fff; border-radius: 6px; font-size: .74rem; font-weight: 400;
+  line-height: 1.4; text-align: left; letter-spacing: normal; text-transform: none;
+  white-space: normal; box-shadow: 0 4px 14px rgba(0,0,0,.22);
+  opacity: 0; visibility: hidden; transition: opacity .12s ease; z-index: 60; pointer-events: none; }
+.infotip-bubble::after {
+  content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+  border: 5px solid transparent; border-top-color: #333; }
+.infotip:hover .infotip-bubble, .infotip:focus .infotip-bubble, .infotip:focus-within .infotip-bubble {
+  opacity: 1; visibility: visible; }
+/* Flip to below when the field sits near the top of a scrolled panel */
+.metadata-panel section:first-of-type .infotip-bubble,
+.column-editor section:first-of-type .infotip-bubble {
+  bottom: auto; top: calc(100% + 6px); }
+.metadata-panel section:first-of-type .infotip-bubble::after,
+.column-editor section:first-of-type .infotip-bubble::after {
+  top: auto; bottom: 100%; border-top-color: transparent; border-bottom-color: #333; }
