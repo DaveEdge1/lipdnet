@@ -4,6 +4,7 @@
 // NOAA-templated text files (# metadata, ## variable lines, delimited data).
 import type { LipdFile, LipdMetadata, LipdPub, LipdTable, LipdPaleoData } from '../types/lipd'
 import { makeTSid } from './newDataset'
+import { normalizeArchiveType, normalizeUnits } from './synonyms'
 
 const SEARCH_URL = 'https://www.ncei.noaa.gov/access/paleo-search/study/search.json'
 
@@ -471,7 +472,7 @@ export async function noaaStudyToLipd(study: NoaaStudy): Promise<NoaaImportResul
     createdBy: 'lipd.net playground (NOAA import)',
     dataSetName,
     datasetVersion: '1.0.0',
-    archiveType: study.dataType ? ARCHIVE_MAP[study.dataType.toUpperCase()] : undefined,
+    archiveType: normalizeArchiveType(study.dataType) ?? (study.dataType ? ARCHIVE_MAP[study.dataType.toUpperCase()] : undefined),
     investigators: study.investigators,
     originalDataUrl: study.onlineResourceLink,
     NOAAStudyId: study.NOAAStudyId,
@@ -542,7 +543,7 @@ export function noaaFileToLipd(text: string, filename: string): LipdFile {
           number: ci + 1,
           variableName: v.name,
           TSid: makeTSid(),
-          units: v.units,
+          units: normalizeUnits(v.units) ?? v.units,
           description: v.detail,
           values: toValues(parsed.rows.map(r => r[ci] ?? ''), parsed.missingValue),
         })),
@@ -584,7 +585,9 @@ function serviceToLipd(p: ServicePayload): NoaaImportResult {
       number: ci + 1,
       variableName: c.variableName,
       TSid: makeTSid(),
-      units: c.units ?? undefined,
+      // Normalize the source units onto the LiPD vocabulary where a synonym is
+      // known (e.g. "deg C" → degC); otherwise keep the original string.
+      units: normalizeUnits(c.units) ?? c.units ?? undefined,
       values: toValues(c.values.map(v => (v === null || v === undefined ? '' : String(v)))),
     })),
   }))
@@ -618,7 +621,9 @@ function serviceToLipd(p: ServicePayload): NoaaImportResult {
     createdBy: 'lipd.net playground (NOAA import via PyleoTUPS)',
     dataSetName,
     datasetVersion: '1.0.0',
-    archiveType: p.archiveType ? ARCHIVE_MAP[p.archiveType.toUpperCase()] : undefined,
+    // Prefer the synonyms map (e.g. "Marine" → MarineSediment); fall back to the
+    // NOAA data-type map (e.g. PALEOCEANOGRAPHY → MarineSediment).
+    archiveType: normalizeArchiveType(p.archiveType) ?? (p.archiveType ? ARCHIVE_MAP[p.archiveType.toUpperCase()] : undefined),
     investigators: p.investigators ?? undefined,
     originalDataUrl: p.originalDataUrl ?? undefined,
     NOAAStudyId: p.studyId,
