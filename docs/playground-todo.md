@@ -127,14 +127,18 @@ shortcut.
   Cave→Speleothem, "deg C"→degC, "per mil"→permil, "cal years BP"→yr BP,
   Mg/Ca→elemental, …) + headless proxyGeneral-autogen check. Suite now 82 checks.
 
-**Follow-up (deferred):**
-- [ ] **variableName synonyms** — the `paleoData_variableName` sheet (~58 KB,
-  hundreds of messy rows) was NOT embedded; it needs a real generator script
-  (auth'd Sheets export → clean → emit) rather than hand-curation. This is where
-  raw NOAA column names (e.g. `d18O`, `age_calBP`) would map to canonical LiPD
-  variableNames. Highest remaining value in C.
-- [ ] Also embed `measurementMaterial`, `interpretation_seasonality`,
-  `interpretation_variable` via the same generator.
+**Follow-up:**
+- [x] **variableName synonyms** — done via a generator: `scripts/generate-synonyms.mjs`
+  reads `scripts/synonym-sheets/paleoData_variableName.csv` (committed Sheets
+  export), cleans it (drops deleteMe/needsToBeChanged/NA/blank targets,
+  merge-artifacts, assemblage taxa, exact-identity rows; blocklist for
+  known-bad pairs), and emits `src/lib/synonyms.varnames.generated.ts` (1581
+  entries). `normalizeVariableName()` applied in `serviceToLipd` with a
+  **collision guard** so it never collapses two columns onto one name. To
+  refresh: re-download the sheet as CSV into scripts/synonym-sheets/ and re-run.
+- [ ] Extend the generator to also emit `measurementMaterial`,
+  `interpretation_seasonality`, `interpretation_variable` (same pipeline; drop
+  their CSVs into scripts/synonym-sheets/).
 - [ ] Consider an explicit "review normalized terms" step rather than
   apply-on-import, if users want to see what changed.
 

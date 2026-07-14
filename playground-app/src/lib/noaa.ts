@@ -4,7 +4,7 @@
 // NOAA-templated text files (# metadata, ## variable lines, delimited data).
 import type { LipdFile, LipdMetadata, LipdPub, LipdTable, LipdPaleoData } from '../types/lipd'
 import { makeTSid } from './newDataset'
-import { normalizeArchiveType, normalizeUnits } from './synonyms'
+import { normalizeArchiveType, normalizeUnits, normalizeVariableName } from './synonyms'
 
 const SEARCH_URL = 'https://www.ncei.noaa.gov/access/paleo-search/study/search.json'
 
@@ -577,20 +577,32 @@ interface ServicePayload {
 
 function serviceToLipd(p: ServicePayload): NoaaImportResult {
   const paleoData: LipdPaleoData[] = []
-  const tables: LipdTable[] = p.tables.map((t, ti) => ({
-    tableName: t.tableName || t.fileUrl?.split('/').pop() || `measurementTable${ti}`,
-    filename: `paleo0measurement${ti}.csv`,
-    missingValue: 'NaN',
-    columns: t.columns.map((c, ci) => ({
-      number: ci + 1,
-      variableName: c.variableName,
-      TSid: makeTSid(),
-      // Normalize the source units onto the LiPD vocabulary where a synonym is
-      // known (e.g. "deg C" → degC); otherwise keep the original string.
-      units: normalizeUnits(c.units) ?? c.units ?? undefined,
-      values: toValues(c.values.map(v => (v === null || v === undefined ? '' : String(v)))),
-    })),
-  }))
+  const tables: LipdTable[] = p.tables.map((t, ti) => {
+    // Track variableNames already used in this table so normalization never
+    // collapses two distinct columns onto the same name (e.g. "age" + "ageMedian").
+    const usedNames = new Set(t.columns.map(c => c.variableName))
+    return {
+      tableName: t.tableName || t.fileUrl?.split('/').pop() || `measurementTable${ti}`,
+      filename: `paleo0measurement${ti}.csv`,
+      missingValue: 'NaN',
+      columns: t.columns.map((c, ci) => {
+        const mapped = normalizeVariableName(c.variableName)
+        // Only apply the mapping if it doesn't clash with another column's name.
+        const variableName = (mapped && mapped !== c.variableName && !usedNames.has(mapped))
+          ? (usedNames.delete(c.variableName), usedNames.add(mapped), mapped)
+          : c.variableName
+        return {
+          number: ci + 1,
+          variableName,
+          TSid: makeTSid(),
+          // Normalize the source units onto the LiPD vocabulary where a synonym
+          // is known (e.g. "deg C" → degC); otherwise keep the original string.
+          units: normalizeUnits(c.units) ?? c.units ?? undefined,
+          values: toValues(c.values.map(v => (v === null || v === undefined ? '' : String(v)))),
+        }
+      }),
+    }
+  })
   const metadataOnly = tables.length === 0
   paleoData.push({
     measurementTable: metadataOnly

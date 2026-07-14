@@ -9,6 +9,8 @@
 // here yet — it needs a generator script that cleans it (tracked in
 // docs/playground-todo.md, workstream C follow-up).
 
+import { VARIABLE_NAME_SYNONYMS } from './synonyms.varnames.generated'
+
 // Normalize a lookup key: lowercase, trim, collapse internal whitespace.
 const norm = (s: string) => s.toLowerCase().trim().replace(/\s+/g, ' ')
 
@@ -187,6 +189,9 @@ const PROXY_ROWS: Array<[string, string, string]> = [
 const PROXY_MAP = buildMap(PROXY_ROWS.map(([syn, proxy]) => [syn, proxy]))
 const PROXY_GENERAL_BY_PROXY = buildMap(PROXY_ROWS.map(([, proxy, general]) => [proxy, general]))
 
+// ---- variableName (generated; see scripts/generate-synonyms.mjs) ----------
+const VARNAME_MAP = buildMap(VARIABLE_NAME_SYNONYMS.map(([syn, lipd]) => [syn, lipd]))
+
 // ---- public API -----------------------------------------------------------
 
 /** Map a raw archive string to a canonical LiPD archiveType, or undefined. */
@@ -211,4 +216,10 @@ export function normalizeProxy(raw?: string | null): string | undefined {
 export function proxyGeneralFor(proxy?: string | null): string | undefined {
   if (!proxy) return undefined
   return PROXY_GENERAL_BY_PROXY.get(norm(proxy))
+}
+
+/** Map a raw variableName to its canonical LiPD variableName, or undefined. */
+export function normalizeVariableName(raw?: string | null): string | undefined {
+  if (!raw) return undefined
+  return VARNAME_MAP.get(norm(raw))
 }
