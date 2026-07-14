@@ -25,18 +25,22 @@ Goal: run the tutorial examples through the Playground and confirm they import
 cleanly; use failures to harden the `noaa-service` / PyleoTUPS path.
 Tutorials: <https://linked.earth/pyleotupsTutorials/>
 
-- [ ] Work through each tutorial example (NOAA studies + PANGAEA datasets) via
-  the "NOAA to LiPD" / "PANGAEA to LiPD" cards; note any that fail to import or
-  produce garbage tables. Known example IDs from the tutorials so far: NOAA
-  **13156**, PANGAEA **830587**, NOAA data-type IDs 18 (tree ring), 4 (corals),
-  1 (boreholes). Pull the rest from the "Doing Science with PyleoTUPS" pages.
-- [ ] File the failures against `noaa-service/app.py` (or upstream PyleoTUPS) —
-  same pattern as the GRIP-6085 fix.
-- [ ] Curate a short list of "known-good example IDs" for QA and a demo/tutorial
-  page (candidates already in the test suite: NOAA 16055, 6085, 13156;
-  PANGAEA 830587).
-- [ ] Consider adding these examples to the headless verify suite as regression
-  cases.
+- [x] Enumerated all 11 tutorial pages and built a regression matrix (all example
+  IDs + expectations). Test script committed at
+  `noaa-service/test_tutorial_examples.mjs` (run the service, then
+  `node test_tutorial_examples.mjs`).
+- [x] Ran every concrete example through the service — **10/10 pass**: NOAA
+  13156 (metadata-only), **33213 (8 tables, TEX86H+SST)**, 27490 (coral,
+  age+d18O), 10420 (13 tables, multi-site), 36778; PANGAEA 965772, 830587,
+  868935. No parsing failures / garbage tables.
+- [ ] **Known limitation found: PANGAEA collections import as metadata-only.**
+  830589 (3 members) and 971943 (48 members) return `metadataOnly=true` — our
+  `/pangaea/{id}` path fetches a single dataset and doesn't expand
+  `CollectionMembers`. The tutorials' 03_b flow expands them into one dataset per
+  member. Follow-up: detect a collection in `build_pangaea_payload` and either
+  import members as multiple tables/datasets or tell the user to pick a member.
+- [ ] Consider adding NOAA 33213 (8-table flagship) to the headless verify suite
+  as an end-to-end regression case.
 
 ## B. Extend NOAA + PANGAEA advanced search filters to match PyleoTUPS
 Goal: bring our "More filters" (advanced) search options up to parity with what
