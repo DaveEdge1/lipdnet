@@ -31,9 +31,14 @@ D. Edge is named as lead on Playground/PyleoTUPS integration.
   Variable/Material/Seasonality/Location filters now autocomplete from it
   (Seasonality was previously the wrong LiPD vocab). NCEI substring-matches, so
   human-readable leaf terms are valid queries. Verified headless 16/16.
-- [ ] Remaining: results map; BP/CE + timeMethod time controls; numeric-range
-  validation; server-side search proxy fallback (CORS resilience). Optionally
-  archive-type-scoped CV suggestions (params.json is scoped by dataTypeId).
+- [x] **Results map** — `NoaaResultsMap.tsx` (react-leaflet + OSM, reusing the
+  QueryMap approach) plots a marker per located study from its primary-site
+  POINT coords; clicking a marker selects & expands that study's card and
+  scrolls it into view. Studies without point coords are noted and omitted.
+  Verified headless 18/18.
+- [ ] Remaining: BP/CE + timeMethod time controls; numeric-range validation;
+  server-side search proxy fallback (CORS resilience). Optionally archive-type-
+  scoped CV suggestions (params.json is scoped by dataTypeId).
 
 ### 📌 Parked (revisit after the NOAA-import focus)
 - **PANGAEA time-period search.** Report flags time as "a very important query

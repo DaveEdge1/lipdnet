@@ -6,6 +6,7 @@ import {
 import {
   NOAA_CV_WHATS, NOAA_CV_MATERIALS, NOAA_CV_SEASONALITIES, NOAA_LOCATIONS,
 } from '../lib/noaaVocab.generated'
+import { NoaaResultsMap } from './NoaaResultsMap'
 import type { LipdFile } from '../types/lipd'
 import pyleotupsLogo from '../assets/pyleotups_logo.png'
 
@@ -326,7 +327,15 @@ export function NoaaImport({ onLoad }: Props) {
       {notice && <p className="noaa-import-empty" aria-live="polite">{notice}</p>}
       {results && (
         <div className="noaa-results-wrap">
-          <p className="noaa-results-hint">Select a study to preview it, then import.</p>
+          <NoaaResultsMap
+            results={results}
+            selectedId={selectedId}
+            onSelect={id => {
+              setSelectedId(id)
+              setTimeout(() => document.getElementById(`noaa-result-${id}`)?.scrollIntoView({ block: 'nearest' }), 60)
+            }}
+          />
+          <p className="noaa-results-hint">Select a study on the map or in the list to preview it, then import.</p>
           <ul className="noaa-results">
             {results.map(s => {
               const selected = selectedId === s.NOAAStudyId
@@ -335,7 +344,7 @@ export function NoaaImport({ onLoad }: Props) {
               const names = tableNames(s)
               const pub = primaryPub(s)
               return (
-                <li key={s.NOAAStudyId} className={selected ? 'noaa-result selected' : 'noaa-result'}>
+                <li key={s.NOAAStudyId} id={`noaa-result-${s.NOAAStudyId}`} className={selected ? 'noaa-result selected' : 'noaa-result'}>
                   <button
                     type="button"
                     className="noaa-result-head"
