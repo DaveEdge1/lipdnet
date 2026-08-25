@@ -26,6 +26,13 @@ export interface NoaaStudy {
   onlineResourceLink?: string
   earliestYearBP?: number
   mostRecentYearBP?: number
+  earliestYearCE?: number
+  mostRecentYearCE?: number
+  reconstruction?: string        // "Y" | "N"
+  studyNotes?: string
+  contributionDate?: string
+  scienceKeywords?: string[]
+  funding?: Array<Record<string, unknown>>
   publication?: Array<Record<string, unknown>>
   site?: Array<{
     siteName?: string
@@ -36,6 +43,8 @@ export interface NoaaStudy {
     }
     paleoData?: Array<{
       dataTableName?: string
+      timeUnit?: string
+      species?: string
       dataFile?: NoaaDataFile[]
     }>
   }>

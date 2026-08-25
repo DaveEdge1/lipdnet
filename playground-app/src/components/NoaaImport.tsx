@@ -11,11 +11,80 @@ interface Props {
   onLoad: (lipd: LipdFile) => void
 }
 
+// ---- result-card display helpers (pure) -------------------------------------
+
+const SMALL_WORDS = new Set(['and', 'of', 'the', 'in', 'for', 'to', 'a', 'on'])
+/** Title-case NOAA's ALL-CAPS dataType, e.g. "CORALS AND SCLEROSPONGES". */
+function prettyArchive(dataType?: string): string {
+  if (!dataType) return 'Dataset'
+  return dataType.toLowerCase().split(/\s+/)
+    .map((w, i) => (i > 0 && SMALL_WORDS.has(w)) ? w : w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ')
+}
+
+/** NOAA POINT coordinates arrive as [lat, lon] strings → "28.45°S, 113.77°E". */
+function fmtCoords(coords?: Array<string | number>): string | null {
+  if (!coords || coords.length < 2) return null
+  const lat = Number(coords[0]); const lon = Number(coords[1])
+  if (Number.isNaN(lat) || Number.isNaN(lon)) return null
+  return `${Math.abs(lat).toFixed(2)}°${lat >= 0 ? 'N' : 'S'}, ${Math.abs(lon).toFixed(2)}°${lon >= 0 ? 'E' : 'W'}`
+}
+
+function timeSpan(s: NoaaStudy): string | null {
+  const fmtCE = (y: number) => (y < 0 ? `${Math.abs(y)} BCE` : `${y} CE`)
+  const a = s.earliestYearCE, b = s.mostRecentYearCE
+  if (a != null && b != null) {
+    if (a === b) return fmtCE(a)
+    return (a >= 0 && b >= 0) ? `${a}–${b} CE` : `${fmtCE(a)} – ${fmtCE(b)}`
+  }
+  if (s.earliestYearBP != null && s.mostRecentYearBP != null)
+    return `${s.earliestYearBP}–${s.mostRecentYearBP} BP`
+  return null
+}
+
+function studyLocation(s: NoaaStudy): { label: string | null; coords: string | null; siteCount: number } {
+  const sites = s.site ?? []
+  const first = sites[0]
+  return {
+    label: first?.locationName || first?.siteName || null,
+    coords: fmtCoords(first?.geo?.geometry?.coordinates),
+    siteCount: sites.length,
+  }
+}
+
+const tableNames = (s: NoaaStudy): string[] =>
+  (s.site ?? []).flatMap(si => si.paleoData ?? []).map(pd => pd.dataTableName || '').filter(Boolean)
+
+const siteList = (s: NoaaStudy): Array<{ name: string; coords: string | null }> =>
+  (s.site ?? []).map(si => ({
+    name: si.locationName || si.siteName || 'Site',
+    coords: fmtCoords(si.geo?.geometry?.coordinates),
+  }))
+
+interface PubView { citation: string; title?: string; doi?: string; url?: string }
+function primaryPub(s: NoaaStudy): PubView | null {
+  const p = (s.publication ?? [])[0] as Record<string, unknown> | undefined
+  if (!p) return null
+  const author = typeof p.author === 'object' && p.author
+    ? String((p.author as Record<string, unknown>).name ?? '')
+    : (p.author as string | undefined)
+  const id = p.identifier as { type?: string; id?: string; url?: string } | undefined
+  const citation = [author, p.pubYear && `(${p.pubYear})`].filter(Boolean).join(' ')
+  return {
+    citation: citation || (p.title as string) || 'Publication',
+    title: p.title as string | undefined,
+    doi: id?.type === 'doi' ? id.id : undefined,
+    url: id?.url,
+  }
+}
+
 export function NoaaImport({ onLoad }: Props) {
   const [query, setQuery] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [results, setResults] = useState<NoaaStudy[] | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
 
   // Advanced filters
   const [showAdvanced, setShowAdvanced] = useState(false)
@@ -35,6 +104,7 @@ export function NoaaImport({ onLoad }: Props) {
   const importStudy = async (study: NoaaStudy) => {
     setBusy(`Importing "${study.studyName}"…`)
     setError(null)
+    setNotice(null)
     try {
       // Prefer the PyleoTUPS service (better parsing); fall back to the
       // browser parser when it isn't deployed.
@@ -108,21 +178,22 @@ export function NoaaImport({ onLoad }: Props) {
     if (!query.trim() && !anyFilter) return
     setBusy('Searching NOAA…')
     setError(null)
+    setNotice(null)
     setResults(null)
+    setSelectedId(null)
     try {
       const studies = await searchNoaaStudies(query, filters)
       if (!studies.length) {
-        setError('No NOAA studies found for that query.')
-      } else if (studies.length === 1) {
-        await importStudy(studies[0])
-        return
+        setNotice('No NOAA studies matched. Try broadening your search terms or clearing a filter.')
       } else {
         setResults(studies)
+        // A single hit is shown expanded for review — never auto-imported.
+        if (studies.length === 1) setSelectedId(studies[0].NOAAStudyId)
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Search failed')
     } finally {
-      setBusy(prev => (prev && prev.startsWith('Importing') ? prev : null))
+      setBusy(null)
     }
   }
 
@@ -238,21 +309,101 @@ export function NoaaImport({ onLoad }: Props) {
         </div>
       )}
 
-      {busy && <p className="noaa-import-status">{busy}</p>}
-      {error && <p className="error">{error}</p>}
+      {busy && <p className="noaa-import-status" aria-live="polite">{busy}</p>}
+      {error && <p className="error" role="alert">{error}</p>}
+      {notice && <p className="noaa-import-empty" aria-live="polite">{notice}</p>}
       {results && (
-        <ul className="noaa-import-results">
-          {results.map(s => (
-            <li key={s.NOAAStudyId}>
-              <button onClick={() => importStudy(s)} disabled={!!busy}>
-                <span className="noaa-study-name">{s.studyName}</span>
-                <span className="noaa-study-meta">
-                  {s.dataType ?? ''} · NOAA {s.NOAAStudyId}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
+        <div className="noaa-results-wrap">
+          <p className="noaa-results-hint">Select a study to preview it, then import.</p>
+          <ul className="noaa-results">
+            {results.map(s => {
+              const selected = selectedId === s.NOAAStudyId
+              const loc = studyLocation(s)
+              const span = timeSpan(s)
+              const names = tableNames(s)
+              const pub = primaryPub(s)
+              return (
+                <li key={s.NOAAStudyId} className={selected ? 'noaa-result selected' : 'noaa-result'}>
+                  <button
+                    type="button"
+                    className="noaa-result-head"
+                    onClick={() => setSelectedId(selected ? null : s.NOAAStudyId)}
+                    aria-expanded={selected}
+                  >
+                    <span className="noaa-result-title">{s.studyName}</span>
+                    <span className="noaa-result-tags">
+                      <span className="noaa-tag">{prettyArchive(s.dataType)}</span>
+                      {s.reconstruction === 'Y' && <span className="noaa-tag noaa-tag-alt">Reconstruction</span>}
+                    </span>
+                    <span className="noaa-result-summary">
+                      {s.investigators && <span>{s.investigators}</span>}
+                      {loc.label && <span>{loc.label}{loc.siteCount > 1 ? ` +${loc.siteCount - 1} sites` : ''}</span>}
+                      {span && <span>{span}</span>}
+                      {names.length > 0 && <span>{names.length} {names.length === 1 ? 'table' : 'tables'}</span>}
+                      <span className="noaa-result-id">NOAA {s.NOAAStudyId}</span>
+                    </span>
+                  </button>
+
+                  {selected && (
+                    <div className="noaa-result-detail">
+                      <dl className="noaa-detail-grid">
+                        {s.investigators && (<><dt>Investigators</dt><dd>{s.investigators}</dd></>)}
+                        {loc.label && (
+                          <><dt>Location</dt><dd>{loc.label}{loc.coords ? ` · ${loc.coords}` : ''}</dd></>
+                        )}
+                        {span && (<><dt>Time span</dt><dd>{span}</dd></>)}
+                        {names.length > 0 && (
+                          <><dt>Data tables</dt>
+                            <dd>{names.length}{names.length ? ` — ${names.slice(0, 4).join(', ')}${names.length > 4 ? '…' : ''}` : ''}</dd></>
+                        )}
+                        {s.contributionDate && (<><dt>Contributed</dt><dd>{s.contributionDate}</dd></>)}
+                      </dl>
+
+                      {loc.siteCount > 1 && (
+                        <div className="noaa-detail-block">
+                          <span className="noaa-detail-label">Sites</span>
+                          <ul className="noaa-detail-sites">
+                            {siteList(s).map((site, i) => (
+                              <li key={i}>{site.name}{site.coords ? ` · ${site.coords}` : ''}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {s.scienceKeywords && s.scienceKeywords.length > 0 && (
+                        <div className="noaa-detail-keywords">
+                          {s.scienceKeywords.map((k, i) => <span key={i} className="noaa-keyword">{k}</span>)}
+                        </div>
+                      )}
+
+                      {pub && (
+                        <p className="noaa-detail-pub">
+                          {pub.citation}{pub.title ? `. ${pub.title}` : ''}
+                          {pub.doi && (
+                            <> · <a href={pub.url || `https://doi.org/${pub.doi}`} target="_blank" rel="noreferrer">doi:{pub.doi}</a></>
+                          )}
+                        </p>
+                      )}
+
+                      {s.studyNotes && <p className="noaa-detail-notes">{s.studyNotes}</p>}
+
+                      <div className="noaa-result-actions">
+                        <button type="button" className="btn" onClick={() => importStudy(s)} disabled={!!busy}>
+                          Import to workspace
+                        </button>
+                        {s.onlineResourceLink && (
+                          <a className="noaa-ext-link" href={s.onlineResourceLink} target="_blank" rel="noreferrer">
+                            View at NOAA ↗
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        </div>
       )}
     </div>
   )

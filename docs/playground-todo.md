@@ -3,6 +3,31 @@
 Captured from memory after the recording failed. Three workstreams plus two
 blockers to clear first.
 
+---
+
+## 🎯 Year-3 focus (per NSF Year-2 report, 2026-08)
+
+The NSF Year-2 report reframes priorities: pyleoTUPS (Objectives 1–3) is
+"largely achieved"; **Year 3 is dedicated to Objectives 4 (community) and 5
+(training)**, and the **LiPD Playground is the primary vehicle** for both.
+D. Edge is named as lead on Playground/PyleoTUPS integration.
+
+**Active focus — NOAA data import, two objectives:**
+1. **Best-in-class query experience** — bring the Playground's NOAA search up to
+   (or past) what pyleoTUPS/NCEI expose, with a UX a bench scientist can drive.
+2. **Load data as well or better than pyleoTUPS** — full fidelity of tables,
+   columns, values, units, and metadata on import; match or beat the Python
+   package's extraction on the same study IDs.
+
+### 📌 Parked (revisit after the NOAA-import focus)
+- **PANGAEA time-period search.** Report flags time as "a very important query
+  parameter for paleoclimatologists"; PANGAEA has no native time filter, so it
+  needs a client-side earliest/latest-year filter on results (extends workstream
+  B's deferred paging/time UI).
+- **"Datasets in NOAA but not yet in LiPDverse" (gap-dataset discovery).** From
+  Deborah's 2026-06-22 Hydroclimate2k demo — flag whether a NOAA/PANGAEA record
+  already exists in LiPDverse to surface import-worthy gaps.
+
 ## ⚠️ Blockers / missing inputs
 - [x] ~~PyleoTUPS tutorial link~~ → <https://linked.earth/pyleotupsTutorials/>
   (tutorial DOI 10.5281/ZENODO.16923278). Structure: `a-dataset`,

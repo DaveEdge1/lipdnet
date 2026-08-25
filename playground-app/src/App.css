@@ -136,15 +136,64 @@ body { background: var(--bg); height: 100vh; overflow: hidden; }
   border: 1px solid var(--border); border-radius: 6px; font-size: .82rem; width: 100%;
 }
 .noaa-import-status { color: var(--text-muted); font-size: .85rem; }
-.noaa-import-results { list-style: none; max-height: 260px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; }
-.noaa-import-results li + li { border-top: 1px solid var(--border); }
-.noaa-import-results button {
-  display: flex; flex-direction: column; gap: .15rem; width: 100%; text-align: left;
-  padding: .55rem .8rem; background: none; border: none; color: var(--text); cursor: pointer;
+.noaa-import-empty { color: var(--text-muted); font-size: .85rem; font-style: italic; }
+
+/* ---- NOAA search results: previewable cards ---- */
+.noaa-results-wrap { display: flex; flex-direction: column; gap: .4rem; }
+.noaa-results-hint { font-size: .76rem; color: var(--text-muted); }
+.noaa-results {
+  list-style: none; max-height: 420px; overflow-y: auto;
+  border: 1px solid var(--border); border-radius: 8px;
+  display: flex; flex-direction: column;
 }
-.noaa-import-results button:hover { background: rgba(113,164,54,.1); }
-.noaa-study-name { font-size: .875rem; font-weight: 500; }
-.noaa-study-meta { font-size: .72rem; color: var(--text-muted); }
+.noaa-result + .noaa-result { border-top: 1px solid var(--border); }
+.noaa-result.selected { background: rgba(113,164,54,.06); }
+
+.noaa-result-head {
+  display: flex; flex-direction: column; gap: .28rem; width: 100%; text-align: left;
+  padding: .6rem .8rem; background: none; border: none; color: var(--text); cursor: pointer;
+}
+.noaa-result-head:hover { background: rgba(113,164,54,.1); }
+.noaa-result.selected .noaa-result-head:hover { background: transparent; }
+.noaa-result-title { font-size: .9rem; font-weight: 500; line-height: 1.3; }
+.noaa-result-tags { display: flex; flex-wrap: wrap; gap: .3rem; }
+.noaa-tag {
+  font-size: .68rem; text-transform: uppercase; letter-spacing: .03em;
+  padding: .1rem .4rem; border-radius: 4px;
+  background: rgba(113,164,54,.14); color: var(--accent-hover);
+}
+.noaa-tag-alt { background: #eee; color: #666; }
+.noaa-result-summary {
+  display: flex; flex-wrap: wrap; gap: .2rem .7rem;
+  font-size: .74rem; color: var(--text-muted);
+}
+.noaa-result-id { margin-left: auto; white-space: nowrap; }
+
+.noaa-result-detail {
+  padding: .1rem .9rem .8rem; display: flex; flex-direction: column; gap: .55rem;
+  font-size: .8rem;
+}
+.noaa-detail-grid {
+  display: grid; grid-template-columns: max-content 1fr; gap: .2rem .7rem; align-items: baseline;
+}
+.noaa-detail-grid dt { color: var(--text-muted); font-size: .74rem; }
+.noaa-detail-grid dd { color: var(--text); }
+.noaa-detail-block { display: flex; flex-direction: column; gap: .2rem; }
+.noaa-detail-label { color: var(--text-muted); font-size: .74rem; }
+.noaa-detail-sites { list-style: none; display: flex; flex-direction: column; gap: .1rem; }
+.noaa-detail-sites li { font-size: .78rem; }
+.noaa-detail-keywords { display: flex; flex-wrap: wrap; gap: .3rem; }
+.noaa-keyword {
+  font-size: .7rem; padding: .08rem .4rem; border-radius: 10px;
+  background: var(--surface); border: 1px solid var(--border); color: var(--text-muted);
+}
+.noaa-detail-pub { font-size: .76rem; color: var(--text-muted); line-height: 1.5; }
+.noaa-detail-pub a { color: var(--accent); text-decoration: none; }
+.noaa-detail-pub a:hover { text-decoration: underline; }
+.noaa-detail-notes { font-size: .76rem; color: var(--text-muted); font-style: italic; }
+.noaa-result-actions { display: flex; align-items: center; gap: .9rem; margin-top: .1rem; }
+.noaa-ext-link { font-size: .78rem; color: var(--accent); text-decoration: none; }
+.noaa-ext-link:hover { text-decoration: underline; }
 .landing-footer a { color: var(--accent); text-decoration: none; }
 .landing-footer a:hover { text-decoration: underline; }
 
