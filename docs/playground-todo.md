@@ -19,6 +19,22 @@ D. Edge is named as lead on Playground/PyleoTUPS integration.
    columns, values, units, and metadata on import; match or beat the Python
    package's extraction on the same study IDs.
 
+**Objective 1 — shipped so far (no pagination/result-count, by design):**
+- [x] **Previewable result cards** — rich cards (title, archive-type tag,
+  investigators, location, time span, table count) that expand to a preview
+  (coords, table names, sites, keywords, publication + DOI, notes) with an
+  explicit "Import to workspace" button; single-hit searches are previewed, not
+  auto-imported. Verified headless 11/11.
+- [x] **CV autocomplete** — `scripts/generate-noaa-vocab.mjs` extracts NCEI's
+  controlled vocab from `study/params.json` into `src/lib/noaaVocab.generated.ts`
+  (1156 cvWhats leaves, 301 materials, 100 seasonalities, 360 locations);
+  Variable/Material/Seasonality/Location filters now autocomplete from it
+  (Seasonality was previously the wrong LiPD vocab). NCEI substring-matches, so
+  human-readable leaf terms are valid queries. Verified headless 16/16.
+- [ ] Remaining: results map; BP/CE + timeMethod time controls; numeric-range
+  validation; server-side search proxy fallback (CORS resilience). Optionally
+  archive-type-scoped CV suggestions (params.json is scoped by dataTypeId).
+
 ### 📌 Parked (revisit after the NOAA-import focus)
 - **PANGAEA time-period search.** Report flags time as "a very important query
   parameter for paleoclimatologists"; PANGAEA has no native time filter, so it

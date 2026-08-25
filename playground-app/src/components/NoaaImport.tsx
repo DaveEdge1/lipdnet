@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   searchNoaaStudies, noaaStudyToLipd, noaaStudyViaService, noaaFileToLipd, noaaFileViaService,
   NOAA_DATA_TYPES, type NoaaStudy, type NoaaSearchFilters,
 } from '../lib/noaa'
-import { SEASONALITY } from '../lib/vocabulary'
+import {
+  NOAA_CV_WHATS, NOAA_CV_MATERIALS, NOAA_CV_SEASONALITIES, NOAA_LOCATIONS,
+} from '../lib/noaaVocab.generated'
 import type { LipdFile } from '../types/lipd'
 import pyleotupsLogo from '../assets/pyleotups_logo.png'
 
@@ -100,6 +102,13 @@ export function NoaaImport({ onLoad }: Props) {
   const [minElevation, setMinElevation] = useState(''); const [maxElevation, setMaxElevation] = useState('')
   const [earliestYear, setEarliestYear] = useState(''); const [latestYear, setLatestYear] = useState('')
   const [reconstructionOnly, setReconstructionOnly] = useState(false)
+
+  // NOAA controlled-vocabulary autocompletes. The option lists are large
+  // (~1900 total), so build the <option> elements once rather than per keystroke.
+  const whatOpts = useMemo(() => NOAA_CV_WHATS.map(v => <option key={v} value={v} />), [])
+  const materialOpts = useMemo(() => NOAA_CV_MATERIALS.map(v => <option key={v} value={v} />), [])
+  const seasonOpts = useMemo(() => NOAA_CV_SEASONALITIES.map(v => <option key={v} value={v} />), [])
+  const locationOpts = useMemo(() => NOAA_LOCATIONS.map(v => <option key={v} value={v} />), [])
 
   const importStudy = async (study: NoaaStudy) => {
     setBusy(`Importing "${study.studyName}"…`)
@@ -257,20 +266,22 @@ export function NoaaImport({ onLoad }: Props) {
           </label>
           <label className="query-field">
             <span>Variable</span>
-            {/* NOAA's cvWhats uses its own vocabulary (not LiPD names), e.g. "Sea Surface Temperature" */}
-            <input value={variableName} onChange={e => setVariableName(e.target.value)}
-              placeholder="e.g. Sea Surface Temperature" onKeyDown={e => { if (e.key === 'Enter') search() }} />
+            {/* cvWhats uses NOAA's PaST vocabulary (not LiPD names); NCEI substring-matches, so leaf terms work. */}
+            <input list="noaa-cv-whats" value={variableName} onChange={e => setVariableName(e.target.value)}
+              placeholder="e.g. surface temperature" onKeyDown={e => { if (e.key === 'Enter') search() }} />
+            <datalist id="noaa-cv-whats">{whatOpts}</datalist>
           </label>
           <label className="query-field">
             <span>Material</span>
-            <input value={cvMaterials} onChange={e => setCvMaterials(e.target.value)}
-              placeholder="e.g. calcite" onKeyDown={e => { if (e.key === 'Enter') search() }} />
+            <input list="noaa-cv-materials" value={cvMaterials} onChange={e => setCvMaterials(e.target.value)}
+              placeholder="e.g. aragonite" onKeyDown={e => { if (e.key === 'Enter') search() }} />
+            <datalist id="noaa-cv-materials">{materialOpts}</datalist>
           </label>
           <label className="query-field">
             <span>Seasonality</span>
-            <input list="noaa-seasonality-list" value={cvSeasonalities} onChange={e => setCvSeasonalities(e.target.value)}
-              placeholder="e.g. Annual" onKeyDown={e => { if (e.key === 'Enter') search() }} />
-            <datalist id="noaa-seasonality-list">{SEASONALITY.map(v => <option key={v} value={v} />)}</datalist>
+            <input list="noaa-cv-seasonalities" value={cvSeasonalities} onChange={e => setCvSeasonalities(e.target.value)}
+              placeholder="e.g. annual" onKeyDown={e => { if (e.key === 'Enter') search() }} />
+            <datalist id="noaa-cv-seasonalities">{seasonOpts}</datalist>
           </label>
           <label className="query-field">
             <span>Species <em>(4-letter code)</em></span>
@@ -279,8 +290,9 @@ export function NoaaImport({ onLoad }: Props) {
           </label>
           <label className="query-field">
             <span>Location</span>
-            <input value={locations} onChange={e => setLocations(e.target.value)}
+            <input list="noaa-locations" value={locations} onChange={e => setLocations(e.target.value)}
               placeholder="e.g. Continent>Africa" onKeyDown={e => { if (e.key === 'Enter') search() }} />
+            <datalist id="noaa-locations">{locationOpts}</datalist>
           </label>
           <div className="noaa-range">
             <span className="noaa-range-title">Latitude</span>
