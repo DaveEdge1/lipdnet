@@ -198,7 +198,10 @@ def _name_unit(desc: str) -> tuple[str, str | None]:
     return (desc.rstrip(".").strip() or "Var"), None
 
 
-def _column_names(lines: list[str], start_idx: int, ncol: int) -> tuple[list[str], list[str | None]]:
+def _column_names(lines: list[str], start_idx: int, ncol: int) -> tuple[list[str], list[str | None], str]:
+    """Returns (names, units, source) where source is how the names were derived:
+    "legend" (explicit "Column N:" descriptions), "header" (a heuristic header
+    line — lower confidence), or "generic" (no names found)."""
     # 1) a "Column N: description (unit)" legend anywhere above the data block
     legend: dict[int, tuple[str, str | None]] = {}
     pat = re.compile(r"^\s*column\s+(\d+)\s*[:.\)]\s*(.+?)\s*$", re.I)
@@ -209,7 +212,7 @@ def _column_names(lines: list[str], start_idx: int, ncol: int) -> tuple[list[str
     if len(legend) >= ncol:
         names = [legend.get(i + 1, (f"Var{i+1}", None))[0] for i in range(ncol)]
         units = [legend.get(i + 1, (None, None))[1] for i in range(ncol)]
-        return names, units
+        return names, units, "legend"
     # 2) a mostly-non-numeric header line within a few lines above the block.
     #    Try comma-delimited too (old WDC files use it), and tolerate an
     #    off-by-one column count (pad/truncate with generic names).
@@ -222,9 +225,9 @@ def _column_names(lines: list[str], start_idx: int, ncol: int) -> tuple[list[str
             continue
         if sum(1 for t in toks if _is_num(t)) > len(toks) // 2:
             continue  # too numeric to be a header
-        return [(toks[i] if i < len(toks) and toks[i] else f"Var{i+1}") for i in range(ncol)], [None] * ncol
+        return [(toks[i] if i < len(toks) and toks[i] else f"Var{i+1}") for i in range(ncol)], [None] * ncol, "header"
     # 3) generic
-    return [f"Var{i+1}" for i in range(ncol)], [None] * ncol
+    return [f"Var{i+1}" for i in range(ncol)], [None] * ncol, "generic"
 
 
 def _col_nums(col: list[str]) -> list[float]:
@@ -285,13 +288,12 @@ def _align_variables(block: list[list[str]], variables: list[dict], year_ranges:
 
 
 def _fallback_parse(file_url: str, variables: list[dict] | None = None,
-                    year_ranges: list[tuple] | None = None) -> list[dict] | None:
-    """Recover a table from a legacy text file PyleoTUPS couldn't parse.
-
-    When PyleoTUPS supplied per-variable metadata (names/units) for the table but
-    no data, and the recovered column count matches, name the columns from that
-    metadata (aligning the age/time column to the study's declared year span).
-    Otherwise fall back to the file's own "Column N:" legend / header / generic."""
+                    year_ranges: list[tuple] | None = None) -> tuple[list[dict], bool] | None:
+    """Recover a table from a legacy text file PyleoTUPS couldn't parse. Returns
+    (columns, review) where `review` is True when the column names came from a
+    heuristic (a guessed header line, or generic VarN) and so warrant a human
+    check. Confidently-named tables (PyleoTUPS variable metadata, or an explicit
+    "Column N:" legend) return review=False."""
     try:
         text = _fetch_text(file_url)
     except Exception:
@@ -309,8 +311,9 @@ def _fallback_parse(file_url: str, variables: list[dict] | None = None,
     start_idx = next(i for i, t in numeric if len(t) == ncol)
     if variables and len(variables) == ncol:
         col_vars = _align_variables(block, variables, year_ranges or [])
+        source = "variables"
     else:
-        names, units = _column_names(lines, start_idx, ncol)
+        names, units, source = _column_names(lines, start_idx, ncol)
         col_vars = [{"name": names[i], "unit": units[i]} for i in range(ncol)]
     # de-duplicate column names
     seen: dict[str, int] = {}
@@ -328,7 +331,9 @@ def _fallback_parse(file_url: str, variables: list[dict] | None = None,
     for idx, cv in enumerate(col_vars):
         series = pd.to_numeric(df[uniq[idx]].astype(str).str.replace(",", "", regex=False), errors="coerce")
         cols.append(_column_dict(uniq[idx], [_clean(x) for x in series.tolist()], cv))
-    return cols
+    # Flag for human review when naming was a heuristic or any column is generic.
+    review = source in ("header", "generic") or any(re.match(r"^Var\d+$", str(c["variableName"])) for c in cols)
+    return cols, review
 
 
 def build_payload(study_id: int) -> dict:
@@ -387,11 +392,14 @@ def build_payload(study_id: int) -> dict:
                 # (.fhx/.rwl/.xls) fall through to skipped, as before.
                 fb = _fallback_parse(file_url, variables_for(tid), year_ranges) if _looks_text(file_url) else None
                 if fb:
+                    fb_cols, fb_review = fb
                     tables.append({
                         "tableName": _clean(t.get("DataTableName")) or (file_url.split("/")[-1] if file_url else None),
                         "fileUrl": file_url,
-                        "columns": fb,
+                        "columns": fb_cols,
                         "parser": "fallback",
+                        # Heuristic naming → ask the user to confirm/edit the columns.
+                        "review": fb_review,
                     })
                 elif file_url:
                     skipped.append(file_url)

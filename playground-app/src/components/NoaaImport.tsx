@@ -7,6 +7,7 @@ import {
   NOAA_CV_WHATS, NOAA_CV_MATERIALS, NOAA_CV_SEASONALITIES, NOAA_LOCATIONS, NOAA_KEYWORDS, NOAA_SPECIES,
 } from '../lib/noaaVocab.generated'
 import { NoaaResultsMap } from './NoaaResultsMap'
+import { NoaaReviewDialog, reviewTables } from './NoaaReviewDialog'
 import { InfoTip } from './InfoTip'
 import { tip } from '../lib/tooltips'
 import type { LipdFile } from '../types/lipd'
@@ -155,6 +156,7 @@ export function NoaaImport({ onLoad }: Props) {
   const [notice, setNotice] = useState<string | null>(null)
   const [results, setResults] = useState<NoaaStudy[] | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [review, setReview] = useState<LipdFile | null>(null)  // human-in-the-loop for heuristic tables
 
   // Advanced filters
   const [showAdvanced, setShowAdvanced] = useState(false)
@@ -207,6 +209,11 @@ export function NoaaImport({ onLoad }: Props) {
           setBusy(null)
           return
         }
+      }
+      // Fallback-parsed tables with guessed column names get a review step first.
+      if (reviewTables(lipd).length) {
+        setReview(lipd)
+        return
       }
       onLoad(lipd)
     } catch (e) {
@@ -560,6 +567,14 @@ export function NoaaImport({ onLoad }: Props) {
             })}
           </ul>
         </div>
+      )}
+
+      {review && (
+        <NoaaReviewDialog
+          lipd={review}
+          onConfirm={lipd => { setReview(null); onLoad(lipd) }}
+          onCancel={() => setReview(null)}
+        />
       )}
     </div>
   )

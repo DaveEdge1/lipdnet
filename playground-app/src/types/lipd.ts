@@ -21,6 +21,8 @@ export interface LipdTable {
   filename?: string
   missingValue?: string
   columns: LipdColumn[]
+  reviewNeeded?: boolean  // fallback-parsed with heuristic column naming — user should confirm
+  sourceUrl?: string      // original source file, shown in the review UI
 }
 
 export interface LipdPaleoData {

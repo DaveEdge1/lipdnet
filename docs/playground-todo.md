@@ -164,6 +164,16 @@ Tutorials: <https://linked.earth/pyleotupsTutorials/>
   study **2429** (Camp Century, our example): its d18O tables import as
   `ice age [year Common Era]` / `delta 18O [per mil SMOW]` and `age_CE` / `d18O`
   instead of Var1/Var2. Regression suite 13/13.
+- [x] **Human-in-the-loop review for heuristically-named tables.** Fallback naming
+  is inherently prone to error on messy files, so the service now flags a table
+  `review: true` when its names came from a heuristic (guessed header line or
+  generic VarN) — but NOT when they came from PyleoTUPS variable metadata or an
+  explicit "Column N:" legend. On import, `NoaaReviewDialog` shows each flagged
+  table with a link to the **original file** and an editable name + value-preview
+  per column (generic VarN highlighted); the user confirms or renames before the
+  dataset loads. E.g. 2429's messy CC-1 table is flagged; its two clean d18O
+  tables are not. Verified headless 40/40 (dialog appears with source link +
+  editable columns, confirming loads the workspace, proxy metadata intact).
 
 ## B. Extend NOAA + PANGAEA advanced search filters to match PyleoTUPS
 Goal: bring our "More filters" (advanced) search options up to parity with what

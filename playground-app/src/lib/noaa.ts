@@ -611,7 +611,7 @@ interface ServiceColumn {
   description?: string | null  // from cvDetail
   values: Array<number | string | null>
 }
-interface ServiceTable { tableName?: string | null; fileUrl?: string | null; columns: ServiceColumn[] }
+interface ServiceTable { tableName?: string | null; fileUrl?: string | null; review?: boolean; columns: ServiceColumn[] }
 interface ServicePayload {
   studyId: string
   dataSetName?: string | null
@@ -638,6 +638,9 @@ function serviceToLipd(p: ServicePayload): NoaaImportResult {
       tableName: t.tableName || t.fileUrl?.split('/').pop() || `measurementTable${ti}`,
       filename: `paleo0measurement${ti}.csv`,
       missingValue: 'NaN',
+      // Heuristically-named fallback tables are flagged so the import flow can
+      // ask the user to confirm/edit the column names first.
+      ...(t.review ? { reviewNeeded: true, sourceUrl: t.fileUrl ?? undefined } : {}),
       columns: t.columns.map((c, ci) => {
         const mapped = normalizeVariableName(c.variableName)
         // Only apply the mapping if it doesn't clash with another column's name.
