@@ -49,7 +49,7 @@ export function NoaaReviewDialog({ lipd, onConfirm, onCancel }: Props) {
         <p className="noaa-review-intro">
           {tables.length === 1 ? 'This table came' : 'These tables came'} from an older file that
           couldn&rsquo;t be read automatically, so the column names below were <strong>guessed</strong>.
-          Open the original to check them, and rename anything that looks wrong before importing.
+          The original file is shown for each — check it and rename anything that looks wrong before importing.
         </p>
 
         {tables.map((t, ti) => (
@@ -58,10 +58,19 @@ export function NoaaReviewDialog({ lipd, onConfirm, onCancel }: Props) {
               <span className="noaa-review-table-name">{t.tableName}</span>
               {t.sourceUrl && (
                 <a href={t.sourceUrl} target="_blank" rel="noreferrer" className="noaa-ext-link">
-                  View original file ↗
+                  Open in new tab ↗
                 </a>
               )}
             </div>
+            {t.sourceUrl && (
+              <iframe
+                className="noaa-review-frame"
+                src={t.sourceUrl}
+                title={`Original file for ${t.tableName ?? 'table'}`}
+                loading="lazy"
+                referrerPolicy="no-referrer"
+              />
+            )}
             <div className="noaa-review-cols">
               <div className="noaa-review-col noaa-review-col-head">
                 <span>Column name</span>
