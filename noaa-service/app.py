@@ -170,32 +170,54 @@ def _column_names(lines: list[str], start_idx: int, ncol: int) -> tuple[list[str
     return [f"Var{i+1}" for i in range(ncol)], [None] * ncol
 
 
-def _age_like(col: list[str]) -> bool:
-    """A monotonic column of (mostly) integers — an age/year/depth axis."""
-    nums = []
+def _col_nums(col: list[str]) -> list[float]:
+    out = []
     for v in col:
         try:
-            nums.append(float(str(v).replace(",", "")))
+            out.append(float(str(v).replace(",", "")))
         except ValueError:
             continue
+    return out
+
+
+def _in_declared_span(col: list[str], year_ranges: list[tuple]) -> bool:
+    """True if the column is the study's age/time axis: most of its values fall
+    within a declared temporal span (CE and/or BP) AND the column *covers* most
+    of that span. Grounding it in the study metadata (rather than integer-ness or
+    monotonicity) works for decimal ages, BP scales, and depth-free files; the
+    coverage test rejects a proxy whose values merely happen to land inside a
+    narrow near-zero BP range (e.g. d18O of −30 inside a 0–700 BP span)."""
+    nums = _col_nums(col)
     if len(nums) < 5:
         return False
-    int_frac = sum(1 for n in nums if abs(n - round(n)) < 1e-6) / len(nums)
-    inc = all(nums[i] <= nums[i + 1] for i in range(len(nums) - 1))
-    dec = all(nums[i] >= nums[i + 1] for i in range(len(nums) - 1))
-    return int_frac > 0.9 and (inc or dec)
+    cmin, cmax = min(nums), max(nums)
+    for lo, hi in year_ranges:
+        if lo is None or hi is None:
+            continue
+        lo2, hi2 = (lo, hi) if lo <= hi else (hi, lo)
+        span = hi2 - lo2
+        if span <= 0:
+            continue
+        pad = max(1.0, span * 0.05)
+        frac_in = sum(1 for n in nums if lo2 - pad <= n <= hi2 + pad) / len(nums)
+        coverage = max(0.0, min(cmax, hi2) - max(cmin, lo2)) / span
+        if frac_in >= 0.9 and coverage >= 0.15:
+            return True
+    return False
 
 
-def _align_variables(block: list[list[str]], variables: list[dict]) -> tuple[list[str], list[str | None]]:
+def _align_variables(block: list[list[str]], variables: list[dict], year_ranges: list[tuple]) -> tuple[list[str], list[str | None]]:
     """Assign PyleoTUPS variable metadata to positional data columns. The metadata
-    order isn't always the file's column order, so pin the single age/time column
-    by value shape and place the remaining variables in order."""
+    order isn't always the file's column order, so pin the age/time column by
+    matching it to the study's declared year span, then place the remaining
+    variables in order. If that's ambiguous (no or multiple matching columns), we
+    keep the metadata order rather than guess."""
     ncol = len(variables)
     cols = [[row[j] for row in block] for j in range(ncol)]
-    age_cols = [j for j in range(ncol) if _age_like(cols[j])]
+    age_cols = [j for j in range(ncol) if _in_declared_span(cols[j], year_ranges)]
     age_vars = [i for i, v in enumerate(variables) if v.get("is_age")]
     order = list(range(ncol))  # data-column index -> variable index
-    if len(age_cols) == 1 and len(age_vars) == 1:
+    if len(age_cols) == 1 and len(age_vars) == 1 and age_cols[0] != age_vars[0]:
         ac, av = age_cols[0], age_vars[0]
         rest_cols = [j for j in range(ncol) if j != ac]
         rest_vars = [i for i in range(ncol) if i != av]
@@ -207,13 +229,14 @@ def _align_variables(block: list[list[str]], variables: list[dict]) -> tuple[lis
     return names, units
 
 
-def _fallback_parse(file_url: str, variables: list[dict] | None = None) -> list[dict] | None:
+def _fallback_parse(file_url: str, variables: list[dict] | None = None,
+                    year_ranges: list[tuple] | None = None) -> list[dict] | None:
     """Recover a table from a legacy text file PyleoTUPS couldn't parse.
 
     When PyleoTUPS supplied per-variable metadata (names/units) for the table but
     no data, and the recovered column count matches, name the columns from that
-    metadata (aligning the age/time column by value shape). Otherwise fall back
-    to the file's own "Column N:" legend / header line / generic names."""
+    metadata (aligning the age/time column to the study's declared year span).
+    Otherwise fall back to the file's own "Column N:" legend / header / generic."""
     try:
         text = _fetch_text(file_url)
     except Exception:
@@ -230,7 +253,7 @@ def _fallback_parse(file_url: str, variables: list[dict] | None = None) -> list[
         return None
     start_idx = next(i for i, t in numeric if len(t) == ncol)
     if variables and len(variables) == ncol:
-        names, units = _align_variables(block, variables)
+        names, units = _align_variables(block, variables, year_ranges or [])
     else:
         names, units = _column_names(lines, start_idx, ncol)
     # de-duplicate column names
@@ -267,6 +290,13 @@ def build_payload(study_id: int) -> dict:
     cov = row.get("Coverage [S, N, W, E]") or (None, None, None, None)
     lat = _clean(cov[0]) if len(cov) > 0 else None
     lon = _clean(cov[2]) if len(cov) > 2 else None
+
+    # The study's declared temporal span (CE and BP) — used by the fallback
+    # parser to identify the age/time column by the data it actually contains.
+    year_ranges = [
+        (_num(row.get("EarliestYearCE")), _num(row.get("MostRecentYearCE"))),
+        (_num(row.get("EarliestYearBP")), _num(row.get("MostRecentYearBP"))),
+    ]
 
     tables_df = ds.get_tables()
 
@@ -324,7 +354,7 @@ def build_payload(study_id: int) -> dict:
                 # often a legacy WDC layout its parser can't segment — try our
                 # generic recovery before giving up. Proprietary/binary formats
                 # (.fhx/.rwl/.xls) fall through to skipped, as before.
-                fb = _fallback_parse(file_url, variables_for(tid)) if _looks_text(file_url) else None
+                fb = _fallback_parse(file_url, variables_for(tid), year_ranges) if _looks_text(file_url) else None
                 if fb:
                     tables.append({
                         "tableName": _clean(t.get("DataTableName")) or (file_url.split("/")[-1] if file_url else None),
