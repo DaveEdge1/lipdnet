@@ -61,10 +61,10 @@ export const TOOLTIPS: Record<string, string> = {
   'interp.basis': 'The basis or reasoning for this interpretation.', // new
 
   // ---- NOAA study search ----
-  'search.studyId': 'Fetch one study directly by its NOAA/NCEI study id (e.g. 13156). Overrides the keyword and filter search.',
-  'search.studyUrl': 'Paste a NOAA study landing-page URL (…/paleo-search/study/13156) to fetch that study directly.',
+  'search.studyId': 'Fetch one study directly by its NOAA/NCEI study id (e.g. 2429). Overrides the keyword and filter search.',
+  'search.studyUrl': 'Paste a NOAA study landing-page URL (…/paleo-search/study/2429) to fetch that study directly.',
   'search.text': 'Free-text keyword search across a study\'s title, abstract, and metadata. Combine with the filters below to narrow results.',
-  'search.investigators': 'Author / principal investigator, as "LastName, Initials" (e.g. "Khider, D."). Add several to match any (or all) of them.',
+  'search.investigators': 'Author / principal investigator, as "LastName, Initials" (e.g. "Dansgaard, W."). Add several to match any (or all) of them.',
   'search.archiveType': 'The kind of paleoclimate archive the data come from (coral, ice core, tree ring, speleothem, …).',
   'search.variable': 'What was measured, using NOAA\'s PaST vocabulary (e.g. "surface temperature", "delta 18O") — not LiPD variable names. Pick from the list; NOAA matches on the term.',
   'search.material': 'The material analysed, from NOAA\'s vocabulary (e.g. "aragonite", "wood", "planktic foraminifer").',

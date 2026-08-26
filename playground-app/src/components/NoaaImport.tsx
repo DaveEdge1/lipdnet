@@ -19,12 +19,12 @@ interface Props {
 // The multi-value filter fields, in display order, with label / tooltip /
 // autocomplete list / placeholder. Keys match NoaaSearchFilters multi-value keys.
 const MVF_CONFIG: Array<{ key: NoaaMultiKey; label: string; tipKey: string; listId?: string; placeholder: string }> = [
-  { key: 'investigators',   label: 'Investigator', tipKey: 'search.investigators', placeholder: 'e.g. Rasmussen' },
-  { key: 'variableName',    label: 'Variable',     tipKey: 'search.variable',      listId: 'noaa-cv-whats',         placeholder: 'e.g. surface temperature' },
-  { key: 'cvMaterials',     label: 'Material',     tipKey: 'search.material',      listId: 'noaa-cv-materials',     placeholder: 'e.g. aragonite' },
+  { key: 'investigators',   label: 'Investigator', tipKey: 'search.investigators', placeholder: 'e.g. Dansgaard' },
+  { key: 'variableName',    label: 'Variable',     tipKey: 'search.variable',      listId: 'noaa-cv-whats',         placeholder: 'e.g. delta 18O' },
+  { key: 'cvMaterials',     label: 'Material',     tipKey: 'search.material',      listId: 'noaa-cv-materials',     placeholder: 'e.g. bulk ice' },
   { key: 'cvSeasonalities', label: 'Seasonality',  tipKey: 'search.seasonality',   listId: 'noaa-cv-seasonalities', placeholder: 'e.g. annual' },
   { key: 'species',         label: 'Species',      tipKey: 'search.species',       listId: 'noaa-species',          placeholder: 'e.g. Picea glauca' },
-  { key: 'locations',       label: 'Location',     tipKey: 'search.location',      listId: 'noaa-locations',        placeholder: 'e.g. Continent>Africa' },
+  { key: 'locations',       label: 'Location',     tipKey: 'search.location',      listId: 'noaa-locations',        placeholder: 'e.g. Continent>North America>Greenland' },
   { key: 'keywords',        label: 'Keyword category', tipKey: 'search.keywords',  listId: 'noaa-keywords',         placeholder: 'e.g. climate forcing' },
 ]
 
@@ -312,25 +312,25 @@ export function NoaaImport({ onLoad }: Props) {
       <div className="noaa-base-grid">
         <label className="query-field">
           <span>NOAA study ID<InfoTip text={tip('search.studyId')} /></span>
-          <input inputMode="numeric" placeholder="e.g. 13156" value={studyId}
+          <input inputMode="numeric" placeholder="e.g. 2429" value={studyId}
             onChange={e => setStudyId(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') search() }} disabled={!!busy} />
         </label>
         <label className="query-field">
           <span>Study URL<InfoTip text={tip('search.studyUrl')} /></span>
-          <input placeholder="…/paleo-search/study/13156" value={studyUrl}
+          <input placeholder="…/paleo-search/study/2429" value={studyUrl}
             onChange={e => setStudyUrl(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') search() }} disabled={!!busy} />
         </label>
         <label className="query-field">
           <span>Keywords<InfoTip text={tip('search.text')} /></span>
-          <input placeholder="e.g. coral d18O" value={keywords}
+          <input placeholder="e.g. Camp Century oxygen isotope" value={keywords}
             onChange={e => setKeywords(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') search() }} disabled={!!busy} />
         </label>
         <label className="query-field">
           <span>Archive type<InfoTip text={tip('search.archiveType')} /></span>
-          <input list="noaa-archive-types" placeholder="Any" value={archiveName}
+          <input list="noaa-archive-types" placeholder="e.g. Ice cores" value={archiveName}
             onChange={e => setArchiveName(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') search() }} disabled={!!busy} />
           <datalist id="noaa-archive-types">{archiveOpts}</datalist>
