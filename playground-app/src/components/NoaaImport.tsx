@@ -1,17 +1,80 @@
 import { useMemo, useState } from 'react'
 import {
   searchNoaaStudies, noaaStudyToLipd, noaaStudyViaService, noaaFileToLipd, noaaFileViaService,
-  NOAA_DATA_TYPES, type NoaaStudy, type NoaaSearchFilters,
+  NOAA_DATA_TYPES, type NoaaStudy, type NoaaSearchFilters, type NoaaMultiKey, type AndOr,
 } from '../lib/noaa'
 import {
-  NOAA_CV_WHATS, NOAA_CV_MATERIALS, NOAA_CV_SEASONALITIES, NOAA_LOCATIONS,
+  NOAA_CV_WHATS, NOAA_CV_MATERIALS, NOAA_CV_SEASONALITIES, NOAA_LOCATIONS, NOAA_KEYWORDS,
 } from '../lib/noaaVocab.generated'
 import { NoaaResultsMap } from './NoaaResultsMap'
+import { InfoTip } from './InfoTip'
+import { tip } from '../lib/tooltips'
 import type { LipdFile } from '../types/lipd'
 import pyleotupsLogo from '../assets/pyleotups_logo.png'
 
 interface Props {
   onLoad: (lipd: LipdFile) => void
+}
+
+// The multi-value filter fields, in display order, with label / tooltip /
+// autocomplete list / placeholder. Keys match NoaaSearchFilters multi-value keys.
+const MVF_CONFIG: Array<{ key: NoaaMultiKey; label: string; tipKey: string; listId?: string; placeholder: string }> = [
+  { key: 'investigators',   label: 'Investigator', tipKey: 'search.investigators', placeholder: 'e.g. Khider, D.' },
+  { key: 'variableName',    label: 'Variable',     tipKey: 'search.variable',      listId: 'noaa-cv-whats',         placeholder: 'e.g. surface temperature' },
+  { key: 'cvMaterials',     label: 'Material',     tipKey: 'search.material',      listId: 'noaa-cv-materials',     placeholder: 'e.g. aragonite' },
+  { key: 'cvSeasonalities', label: 'Seasonality',  tipKey: 'search.seasonality',   listId: 'noaa-cv-seasonalities', placeholder: 'e.g. annual' },
+  { key: 'species',         label: 'Species (4-letter code)', tipKey: 'search.species', placeholder: 'e.g. PCGL' },
+  { key: 'locations',       label: 'Location',     tipKey: 'search.location',      listId: 'noaa-locations',        placeholder: 'e.g. Continent>Africa' },
+  { key: 'keywords',        label: 'Keywords',     tipKey: 'search.keywords',      listId: 'noaa-keywords',         placeholder: 'e.g. climate forcing' },
+]
+
+// A chip-style filter: several values, each removable, with an AND/OR toggle
+// shown once there are two or more. Optional datalist for autocomplete.
+function MultiValueField({ label, tipText, values, onChange, andOr, onAndOr, listId, placeholder }: {
+  label: string; tipText?: string
+  values: string[]; onChange: (v: string[]) => void
+  andOr: AndOr; onAndOr: (v: AndOr) => void
+  listId?: string; placeholder?: string
+}) {
+  const [draft, setDraft] = useState('')
+  const add = (raw: string) => {
+    const v = raw.trim()
+    if (v && !values.includes(v)) onChange([...values, v])
+    setDraft('')
+  }
+  const removeAt = (i: number) => onChange(values.filter((_, j) => j !== i))
+  return (
+    <div className="query-field mvf">
+      <span className="mvf-label">
+        {label}{tipText && <InfoTip text={tipText} />}
+        {values.length >= 2 && (
+          <span className="mvf-andor" role="group" aria-label={tip('search.andOr')}>
+            <button type="button" className={andOr !== 'and' ? 'on' : ''} onClick={() => onAndOr('or')} title="Match ANY of these">any</button>
+            <button type="button" className={andOr === 'and' ? 'on' : ''} onClick={() => onAndOr('and')} title="Match ALL of these">all</button>
+          </span>
+        )}
+      </span>
+      <div className="mvf-box">
+        {values.map((v, i) => (
+          <span key={v} className="mvf-chip">
+            <span className="mvf-chip-text" title={v}>{v}</span>
+            <button type="button" onClick={() => removeAt(i)} aria-label={`Remove ${v}`}>×</button>
+          </span>
+        ))}
+        <input
+          list={listId}
+          value={draft}
+          placeholder={values.length ? '' : placeholder}
+          onChange={e => setDraft(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); add(draft) }
+            else if (e.key === 'Backspace' && !draft && values.length) removeAt(values.length - 1)
+          }}
+          onBlur={() => add(draft)}
+        />
+      </div>
+    </div>
+  )
 }
 
 // ---- result-card display helpers (pure) -------------------------------------
@@ -91,27 +154,29 @@ export function NoaaImport({ onLoad }: Props) {
 
   // Advanced filters
   const [showAdvanced, setShowAdvanced] = useState(false)
-  const [investigators, setInvestigators] = useState('')
+  const [multi, setMulti] = useState<Record<NoaaMultiKey, string[]>>({
+    investigators: [], variableName: [], cvMaterials: [], cvSeasonalities: [], species: [], locations: [], keywords: [],
+  })
+  const [andOr, setAndOr] = useState<Partial<Record<NoaaMultiKey, AndOr>>>({})
+  const setValues = (key: NoaaMultiKey, v: string[]) => setMulti(m => ({ ...m, [key]: v }))
+  const setFieldAndOr = (key: NoaaMultiKey, v: AndOr) => setAndOr(a => ({ ...a, [key]: v }))
   const [dataTypeId, setDataTypeId] = useState('')
-  const [variableName, setVariableName] = useState('')
-  const [cvMaterials, setCvMaterials] = useState('')
-  const [cvSeasonalities, setCvSeasonalities] = useState('')
-  const [species, setSpecies] = useState('')
-  const [locations, setLocations] = useState('')
   const [minLat, setMinLat] = useState(''); const [maxLat, setMaxLat] = useState('')
   const [minLon, setMinLon] = useState(''); const [maxLon, setMaxLon] = useState('')
   const [minElevation, setMinElevation] = useState(''); const [maxElevation, setMaxElevation] = useState('')
   const [earliestYear, setEarliestYear] = useState(''); const [latestYear, setLatestYear] = useState('')
   const [timeFormat, setTimeFormat] = useState<'CE' | 'BP'>('CE')
   const [timeMethod, setTimeMethod] = useState('')
+  const [recent, setRecent] = useState(false)
   const [reconstructionOnly, setReconstructionOnly] = useState(false)
 
   // NOAA controlled-vocabulary autocompletes. The option lists are large
-  // (~1900 total), so build the <option> elements once rather than per keystroke.
+  // (~2000 total), so build the <option> elements once rather than per keystroke.
   const whatOpts = useMemo(() => NOAA_CV_WHATS.map(v => <option key={v} value={v} />), [])
   const materialOpts = useMemo(() => NOAA_CV_MATERIALS.map(v => <option key={v} value={v} />), [])
   const seasonOpts = useMemo(() => NOAA_CV_SEASONALITIES.map(v => <option key={v} value={v} />), [])
   const locationOpts = useMemo(() => NOAA_LOCATIONS.map(v => <option key={v} value={v} />), [])
+  const keywordOpts = useMemo(() => NOAA_KEYWORDS.map(v => <option key={v} value={v} />), [])
 
   const importStudy = async (study: NoaaStudy) => {
     setBusy(`Importing "${study.studyName}"…`)
@@ -173,25 +238,30 @@ export function NoaaImport({ onLoad }: Props) {
     if (busy) return
     const numOr = (s: string) => (s.trim() === '' ? undefined : Number(s))
     const hasYear = earliestYear.trim() !== '' || latestYear.trim() !== ''
+    const arr = (v: string[]) => (v.length ? v : undefined)
     const filters: NoaaSearchFilters = {
-      investigators: investigators || undefined,
+      investigators: arr(multi.investigators),
+      variableName: arr(multi.variableName),
+      cvMaterials: arr(multi.cvMaterials),
+      cvSeasonalities: arr(multi.cvSeasonalities),
+      species: arr(multi.species),
+      locations: arr(multi.locations),
+      keywords: arr(multi.keywords),
+      andOr,
       dataTypeId: dataTypeId || undefined,
-      variableName: variableName || undefined,
-      cvMaterials: cvMaterials || undefined,
-      cvSeasonalities: cvSeasonalities || undefined,
-      species: species || undefined,
-      locations: locations || undefined,
       minLat: numOr(minLat), maxLat: numOr(maxLat),
       minLon: numOr(minLon), maxLon: numOr(maxLon),
       minElevation: numOr(minElevation), maxElevation: numOr(maxElevation),
       earliestYear: numOr(earliestYear), latestYear: numOr(latestYear),
-      // timeFormat/timeMethod only apply to a year bound — omit them otherwise so
-      // the empty-search guard below still treats a blank form as empty.
+      // timeFormat/timeMethod only apply to a year bound — omit them otherwise.
       timeFormat: hasYear ? timeFormat : undefined,
       timeMethod: hasYear && timeMethod ? timeMethod : undefined,
+      recent: recent || undefined,
       reconstructionOnly: reconstructionOnly || undefined,
     }
-    const anyFilter = Object.values(filters).some(v => v !== undefined)
+    const anyFilter =
+      Object.values(multi).some(v => v.length > 0) || !!dataTypeId || recent || reconstructionOnly ||
+      [minLat, maxLat, minLon, maxLon, minElevation, maxElevation, earliestYear, latestYear].some(s => s.trim() !== '')
     if (!query.trim() && !anyFilter) return
     setBusy('Searching NOAA…')
     setError(null)
@@ -237,6 +307,7 @@ export function NoaaImport({ onLoad }: Props) {
         <button className="btn" onClick={search} disabled={!!busy}>
           Search
         </button>
+        <InfoTip text={tip('search.text')} />
       </div>
 
       <div className="noaa-import-secondary">
@@ -261,59 +332,39 @@ export function NoaaImport({ onLoad }: Props) {
       {showAdvanced && (
         <div className="noaa-advanced">
           <label className="query-field">
-            <span>Investigator</span>
-            <input value={investigators} onChange={e => setInvestigators(e.target.value)}
-              placeholder="e.g. Khider" onKeyDown={e => { if (e.key === 'Enter') search() }} />
-          </label>
-          <label className="query-field">
-            <span>Archive type</span>
+            <span>Archive type<InfoTip text={tip('search.archiveType')} /></span>
             <select value={dataTypeId} onChange={e => setDataTypeId(e.target.value)}>
               <option value="">Any</option>
               {NOAA_DATA_TYPES.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
             </select>
           </label>
-          <label className="query-field">
-            <span>Variable</span>
-            {/* cvWhats uses NOAA's PaST vocabulary (not LiPD names); NCEI substring-matches, so leaf terms work. */}
-            <input list="noaa-cv-whats" value={variableName} onChange={e => setVariableName(e.target.value)}
-              placeholder="e.g. surface temperature" onKeyDown={e => { if (e.key === 'Enter') search() }} />
-            <datalist id="noaa-cv-whats">{whatOpts}</datalist>
-          </label>
-          <label className="query-field">
-            <span>Material</span>
-            <input list="noaa-cv-materials" value={cvMaterials} onChange={e => setCvMaterials(e.target.value)}
-              placeholder="e.g. aragonite" onKeyDown={e => { if (e.key === 'Enter') search() }} />
-            <datalist id="noaa-cv-materials">{materialOpts}</datalist>
-          </label>
-          <label className="query-field">
-            <span>Seasonality</span>
-            <input list="noaa-cv-seasonalities" value={cvSeasonalities} onChange={e => setCvSeasonalities(e.target.value)}
-              placeholder="e.g. annual" onKeyDown={e => { if (e.key === 'Enter') search() }} />
-            <datalist id="noaa-cv-seasonalities">{seasonOpts}</datalist>
-          </label>
-          <label className="query-field">
-            <span>Species <em>(4-letter code)</em></span>
-            <input value={species} onChange={e => setSpecies(e.target.value)}
-              placeholder="e.g. PCGL" onKeyDown={e => { if (e.key === 'Enter') search() }} />
-          </label>
-          <label className="query-field">
-            <span>Location</span>
-            <input list="noaa-locations" value={locations} onChange={e => setLocations(e.target.value)}
-              placeholder="e.g. Continent>Africa" onKeyDown={e => { if (e.key === 'Enter') search() }} />
-            <datalist id="noaa-locations">{locationOpts}</datalist>
-          </label>
+
+          {MVF_CONFIG.map(cfg => (
+            <MultiValueField
+              key={cfg.key}
+              label={cfg.label}
+              tipText={tip(cfg.tipKey)}
+              values={multi[cfg.key]}
+              onChange={v => setValues(cfg.key, v)}
+              andOr={andOr[cfg.key] ?? 'or'}
+              onAndOr={v => setFieldAndOr(cfg.key, v)}
+              listId={cfg.listId}
+              placeholder={cfg.placeholder}
+            />
+          ))}
+
           <div className="noaa-range">
-            <span className="noaa-range-title">Latitude</span>
+            <span className="noaa-range-title">Latitude<InfoTip text={tip('search.latitude')} /></span>
             <input type="number" step="any" placeholder="min" value={minLat} onChange={e => setMinLat(e.target.value)} />
             <input type="number" step="any" placeholder="max" value={maxLat} onChange={e => setMaxLat(e.target.value)} />
           </div>
           <div className="noaa-range">
-            <span className="noaa-range-title">Longitude</span>
+            <span className="noaa-range-title">Longitude<InfoTip text={tip('search.longitude')} /></span>
             <input type="number" step="any" placeholder="min" value={minLon} onChange={e => setMinLon(e.target.value)} />
             <input type="number" step="any" placeholder="max" value={maxLon} onChange={e => setMaxLon(e.target.value)} />
           </div>
           <div className="noaa-range">
-            <span className="noaa-range-title">Elevation (m)</span>
+            <span className="noaa-range-title">Elevation (m)<InfoTip text={tip('search.elevation')} /></span>
             <input type="number" step="any" placeholder="min" value={minElevation} onChange={e => setMinElevation(e.target.value)} />
             <input type="number" step="any" placeholder="max" value={maxElevation} onChange={e => setMaxElevation(e.target.value)} />
           </div>
@@ -325,23 +376,36 @@ export function NoaaImport({ onLoad }: Props) {
                 <option value="CE">CE</option>
                 <option value="BP">BP</option>
               </select>
+              <InfoTip text={tip('search.year')} />
             </span>
             <input type="number" step="any" placeholder={timeFormat === 'BP' ? 'oldest' : 'from'} value={earliestYear} onChange={e => setEarliestYear(e.target.value)} />
             <input type="number" step="any" placeholder={timeFormat === 'BP' ? 'youngest' : 'to'} value={latestYear} onChange={e => setLatestYear(e.target.value)} />
           </div>
           <label className="query-field">
-            <span>Time match</span>
-            <select value={timeMethod} onChange={e => setTimeMethod(e.target.value)}
-              title="How the year range is applied to each study's time span">
+            <span>Time match<InfoTip text={tip('search.timeMatch')} /></span>
+            <select value={timeMethod} onChange={e => setTimeMethod(e.target.value)}>
               <option value="">Overlaps range</option>
               <option value="entireOver">Spans the whole range</option>
               <option value="overEntire">Within the range</option>
             </select>
           </label>
-          <label className="noaa-check">
-            <input type="checkbox" checked={reconstructionOnly} onChange={e => setReconstructionOnly(e.target.checked)} />
-            Reconstructions only
-          </label>
+          <div className="noaa-checks">
+            <label className="noaa-check">
+              <input type="checkbox" checked={recent} onChange={e => setRecent(e.target.checked)} />
+              Recently added<InfoTip text={tip('search.recent')} />
+            </label>
+            <label className="noaa-check">
+              <input type="checkbox" checked={reconstructionOnly} onChange={e => setReconstructionOnly(e.target.checked)} />
+              Reconstructions only<InfoTip text={tip('search.reconstruction')} />
+            </label>
+          </div>
+
+          {/* Shared autocomplete lists (referenced by the fields above via list=). */}
+          <datalist id="noaa-cv-whats">{whatOpts}</datalist>
+          <datalist id="noaa-cv-materials">{materialOpts}</datalist>
+          <datalist id="noaa-cv-seasonalities">{seasonOpts}</datalist>
+          <datalist id="noaa-locations">{locationOpts}</datalist>
+          <datalist id="noaa-keywords">{keywordOpts}</datalist>
         </div>
       )}
 

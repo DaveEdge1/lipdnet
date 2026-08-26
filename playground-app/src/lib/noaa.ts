@@ -72,28 +72,53 @@ export const NOAA_DATA_TYPES: Array<{ name: string; id: string }> = [
   { name: 'Tree ring', id: '18' },
 ]
 
+export type AndOr = 'and' | 'or'
+
+// The 7 multi-value NOAA search fields (in UI order). Each accepts several
+// values joined with '|'; when ≥2 values are given, an "AndOr" param controls
+// whether they're combined with AND or OR (NCEI default: or). Mirrors PyleoTUPS'
+// query_builder MULTI_SPECS.  key = NoaaSearchFilters key; param = NCEI param.
+export const NOAA_MULTI_FIELDS = [
+  { key: 'investigators',   param: 'investigators',   andOrParam: 'investigatorsAndOr' },
+  { key: 'variableName',    param: 'cvWhats',         andOrParam: 'cvWhatsAndOr' },
+  { key: 'cvMaterials',     param: 'cvMaterials',     andOrParam: 'cvMaterialsAndOr' },
+  { key: 'cvSeasonalities', param: 'cvSeasonalities', andOrParam: 'cvSeasonalitiesAndOr' },
+  { key: 'species',         param: 'species',         andOrParam: 'speciesAndOr' },
+  { key: 'locations',       param: 'locations',       andOrParam: 'locationsAndOr' },
+  { key: 'keywords',        param: 'keywords',        andOrParam: 'keywordsAndOr' },
+] as const
+export type NoaaMultiKey = typeof NOAA_MULTI_FIELDS[number]['key']
+
 // Advanced NOAA search filters. Field names mirror the PyleoTUPS
 // search_studies() parameters; each maps to the NCEI paleo-search API param
 // noted in searchNoaaStudies (kept in sync with pyleotups' query_builder).
 export interface NoaaSearchFilters {
-  investigators?: string
-  dataTypeId?: string
-  variableName?: string      // → cvWhats
-  cvMaterials?: string       // → cvMaterials
-  cvSeasonalities?: string   // → cvSeasonalities
-  species?: string           // → species (4-letter tree codes)
-  locations?: string         // → locations (hierarchical, e.g. "Continent>Africa")
+  investigators?: string[]
+  variableName?: string[]      // → cvWhats
+  cvMaterials?: string[]       // → cvMaterials
+  cvSeasonalities?: string[]   // → cvSeasonalities
+  species?: string[]           // → species (4-letter codes)
+  locations?: string[]         // → locations (hierarchical, e.g. "Continent>Africa")
+  keywords?: string[]          // → keywords (NCEI controlled keyword hierarchy)
+  andOr?: Partial<Record<NoaaMultiKey, AndOr>>  // per-field AND/OR when ≥2 values
+  dataTypeId?: string          // archive type (single-select)
   minLat?: number; maxLat?: number
   minLon?: number; maxLon?: number
   minElevation?: number; maxElevation?: number
   earliestYear?: number; latestYear?: number // years, interpreted per timeFormat
   timeFormat?: 'CE' | 'BP'   // how to read the year bounds; NCEI defaults to CE
   timeMethod?: string        // '' → overAny (overlap, NCEI default); 'entireOver' (spans range); 'overEntire' (within range)
+  recent?: boolean           // recently-added studies, newest first
   reconstructionOnly?: boolean
 }
 
-const hasFilters = (f: NoaaSearchFilters) =>
-  Object.values(f).some(v => v !== undefined && v !== '' && v !== false && !Number.isNaN(v))
+const hasFilters = (f: NoaaSearchFilters): boolean => {
+  if (NOAA_MULTI_FIELDS.some(({ key }) => (f[key]?.length ?? 0) > 0)) return true
+  if (f.dataTypeId) return true
+  const nums = [f.minLat, f.maxLat, f.minLon, f.maxLon, f.minElevation, f.maxElevation, f.earliestYear, f.latestYear]
+  if (nums.some(v => v !== undefined && !Number.isNaN(v))) return true
+  return Boolean(f.recent || f.reconstructionOnly)
+}
 
 // Accepts a NOAA study ID, a study URL (…/paleo-search/study/12345), or
 // free-text search terms, optionally combined with structured filters.
@@ -111,14 +136,15 @@ export async function searchNoaaStudies(query: string, filters: NoaaSearchFilter
   } else {
     params.set('dataPublisher', 'NOAA')
     if (q) params.set('searchText', q)
-    const str = (k: string, v?: string) => { if (v?.trim()) params.set(k, v.trim()) }
-    str('investigators', filters.investigators)
-    str('dataTypeId', filters.dataTypeId)
-    str('cvWhats', filters.variableName)
-    str('cvMaterials', filters.cvMaterials)
-    str('cvSeasonalities', filters.cvSeasonalities)
-    str('species', filters.species)
-    str('locations', filters.locations)
+    // Multi-value fields: join with '|' (URLSearchParams encodes it as %7C) and
+    // send the AndOr flag only when ≥2 values are present (NCEI default: or).
+    for (const { key, param, andOrParam } of NOAA_MULTI_FIELDS) {
+      const vals = (filters[key] ?? []).map(s => s.trim()).filter(Boolean)
+      if (!vals.length) continue
+      params.set(param, vals.join('|'))
+      if (vals.length >= 2) params.set(andOrParam, filters.andOr?.[key] ?? 'or')
+    }
+    if (filters.dataTypeId?.trim()) params.set('dataTypeId', filters.dataTypeId.trim())
     const num = (k: string, v?: number) => { if (v !== undefined && !Number.isNaN(v)) params.set(k, String(v)) }
     num('minLat', filters.minLat); num('maxLat', filters.maxLat)
     num('minLon', filters.minLon); num('maxLon', filters.maxLon)
@@ -129,6 +155,7 @@ export async function searchNoaaStudies(query: string, filters: NoaaSearchFilter
       params.set('timeFormat', filters.timeFormat ?? 'CE')
       if (filters.timeMethod) params.set('timeMethod', filters.timeMethod)
     }
+    if (filters.recent) params.set('recent', 'true')
     if (filters.reconstructionOnly) params.set('reconstructionsOnly', 'Y')
     params.set('limit', '25')
   }

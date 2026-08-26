@@ -59,6 +59,25 @@ export const TOOLTIPS: Record<string, string> = {
   'interp.direction': 'As the measured value increases, does the interpreted variable increase (positive) or decrease (negative)?',
   'interp.scope': 'The scope of the interpretation — climate or isotope.', // new
   'interp.basis': 'The basis or reasoning for this interpretation.', // new
+
+  // ---- NOAA study search (advanced filters) ----
+  'search.text': 'Free-text search across a study\'s title, abstract, and metadata. Combine with the filters below to narrow results.',
+  'search.investigators': 'Author / principal investigator, as "LastName, Initials" (e.g. "Khider, D."). Add several to match any (or all) of them.',
+  'search.archiveType': 'The kind of paleoclimate archive the data come from (coral, ice core, tree ring, speleothem, …).',
+  'search.variable': 'What was measured, using NOAA\'s PaST vocabulary (e.g. "surface temperature", "delta 18O") — not LiPD variable names. Pick from the list; NOAA matches on the term.',
+  'search.material': 'The material analysed, from NOAA\'s vocabulary (e.g. "aragonite", "wood", "planktic foraminifer").',
+  'search.seasonality': 'The part of the year the record represents (e.g. "annual", "5-month period>May-Sep"), from NOAA\'s seasonality vocabulary.',
+  'search.species': 'A 4-letter species code (mainly tree-ring taxa), e.g. "PCGL" for Picea glauca.',
+  'search.location': 'A hierarchical place, e.g. "Continent>Africa>Eastern Africa>Tanzania". Pick from the list to match the exact term NOAA expects.',
+  'search.keywords': 'NOAA\'s controlled science-keyword hierarchy (e.g. "earth science>paleoclimate>climate forcing"). Different from the free-form keywords shown on result cards.',
+  'search.latitude': 'Latitude bounds in decimal degrees (-90 to 90). A study can span sites in more than one region — check results.',
+  'search.longitude': 'Longitude bounds in decimal degrees (-180 to 180).',
+  'search.elevation': 'Site elevation bounds in metres (negative for below sea level).',
+  'search.year': 'Time span to match. Use the CE/BP toggle to switch between calendar years (CE) and years before present (BP).',
+  'search.timeMatch': 'How the year range is applied: Overlaps range (any overlap), Spans the whole range (study covers all of it), or Within the range (study falls entirely inside it).',
+  'search.recent': 'Show only recently-added studies (about the last two years), newest first.',
+  'search.reconstruction': 'Show only climate reconstructions (derived climate series), not raw proxy measurements.',
+  'search.andOr': 'When a field has more than one value: match studies with ANY of them, or only those with ALL of them.',
 }
 
 export function tip(key: string): string | undefined {

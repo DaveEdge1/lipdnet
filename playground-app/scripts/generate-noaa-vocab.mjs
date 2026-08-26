@@ -52,19 +52,26 @@ for (const groups of Object.values(cv)) {
   }
 }
 
-// locations.NOAA is keyed by dataTypeId -> array of "Continent>..." strings
-const locations = []
-const walkLoc = (v) => {
-  if (Array.isArray(v)) v.forEach(walkLoc)
-  else if (v && typeof v === 'object') Object.values(v).forEach(walkLoc)
-  else if (typeof v === 'string') locations.push(v)
+// locations.NOAA and keywords.NOAA are keyed by dataTypeId -> arrays of
+// hierarchical "A>B>C" strings.
+const collectStrings = (root) => {
+  const out = []
+  const walk = (v) => {
+    if (Array.isArray(v)) v.forEach(walk)
+    else if (v && typeof v === 'object') Object.values(v).forEach(walk)
+    else if (typeof v === 'string') out.push(v)
+  }
+  walk(root)
+  return out
 }
-walkLoc(params?.locations?.NOAA ?? {})
+const locations = collectStrings(params?.locations?.NOAA ?? {})
+const keywords = collectStrings(params?.keywords?.NOAA ?? {})
 
 const WHATS = clean(whats)
 const MATERIALS = clean(materials)
 const SEASONALITIES = clean(seasonalities)
 const LOCATIONS = clean(locations)
+const KEYWORDS = clean(keywords)
 
 const arr = (name, xs) =>
   `export const ${name}: readonly string[] = [\n` +
@@ -78,7 +85,8 @@ const body =
   arr('NOAA_CV_WHATS', WHATS) + '\n' +
   arr('NOAA_CV_MATERIALS', MATERIALS) + '\n' +
   arr('NOAA_CV_SEASONALITIES', SEASONALITIES) + '\n' +
-  arr('NOAA_LOCATIONS', LOCATIONS)
+  arr('NOAA_LOCATIONS', LOCATIONS) + '\n' +
+  arr('NOAA_KEYWORDS', KEYWORDS)
 
 writeFileSync(OUT, body)
 console.log(`Wrote ${OUT}`)
@@ -86,4 +94,5 @@ console.log(`  cvWhats leaves:      ${WHATS.length}`)
 console.log(`  cvMaterials leaves:  ${MATERIALS.length}`)
 console.log(`  cvSeasonalities:     ${SEASONALITIES.length}`)
 console.log(`  locations:           ${LOCATIONS.length}`)
+console.log(`  keywords:            ${KEYWORDS.length}`)
 console.log(`  generated size:      ${(body.length / 1024).toFixed(0)}KB`)

@@ -43,6 +43,17 @@ D. Edge is named as lead on Playground/PyleoTUPS integration.
   ("overlap, envelop, or within") and empirically (overEntire returns a strict
   subset). Verified headless 23/23 (incl. request-param assertion timeFormat=BP,
   timeMethod=overEntire actually reach NCEI).
+- [x] **Full pyleoTUPS parity + field tooltips** — the 7 categorical filters
+  (investigator, variable, material, seasonality, species, location, keywords)
+  are now multi-value chip inputs, each with an AND/OR toggle at 2+ values
+  (`<field>AndOr`, only sent when ≥2, NCEI default `or`); values joined with `|`
+  (URLSearchParams encodes as %7C). Added the **Keywords** filter (137-term NCEI
+  keyword hierarchy — distinct from the free-form scienceKeywords on cards) and a
+  **Recently added** toggle (`recent=true`). Every query field now carries an
+  InfoTip (search.* keys in tooltips.ts). AndOr wire format confirmed against
+  pyleoTUPS validators (`and`/`or`) and the live endpoint. Verified headless
+  31/31, incl. a request-param assertion that a 2-value cvWhats + AND + recent +
+  BP + overEntire all reach NCEI in one request.
 - [ ] Remaining: numeric-range validation; server-side search proxy fallback
   (CORS resilience). Optionally archive-type-scoped CV suggestions (params.json
   is scoped by dataTypeId).
