@@ -122,6 +122,19 @@ Tutorials: <https://linked.earth/pyleotupsTutorials/>
   checks.
 - [ ] Consider adding NOAA 33213 (8-table flagship) to the headless verify suite
   as an end-to-end regression case.
+- [x] **Fallback parser for legacy WDC text files** — some old NOAA files (e.g.
+  study **2493**, GICC05 Greenland ice-core chronology) use a prose preamble +
+  "Column N: name (unit)" legend + a numeric block that PyleoTUPS returns
+  *nothing* for (no error, just empty) — so clean, importable data was stranded
+  as "metadata only". `noaa-service/app.py` now runs a conservative recovery
+  when PyleoTUPS yields no table for a `.txt/.dat/.csv/.tsv` file: find the
+  dominant contiguous numeric block, name columns from the legend (or a header
+  line), extract units from the legend parens. Binary/proprietary formats
+  (.xls/.rwl/.fhx) still fall through to metadata-only. Verified: 2493 → 1 table,
+  6 named columns + units, 2088 rows; regression suite 12/12 (13156 still
+  metadata-only, all pyleoTUPS-parsed studies unchanged). Follow-up: port the
+  same heuristic to the browser fallback parser (lib/noaa.ts) for when the
+  service is unavailable.
 
 ## B. Extend NOAA + PANGAEA advanced search filters to match PyleoTUPS
 Goal: bring our "More filters" (advanced) search options up to parity with what

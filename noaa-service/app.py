@@ -18,7 +18,9 @@ from __future__ import annotations
 
 import math
 import os
+import re
 import tempfile
+from collections import Counter
 from typing import Any
 
 import pandas as pd
@@ -77,6 +79,129 @@ def _publications(pubs: list[dict]) -> list[dict]:
     return out
 
 
+# --- Generic fallback parser for legacy WDC text files -----------------------
+# Many older NOAA/WDC files use a prose preamble + a "Column N: name (unit)"
+# legend + a whitespace/tab-delimited numeric block. PyleoTUPS sometimes returns
+# nothing for these (no error — just an empty result), which would strand clean,
+# importable data as "metadata only". When PyleoTUPS yields no table for a text
+# file, we do a conservative recovery: find the dominant contiguous numeric
+# block, name the columns from the legend (or a header line), and return it. If
+# there's no real numeric block (binary/Excel/tree-ring formats) we return None
+# and the file is reported as unparseable, exactly as before.
+
+_FALLBACK_MAX_BYTES = 8_000_000
+_MISSING_TOKENS = {"", "na", "n/a", "nan", "null", "nd", "-", "--"}
+
+
+def _looks_text(url: str | None) -> bool:
+    if not url:
+        return False
+    path = str(url).lower().split("?", 1)[0]
+    return path.endswith((".txt", ".dat", ".csv", ".tsv"))
+
+
+def _fetch_text(url: str) -> str:
+    r = requests.get(url, timeout=45)
+    r.raise_for_status()
+    if len(r.content) > _FALLBACK_MAX_BYTES:
+        raise ValueError("file too large for fallback parser")
+    return r.content.decode("utf-8", errors="replace")
+
+
+def _split_row(line: str) -> list[str]:
+    line = line.rstrip("\r\n")
+    return [c.strip() for c in line.split("\t")] if "\t" in line else line.split()
+
+
+def _is_num(tok: str) -> bool:
+    t = tok.strip()
+    if t.lower() in _MISSING_TOKENS:
+        return True  # a missing marker inside an otherwise-numeric row
+    try:
+        float(t.replace(",", ""))
+        return True
+    except ValueError:
+        return False
+
+
+def _row_is_numeric(toks: list[str]) -> bool:
+    if len(toks) < 2:
+        return False
+    numeric = sum(1 for t in toks if _is_num(t))
+    return numeric >= max(2, len(toks) - 1)  # tolerate one label/flag column
+
+
+def _name_unit(desc: str) -> tuple[str, str | None]:
+    desc = desc.strip()
+    m = re.match(r"^(.*?)\s*\(([^)]*)\)", desc)
+    if m:
+        name = m.group(1).strip().rstrip(".") or "Var"
+        unit = m.group(2).strip()
+        return name, (unit if 0 < len(unit) <= 20 and "=" not in unit else None)
+    return (desc.rstrip(".").strip() or "Var"), None
+
+
+def _column_names(lines: list[str], start_idx: int, ncol: int) -> tuple[list[str], list[str | None]]:
+    # 1) a "Column N: description (unit)" legend anywhere above the data block
+    legend: dict[int, tuple[str, str | None]] = {}
+    pat = re.compile(r"^\s*column\s+(\d+)\s*[:.\)]\s*(.+?)\s*$", re.I)
+    for ln in lines[:start_idx]:
+        m = pat.match(ln)
+        if m:
+            legend[int(m.group(1))] = _name_unit(m.group(2))
+    if len(legend) >= ncol:
+        names = [legend.get(i + 1, (f"Var{i+1}", None))[0] for i in range(ncol)]
+        units = [legend.get(i + 1, (None, None))[1] for i in range(ncol)]
+        return names, units
+    # 2) a non-numeric header line just above the block with matching width
+    for j in range(start_idx - 1, max(-1, start_idx - 4), -1):
+        toks = _split_row(lines[j])
+        if len(toks) == ncol and any(t.strip() for t in toks) and not all(_is_num(t) for t in toks):
+            return [t.strip() or f"Var{i+1}" for i, t in enumerate(toks)], [None] * ncol
+    # 3) generic
+    return [f"Var{i+1}" for i in range(ncol)], [None] * ncol
+
+
+def _fallback_parse(file_url: str) -> list[dict] | None:
+    """Recover a table from a legacy text file PyleoTUPS couldn't parse."""
+    try:
+        text = _fetch_text(file_url)
+    except Exception:
+        return None
+    lines = text.splitlines()
+    numeric = [(i, toks) for i, toks in ((k, _split_row(ln)) for k, ln in enumerate(lines)) if _row_is_numeric(toks)]
+    if len(numeric) < 5:
+        return None
+    ncol = Counter(len(t) for _, t in numeric).most_common(1)[0][0]
+    if ncol < 2:
+        return None
+    block = [t for _, t in numeric if len(t) == ncol]
+    if len(block) < 5:
+        return None
+    start_idx = next(i for i, t in numeric if len(t) == ncol)
+    names, units = _column_names(lines, start_idx, ncol)
+    # de-duplicate column names
+    seen: dict[str, int] = {}
+    uniq: list[str] = []
+    for n in names:
+        if n in seen:
+            seen[n] += 1
+            uniq.append(f"{n}_{seen[n]}")
+        else:
+            seen[n] = 0
+            uniq.append(n)
+    df = pd.DataFrame(block, columns=uniq)
+    cols = []
+    for idx, c in enumerate(uniq):
+        series = pd.to_numeric(df[c].astype(str).str.replace(",", "", regex=False), errors="coerce")
+        cols.append({
+            "variableName": str(c),
+            "units": units[idx] if idx < len(units) else None,
+            "values": [_clean(x) for x in series.tolist()],
+        })
+    return cols
+
+
 def build_payload(study_id: int) -> dict:
     ds = pt.NOAADataset()
     found = ds.search_studies(noaa_id=study_id)
@@ -121,12 +246,21 @@ def build_payload(study_id: int) -> dict:
             try:
                 dfs = ds.get_data(dataTableIDs=tid)
             except Exception:
-                # e.g. proprietary .fhx / .rwl — PyleoTUPS itself only reads .txt
-                if file_url:
-                    skipped.append(file_url)
-                continue
+                dfs = None
             if not dfs:
-                if file_url:
+                # PyleoTUPS produced no table. For a plain-text file this is
+                # often a legacy WDC layout its parser can't segment — try our
+                # generic recovery before giving up. Proprietary/binary formats
+                # (.fhx/.rwl/.xls) fall through to skipped, as before.
+                fb = _fallback_parse(file_url) if _looks_text(file_url) else None
+                if fb:
+                    tables.append({
+                        "tableName": _clean(t.get("DataTableName")) or (file_url.split("/")[-1] if file_url else None),
+                        "fileUrl": file_url,
+                        "columns": fb,
+                        "parser": "fallback",
+                    })
+                elif file_url:
                     skipped.append(file_url)
                 continue
             unit_by_name = units_for(tid)

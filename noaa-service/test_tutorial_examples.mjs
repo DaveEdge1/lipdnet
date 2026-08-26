@@ -52,6 +52,16 @@ await noaa(10420, b => rec('NOAA 10420 imports (multi-site geometry)', (b.tables
 
 await noaa(36778, b => rec('NOAA 36778 imports', b.studyId != null, `${b.tables?.length ?? 0} tables`))
 
+// Legacy WDC file PyleoTUPS returns nothing for; our fallback parser recovers it.
+await noaa(2493, b => {
+  const t0 = b.tables?.[0]
+  const names = colNames(b)
+  rec('NOAA 2493 → fallback recovers GICC05 (was metadata-only)',
+    !b.metadataOnly && t0?.parser === 'fallback' && (t0?.columns?.length ?? 0) === 6
+      && (t0?.columns?.[0]?.values?.length ?? 0) > 1000 && names.some(n => /d18O/i.test(n)),
+    `metadataOnly=${b.metadataOnly}, parser=${t0?.parser}, cols=${t0?.columns?.length}, rows=${t0?.columns?.[0]?.values?.length}`)
+})
+
 // ---- PANGAEA ----
 async function pangaea(id, check, timeout = 120000) {
   const { status, body, error } = await get(`/pangaea/${id}`, timeout)
