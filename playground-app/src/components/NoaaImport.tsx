@@ -102,6 +102,8 @@ export function NoaaImport({ onLoad }: Props) {
   const [minLon, setMinLon] = useState(''); const [maxLon, setMaxLon] = useState('')
   const [minElevation, setMinElevation] = useState(''); const [maxElevation, setMaxElevation] = useState('')
   const [earliestYear, setEarliestYear] = useState(''); const [latestYear, setLatestYear] = useState('')
+  const [timeFormat, setTimeFormat] = useState<'CE' | 'BP'>('CE')
+  const [timeMethod, setTimeMethod] = useState('')
   const [reconstructionOnly, setReconstructionOnly] = useState(false)
 
   // NOAA controlled-vocabulary autocompletes. The option lists are large
@@ -170,6 +172,7 @@ export function NoaaImport({ onLoad }: Props) {
   const search = async () => {
     if (busy) return
     const numOr = (s: string) => (s.trim() === '' ? undefined : Number(s))
+    const hasYear = earliestYear.trim() !== '' || latestYear.trim() !== ''
     const filters: NoaaSearchFilters = {
       investigators: investigators || undefined,
       dataTypeId: dataTypeId || undefined,
@@ -182,6 +185,10 @@ export function NoaaImport({ onLoad }: Props) {
       minLon: numOr(minLon), maxLon: numOr(maxLon),
       minElevation: numOr(minElevation), maxElevation: numOr(maxElevation),
       earliestYear: numOr(earliestYear), latestYear: numOr(latestYear),
+      // timeFormat/timeMethod only apply to a year bound — omit them otherwise so
+      // the empty-search guard below still treats a blank form as empty.
+      timeFormat: hasYear ? timeFormat : undefined,
+      timeMethod: hasYear && timeMethod ? timeMethod : undefined,
       reconstructionOnly: reconstructionOnly || undefined,
     }
     const anyFilter = Object.values(filters).some(v => v !== undefined)
@@ -311,10 +318,26 @@ export function NoaaImport({ onLoad }: Props) {
             <input type="number" step="any" placeholder="max" value={maxElevation} onChange={e => setMaxElevation(e.target.value)} />
           </div>
           <div className="noaa-range">
-            <span className="noaa-range-title">Year (CE)</span>
-            <input type="number" step="any" placeholder="from" value={earliestYear} onChange={e => setEarliestYear(e.target.value)} />
-            <input type="number" step="any" placeholder="to" value={latestYear} onChange={e => setLatestYear(e.target.value)} />
+            <span className="noaa-range-title">
+              Year
+              <select className="noaa-time-basis" value={timeFormat}
+                onChange={e => setTimeFormat(e.target.value as 'CE' | 'BP')} aria-label="Year basis (CE or years BP)">
+                <option value="CE">CE</option>
+                <option value="BP">BP</option>
+              </select>
+            </span>
+            <input type="number" step="any" placeholder={timeFormat === 'BP' ? 'oldest' : 'from'} value={earliestYear} onChange={e => setEarliestYear(e.target.value)} />
+            <input type="number" step="any" placeholder={timeFormat === 'BP' ? 'youngest' : 'to'} value={latestYear} onChange={e => setLatestYear(e.target.value)} />
           </div>
+          <label className="query-field">
+            <span>Time match</span>
+            <select value={timeMethod} onChange={e => setTimeMethod(e.target.value)}
+              title="How the year range is applied to each study's time span">
+              <option value="">Overlaps range</option>
+              <option value="entireOver">Spans the whole range</option>
+              <option value="overEntire">Within the range</option>
+            </select>
+          </label>
           <label className="noaa-check">
             <input type="checkbox" checked={reconstructionOnly} onChange={e => setReconstructionOnly(e.target.checked)} />
             Reconstructions only

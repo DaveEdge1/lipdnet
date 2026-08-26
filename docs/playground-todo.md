@@ -36,9 +36,16 @@ D. Edge is named as lead on Playground/PyleoTUPS integration.
   POINT coords; clicking a marker selects & expands that study's card and
   scrolls it into view. Studies without point coords are noted and omitted.
   Verified headless 18/18.
-- [ ] Remaining: BP/CE + timeMethod time controls; numeric-range validation;
-  server-side search proxy fallback (CORS resilience). Optionally archive-type-
-  scoped CV suggestions (params.json is scoped by dataTypeId).
+- [x] **Time controls** — CE/BP basis toggle on the Year filter + a "Time match"
+  dropdown (Overlaps range / Spans the whole range / Within the range →
+  overAny/entireOver/overEntire). `timeFormat`/`timeMethod` only sent with a year
+  bound (NCEI defaults CE + overAny). Semantics confirmed against pyleoTUPS
+  ("overlap, envelop, or within") and empirically (overEntire returns a strict
+  subset). Verified headless 23/23 (incl. request-param assertion timeFormat=BP,
+  timeMethod=overEntire actually reach NCEI).
+- [ ] Remaining: numeric-range validation; server-side search proxy fallback
+  (CORS resilience). Optionally archive-type-scoped CV suggestions (params.json
+  is scoped by dataTypeId).
 
 ### 📌 Parked (revisit after the NOAA-import focus)
 - **PANGAEA time-period search.** Report flags time as "a very important query

@@ -131,6 +131,9 @@ body { background: var(--bg); height: 100vh; overflow: hidden; }
 }
 .noaa-range { display: grid; grid-template-columns: 1fr 1fr; gap: .3rem; align-content: start; }
 .noaa-range-title { grid-column: 1 / -1; font-size: .76rem; color: var(--text-muted); }
+.noaa-advanced .noaa-time-basis {
+  width: auto; margin-left: .4rem; padding: .05rem .2rem; font-size: .72rem; vertical-align: baseline;
+}
 .noaa-range input {
   padding: .4rem .5rem; background: var(--surface2); color: var(--text);
   border: 1px solid var(--border); border-radius: 6px; font-size: .82rem; width: 100%;

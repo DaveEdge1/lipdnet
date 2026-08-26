@@ -86,7 +86,9 @@ export interface NoaaSearchFilters {
   minLat?: number; maxLat?: number
   minLon?: number; maxLon?: number
   minElevation?: number; maxElevation?: number
-  earliestYear?: number; latestYear?: number // years CE
+  earliestYear?: number; latestYear?: number // years, interpreted per timeFormat
+  timeFormat?: 'CE' | 'BP'   // how to read the year bounds; NCEI defaults to CE
+  timeMethod?: string        // '' → overAny (overlap, NCEI default); 'entireOver' (spans range); 'overEntire' (within range)
   reconstructionOnly?: boolean
 }
 
@@ -123,7 +125,10 @@ export async function searchNoaaStudies(query: string, filters: NoaaSearchFilter
     num('minElev', filters.minElevation); num('maxElev', filters.maxElevation)
     if (filters.earliestYear !== undefined && !Number.isNaN(filters.earliestYear)) params.set('earliestYear', String(filters.earliestYear))
     if (filters.latestYear !== undefined && !Number.isNaN(filters.latestYear)) params.set('latestYear', String(filters.latestYear))
-    if (params.has('earliestYear') || params.has('latestYear')) params.set('timeFormat', 'CE')
+    if (params.has('earliestYear') || params.has('latestYear')) {
+      params.set('timeFormat', filters.timeFormat ?? 'CE')
+      if (filters.timeMethod) params.set('timeMethod', filters.timeMethod)
+    }
     if (filters.reconstructionOnly) params.set('reconstructionsOnly', 'Y')
     params.set('limit', '25')
   }
