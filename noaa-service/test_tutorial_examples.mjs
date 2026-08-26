@@ -52,14 +52,27 @@ await noaa(10420, b => rec('NOAA 10420 imports (multi-site geometry)', (b.tables
 
 await noaa(36778, b => rec('NOAA 36778 imports', b.studyId != null, `${b.tables?.length ?? 0} tables`))
 
-// Legacy WDC file PyleoTUPS returns nothing for; our fallback parser recovers it.
+// Legacy WDC file PyleoTUPS returns nothing for; our fallback parser recovers it
+// (column names come from the file's "Column N:" legend).
 await noaa(2493, b => {
   const t0 = b.tables?.[0]
   const names = colNames(b)
   rec('NOAA 2493 → fallback recovers GICC05 (was metadata-only)',
     !b.metadataOnly && t0?.parser === 'fallback' && (t0?.columns?.length ?? 0) === 6
-      && (t0?.columns?.[0]?.values?.length ?? 0) > 1000 && names.some(n => /d18O/i.test(n)),
+      && (t0?.columns?.[0]?.values?.length ?? 0) > 1000 && names.some(n => /d18O|NGRIP/i.test(n)),
     `metadataOnly=${b.metadataOnly}, parser=${t0?.parser}, cols=${t0?.columns?.length}, rows=${t0?.columns?.[0]?.values?.length}`)
+})
+
+// 2429 (Camp Century, our example study): fallback names its 2-column d18O
+// tables from PyleoTUPS' variable metadata (not Var1/Var2), with units.
+await noaa(2429, b => {
+  const clean = (b.tables ?? []).filter(t => (t.columns ?? []).length === 2)
+  const named = clean.length >= 2 && clean.every(t => t.columns.every(c => !/^Var\d+$/.test(c.variableName)))
+  const withUnits = clean.some(t => t.columns.some(c => c.units))
+  const allNames = (b.tables ?? []).flatMap(t => (t.columns ?? []).map(c => c.variableName))
+  rec('NOAA 2429 → fallback names columns from variable metadata',
+    !b.metadataOnly && (b.tables?.length ?? 0) === 3 && named && withUnits && allNames.some(n => /d18O|delta 18O/i.test(n)),
+    `tables=${b.tables?.length}, cleanNamed=${named}, units=${withUnits}`)
 })
 
 // ---- PANGAEA ----

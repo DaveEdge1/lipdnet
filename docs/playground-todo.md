@@ -135,6 +135,15 @@ Tutorials: <https://linked.earth/pyleotupsTutorials/>
   metadata-only, all pyleoTUPS-parsed studies unchanged). Follow-up: port the
   same heuristic to the browser fallback parser (lib/noaa.ts) for when the
   service is unavailable.
+- [x] **Fallback column naming from PyleoTUPS variable metadata** — for files the
+  fallback recovers, PyleoTUPS often still parsed the per-variable metadata
+  (names/units) even though it returned no data. The fallback now names columns
+  from that metadata when the column count matches, aligning the age/time column
+  by value shape (metadata order isn't always the file's column order). Header
+  detection is now comma-aware and off-by-one tolerant for old WDC files. Fixes
+  study **2429** (Camp Century, our example): its d18O tables import as
+  `ice age [year Common Era]` / `delta 18O [per mil SMOW]` and `age_CE` / `d18O`
+  instead of Var1/Var2. Regression suite 13/13.
 
 ## B. Extend NOAA + PANGAEA advanced search filters to match PyleoTUPS
 Goal: bring our "More filters" (advanced) search options up to parity with what

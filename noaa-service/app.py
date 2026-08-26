@@ -153,17 +153,67 @@ def _column_names(lines: list[str], start_idx: int, ncol: int) -> tuple[list[str
         names = [legend.get(i + 1, (f"Var{i+1}", None))[0] for i in range(ncol)]
         units = [legend.get(i + 1, (None, None))[1] for i in range(ncol)]
         return names, units
-    # 2) a non-numeric header line just above the block with matching width
-    for j in range(start_idx - 1, max(-1, start_idx - 4), -1):
-        toks = _split_row(lines[j])
-        if len(toks) == ncol and any(t.strip() for t in toks) and not all(_is_num(t) for t in toks):
-            return [t.strip() or f"Var{i+1}" for i, t in enumerate(toks)], [None] * ncol
+    # 2) a mostly-non-numeric header line within a few lines above the block.
+    #    Try comma-delimited too (old WDC files use it), and tolerate an
+    #    off-by-one column count (pad/truncate with generic names).
+    for j in range(start_idx - 1, max(-1, start_idx - 8), -1):
+        raw = lines[j].strip()
+        if not raw:
+            continue
+        toks = [t for t in ([c.strip() for c in raw.split(",")] if "," in raw else _split_row(lines[j])) if t]
+        if not (ncol - 1 <= len(toks) <= ncol + 1):
+            continue
+        if sum(1 for t in toks if _is_num(t)) > len(toks) // 2:
+            continue  # too numeric to be a header
+        return [(toks[i] if i < len(toks) and toks[i] else f"Var{i+1}") for i in range(ncol)], [None] * ncol
     # 3) generic
     return [f"Var{i+1}" for i in range(ncol)], [None] * ncol
 
 
-def _fallback_parse(file_url: str) -> list[dict] | None:
-    """Recover a table from a legacy text file PyleoTUPS couldn't parse."""
+def _age_like(col: list[str]) -> bool:
+    """A monotonic column of (mostly) integers — an age/year/depth axis."""
+    nums = []
+    for v in col:
+        try:
+            nums.append(float(str(v).replace(",", "")))
+        except ValueError:
+            continue
+    if len(nums) < 5:
+        return False
+    int_frac = sum(1 for n in nums if abs(n - round(n)) < 1e-6) / len(nums)
+    inc = all(nums[i] <= nums[i + 1] for i in range(len(nums) - 1))
+    dec = all(nums[i] >= nums[i + 1] for i in range(len(nums) - 1))
+    return int_frac > 0.9 and (inc or dec)
+
+
+def _align_variables(block: list[list[str]], variables: list[dict]) -> tuple[list[str], list[str | None]]:
+    """Assign PyleoTUPS variable metadata to positional data columns. The metadata
+    order isn't always the file's column order, so pin the single age/time column
+    by value shape and place the remaining variables in order."""
+    ncol = len(variables)
+    cols = [[row[j] for row in block] for j in range(ncol)]
+    age_cols = [j for j in range(ncol) if _age_like(cols[j])]
+    age_vars = [i for i, v in enumerate(variables) if v.get("is_age")]
+    order = list(range(ncol))  # data-column index -> variable index
+    if len(age_cols) == 1 and len(age_vars) == 1:
+        ac, av = age_cols[0], age_vars[0]
+        rest_cols = [j for j in range(ncol) if j != ac]
+        rest_vars = [i for i in range(ncol) if i != av]
+        order[ac] = av
+        for col_j, var_i in zip(rest_cols, rest_vars):
+            order[col_j] = var_i
+    names = [variables[order[j]].get("name") or f"Var{j+1}" for j in range(ncol)]
+    units = [variables[order[j]].get("unit") for j in range(ncol)]
+    return names, units
+
+
+def _fallback_parse(file_url: str, variables: list[dict] | None = None) -> list[dict] | None:
+    """Recover a table from a legacy text file PyleoTUPS couldn't parse.
+
+    When PyleoTUPS supplied per-variable metadata (names/units) for the table but
+    no data, and the recovered column count matches, name the columns from that
+    metadata (aligning the age/time column by value shape). Otherwise fall back
+    to the file's own "Column N:" legend / header line / generic names."""
     try:
         text = _fetch_text(file_url)
     except Exception:
@@ -179,7 +229,10 @@ def _fallback_parse(file_url: str) -> list[dict] | None:
     if len(block) < 5:
         return None
     start_idx = next(i for i, t in numeric if len(t) == ncol)
-    names, units = _column_names(lines, start_idx, ncol)
+    if variables and len(variables) == ncol:
+        names, units = _align_variables(block, variables)
+    else:
+        names, units = _column_names(lines, start_idx, ncol)
     # de-duplicate column names
     seen: dict[str, int] = {}
     uniq: list[str] = []
@@ -232,6 +285,25 @@ def build_payload(study_id: int) -> dict:
                 out[name] = unit
         return out
 
+    def variables_for(tid: str) -> list[dict]:
+        """Ordered per-variable metadata for a table (name + unit + is-age flag),
+        used to name columns when the fallback parser has to recover the data."""
+        try:
+            vdf = ds.get_variables(dataTableIDs=tid)
+        except Exception:
+            return []
+        if vdf is None:
+            return []
+        out = []
+        for _, v in vdf.iterrows():
+            name = _clean(v.get("VariableName")) or _clean(v.get("cvShortName"))
+            what = str(v.get("cvWhat") or "").lower()
+            unit_raw = str(v.get("cvUnit") or "").lower()
+            is_age = bool(re.search(r"\bage\b|year|chronolog", str(name or "").lower())
+                          or "age variable" in what or "time unit" in unit_raw)
+            out.append({"name": name, "unit": _unit_leaf(v.get("cvUnit")), "is_age": is_age})
+        return out
+
     site_name = None
     elevation = None
     tables: list[dict] = []
@@ -252,7 +324,7 @@ def build_payload(study_id: int) -> dict:
                 # often a legacy WDC layout its parser can't segment — try our
                 # generic recovery before giving up. Proprietary/binary formats
                 # (.fhx/.rwl/.xls) fall through to skipped, as before.
-                fb = _fallback_parse(file_url) if _looks_text(file_url) else None
+                fb = _fallback_parse(file_url, variables_for(tid)) if _looks_text(file_url) else None
                 if fb:
                     tables.append({
                         "tableName": _clean(t.get("DataTableName")) or (file_url.split("/")[-1] if file_url else None),
