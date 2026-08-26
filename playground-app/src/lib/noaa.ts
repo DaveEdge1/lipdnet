@@ -4,7 +4,7 @@
 // NOAA-templated text files (# metadata, ## variable lines, delimited data).
 import type { LipdFile, LipdMetadata, LipdPub, LipdTable, LipdPaleoData } from '../types/lipd'
 import { makeTSid } from './newDataset'
-import { normalizeArchiveType, normalizeUnits, normalizeVariableName } from './synonyms'
+import { normalizeArchiveType, normalizeUnits, normalizeVariableName, normalizeProxy, proxyGeneralFor } from './synonyms'
 
 const SEARCH_URL = 'https://www.ncei.noaa.gov/access/paleo-search/study/search.json'
 
@@ -601,7 +601,16 @@ export function noaaFileToLipd(text: string, filename: string): LipdFile {
 // browser parser above. Returns null when the service isn't available so the
 // caller can fall back.
 
-interface ServiceColumn { variableName: string; units?: string | null; values: Array<number | string | null> }
+interface ServiceColumn {
+  variableName: string
+  units?: string | null
+  proxy?: string | null        // from cvWhat leaf
+  material?: string | null     // from cvMaterial leaf
+  method?: string | null       // from cvMethod
+  seasonality?: string | null  // from cvSeasonality
+  description?: string | null  // from cvDetail
+  values: Array<number | string | null>
+}
 interface ServiceTable { tableName?: string | null; fileUrl?: string | null; columns: ServiceColumn[] }
 interface ServicePayload {
   studyId: string
@@ -635,6 +644,13 @@ function serviceToLipd(p: ServicePayload): NoaaImportResult {
         const variableName = (mapped && mapped !== c.variableName && !usedNames.has(mapped))
           ? (usedNames.delete(c.variableName), usedNames.add(mapped), mapped)
           : c.variableName
+        // Proxy from NOAA's cvWhat, normalized onto LiPD vocabulary where known;
+        // proxyGeneral is auto-derived from it (never shown as an editable field).
+        const proxy = c.proxy ? (normalizeProxy(c.proxy) ?? c.proxy) : undefined
+        const proxyGeneral = proxy ? proxyGeneralFor(proxy) : undefined
+        const material = c.material?.trim() || undefined
+        const method = c.method?.trim() || undefined
+        const description = c.description?.trim() || undefined
         return {
           number: ci + 1,
           variableName,
@@ -642,6 +658,11 @@ function serviceToLipd(p: ServicePayload): NoaaImportResult {
           // Normalize the source units onto the LiPD vocabulary where a synonym
           // is known (e.g. "deg C" → degC); otherwise keep the original string.
           units: normalizeUnits(c.units) ?? c.units ?? undefined,
+          ...(proxy ? { proxy } : {}),
+          ...(proxyGeneral ? { proxyGeneral } : {}),
+          ...(description ? { description } : {}),
+          ...(material ? { measurementMaterial: material } : {}),
+          ...(method ? { method } : {}),
           values: toValues(c.values.map(v => (v === null || v === undefined ? '' : String(v)))),
         }
       }),

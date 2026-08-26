@@ -64,6 +64,63 @@ def _unit_leaf(cv_unit: Any) -> str | None:
     return str(cv_unit).split(">")[-1].strip() or None
 
 
+def _cv_leaf(cv: Any) -> str | None:
+    """Leaf of a controlled-vocabulary hierarchy, e.g.
+    "biological material>tissue>wood>latewood" -> "latewood"."""
+    v = _clean(cv)
+    if v is None:
+        return None
+    s = str(v).split(">")[-1].strip()
+    return s or None
+
+
+# cvWhat categories that describe an axis/metadata column, not a proxy observation.
+_NON_PROXY_WHAT = ("age variable", "depth variable", "sampling metadata",
+                   "sample identification", "position variable")
+
+
+def _proxy_from_what(cv_what: Any) -> str | None:
+    """The proxy observation from a cvWhat, or None for age/depth/coordinate/
+    sampling columns (which shouldn't carry a proxy type)."""
+    s = str(_clean(cv_what) or "").lower()
+    if not s or s.startswith(_NON_PROXY_WHAT):
+        return None
+    return _cv_leaf(cv_what)
+
+
+def _extract_var(v) -> dict:
+    """Per-variable metadata from a get_variables row: the pieces LiPD can use."""
+    name = _clean(v.get("cvShortName")) or _clean(v.get("VariableName"))
+    what = str(_clean(v.get("cvWhat")) or "").lower()
+    unit_raw = str(_clean(v.get("cvUnit")) or "").lower()
+    return {
+        "name": name,
+        "unit": _unit_leaf(v.get("cvUnit")),
+        "proxy": _proxy_from_what(v.get("cvWhat")),
+        "material": _cv_leaf(v.get("cvMaterial")),
+        "method": _clean(v.get("cvMethod")),
+        "seasonality": _clean(v.get("cvSeasonality")),
+        "description": _clean(v.get("cvDetail")) or _clean(v.get("cvAdditionalInfo")),
+        "is_age": bool(re.search(r"\bage\b|year|chronolog", str(name or "").lower())
+                       or "age variable" in what or "time unit" in unit_raw),
+    }
+
+
+def _column_dict(name: str, values: list, meta: dict) -> dict:
+    """One normalized-JSON column, carrying the LiPD-relevant per-variable
+    metadata (units + proxy/material/method/seasonality/description)."""
+    return {
+        "variableName": str(name),
+        "units": meta.get("unit"),
+        "proxy": meta.get("proxy"),
+        "material": meta.get("material"),
+        "method": meta.get("method"),
+        "seasonality": meta.get("seasonality"),
+        "description": meta.get("description"),
+        "values": values,
+    }
+
+
 def _publications(pubs: list[dict]) -> list[dict]:
     out = []
     for p in pubs or []:
@@ -206,12 +263,12 @@ def _in_declared_span(col: list[str], year_ranges: list[tuple]) -> bool:
     return False
 
 
-def _align_variables(block: list[list[str]], variables: list[dict], year_ranges: list[tuple]) -> tuple[list[str], list[str | None]]:
-    """Assign PyleoTUPS variable metadata to positional data columns. The metadata
-    order isn't always the file's column order, so pin the age/time column by
-    matching it to the study's declared year span, then place the remaining
-    variables in order. If that's ambiguous (no or multiple matching columns), we
-    keep the metadata order rather than guess."""
+def _align_variables(block: list[list[str]], variables: list[dict], year_ranges: list[tuple]) -> list[dict]:
+    """Assign PyleoTUPS variable metadata to positional data columns, returning one
+    metadata dict per column. The metadata order isn't always the file's column
+    order, so pin the age/time column by matching it to the study's declared year
+    span, then place the remaining variables in order. If that's ambiguous (no or
+    multiple matching columns), keep the metadata order rather than guess."""
     ncol = len(variables)
     cols = [[row[j] for row in block] for j in range(ncol)]
     age_cols = [j for j in range(ncol) if _in_declared_span(cols[j], year_ranges)]
@@ -224,9 +281,7 @@ def _align_variables(block: list[list[str]], variables: list[dict], year_ranges:
         order[ac] = av
         for col_j, var_i in zip(rest_cols, rest_vars):
             order[col_j] = var_i
-    names = [variables[order[j]].get("name") or f"Var{j+1}" for j in range(ncol)]
-    units = [variables[order[j]].get("unit") for j in range(ncol)]
-    return names, units
+    return [variables[order[j]] for j in range(ncol)]
 
 
 def _fallback_parse(file_url: str, variables: list[dict] | None = None,
@@ -253,13 +308,15 @@ def _fallback_parse(file_url: str, variables: list[dict] | None = None,
         return None
     start_idx = next(i for i, t in numeric if len(t) == ncol)
     if variables and len(variables) == ncol:
-        names, units = _align_variables(block, variables, year_ranges or [])
+        col_vars = _align_variables(block, variables, year_ranges or [])
     else:
         names, units = _column_names(lines, start_idx, ncol)
+        col_vars = [{"name": names[i], "unit": units[i]} for i in range(ncol)]
     # de-duplicate column names
     seen: dict[str, int] = {}
     uniq: list[str] = []
-    for n in names:
+    for cv in col_vars:
+        n = cv.get("name") or "Var"
         if n in seen:
             seen[n] += 1
             uniq.append(f"{n}_{seen[n]}")
@@ -268,13 +325,9 @@ def _fallback_parse(file_url: str, variables: list[dict] | None = None,
             uniq.append(n)
     df = pd.DataFrame(block, columns=uniq)
     cols = []
-    for idx, c in enumerate(uniq):
-        series = pd.to_numeric(df[c].astype(str).str.replace(",", "", regex=False), errors="coerce")
-        cols.append({
-            "variableName": str(c),
-            "units": units[idx] if idx < len(units) else None,
-            "values": [_clean(x) for x in series.tolist()],
-        })
+    for idx, cv in enumerate(col_vars):
+        series = pd.to_numeric(df[uniq[idx]].astype(str).str.replace(",", "", regex=False), errors="coerce")
+        cols.append(_column_dict(uniq[idx], [_clean(x) for x in series.tolist()], cv))
     return cols
 
 
@@ -300,39 +353,17 @@ def build_payload(study_id: int) -> dict:
 
     tables_df = ds.get_tables()
 
-    def units_for(tid: str) -> dict[str, str]:
-        out: dict[str, str] = {}
-        try:
-            vdf = ds.get_variables(dataTableIDs=tid)
-        except Exception:
-            return out
-        if vdf is None:
-            return out
-        for _, v in vdf.iterrows():
-            name = _clean(v.get("cvShortName")) or _clean(v.get("VariableName"))
-            unit = _unit_leaf(v.get("cvUnit"))
-            if name and unit and name not in out:
-                out[name] = unit
-        return out
-
     def variables_for(tid: str) -> list[dict]:
-        """Ordered per-variable metadata for a table (name + unit + is-age flag),
-        used to name columns when the fallback parser has to recover the data."""
+        """Ordered per-variable metadata for a table (name, unit, proxy, material,
+        method, seasonality, description, is-age) — used both to enrich the normal
+        columns and to name/enrich columns the fallback parser recovers."""
         try:
             vdf = ds.get_variables(dataTableIDs=tid)
         except Exception:
             return []
         if vdf is None:
             return []
-        out = []
-        for _, v in vdf.iterrows():
-            name = _clean(v.get("VariableName")) or _clean(v.get("cvShortName"))
-            what = str(v.get("cvWhat") or "").lower()
-            unit_raw = str(v.get("cvUnit") or "").lower()
-            is_age = bool(re.search(r"\bage\b|year|chronolog", str(name or "").lower())
-                          or "age variable" in what or "time unit" in unit_raw)
-            out.append({"name": name, "unit": _unit_leaf(v.get("cvUnit")), "is_age": is_age})
-        return out
+        return [_extract_var(v) for _, v in vdf.iterrows()]
 
     site_name = None
     elevation = None
@@ -365,22 +396,25 @@ def build_payload(study_id: int) -> dict:
                 elif file_url:
                     skipped.append(file_url)
                 continue
-            unit_by_name = units_for(tid)
+            var_list = variables_for(tid)
+            meta_by_name = {v["name"]: v for v in var_list if v.get("name")}
             for df in dfs:
+                ncols = len(df.columns)
                 columns = []
-                for col in df.columns:
-                    unit = unit_by_name.get(str(col))
-                    # Loose match: df column may carry a suffix vs cvShortName
-                    if unit is None:
-                        for k, u in unit_by_name.items():
-                            if str(col).startswith(k):
-                                unit = u
+                for ci, col in enumerate(df.columns):
+                    meta = meta_by_name.get(str(col))
+                    # Loose match: df column may carry a suffix vs the cv name
+                    if meta is None:
+                        for k, m in meta_by_name.items():
+                            if str(col).startswith(k) or k.startswith(str(col)):
+                                meta = m
                                 break
-                    columns.append({
-                        "variableName": str(col),
-                        "units": unit,
-                        "values": [_clean(x) for x in df[col].tolist()],
-                    })
+                    # Positional fallback: pyleoTUPS parses the data and the
+                    # variable block from the same NOAA template, so column i lines
+                    # up with variable i. Guarded on an exact count match.
+                    if meta is None and ncols == len(var_list):
+                        meta = var_list[ci]
+                    columns.append(_column_dict(str(col), [_clean(x) for x in df[col].tolist()], meta or {}))
                 if columns:
                     tables.append({
                         "tableName": _clean(t.get("DataTableName")) or (file_url.split("/")[-1] if file_url else None),

@@ -73,6 +73,26 @@ D. Edge is named as lead on Playground/PyleoTUPS integration.
   (CORS resilience). Optionally archive-type-scoped CV suggestions (params.json
   is scoped by dataTypeId).
 
+**Objective 2 — load fidelity (match/beat pyleoTUPS):**
+- [x] **Per-variable cv* metadata → LiPD proxy + more.** The service used to keep
+  only the units leaf and drop the rest of PyleoTUPS' per-variable block. Now
+  `noaa-service` threads name/unit/**proxy (cvWhat leaf)**/material (cvMaterial)/
+  method (cvMethod)/seasonality/description through for both the normal and
+  fallback paths (age/depth/sampling columns get no proxy). Column↔variable
+  matching: exact name → prefix → positional (guarded on equal count; safe in the
+  normal path since PyleoTUPS parses data + variable block from the same
+  template). Client `serviceToLipd` populates `proxy` (normalized via synonyms),
+  auto-derives `proxyGeneral`, and sets description / measurementMaterial /
+  method. Added NOAA's space-form isotope leaves (`delta 18O`→d18O, etc.) to the
+  proxy synonyms. Verified: 27490/2429 columns import with proxy+units+material;
+  headless 38/38 asserts an imported column carries proxy=d18O, proxyGeneral=
+  isotopic (read back from the autosaved session). Limitation: studies PyleoTUPS
+  mis-parses (mismatched column/variable counts, e.g. 1003965) still get no
+  proxy.
+- [ ] Remaining Obj-2 fidelity: geo uses the SW bbox corner not the site point;
+  funding / abstract (studyNotes) / dataset-DOI not captured; chron vs paleo not
+  separated (all tables → paleoData[0]); seasonality → interpretation block.
+
 ### 📌 Parked (revisit after the NOAA-import focus)
 - **PANGAEA time-period search.** Report flags time as "a very important query
   parameter for paleoclimatologists"; PANGAEA has no native time filter, so it
