@@ -76,7 +76,7 @@ export const TOOLTIPS: Record<string, string> = {
   'search.longitude': 'Longitude bounds in decimal degrees (-180 to 180).',
   'search.elevation': 'Site elevation bounds in metres (negative for below sea level).',
   'search.year': 'Time span to match. Use the CE/BP toggle to switch between calendar years (CE) and years before present (BP).',
-  'search.timeMatch': 'How the year range is applied: Overlaps range (any overlap), Spans the whole range (study covers all of it), or Within the range (study falls entirely inside it).',
+  'search.timeMatch': 'How a study must relate to the Year range above: span the whole range (its data covers all of it — the default), overlap the range (any overlap), or fall within the range (its record lies entirely inside it).',
   'search.recent': 'Show only recently-added studies (about the last two years), newest first.',
   'search.reconstruction': 'Show only climate reconstructions (derived climate series), not raw proxy measurements.',
   'search.andOr': 'When a field has more than one value: match studies with ANY of them, or only those with ALL of them.',

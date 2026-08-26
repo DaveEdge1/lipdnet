@@ -169,7 +169,7 @@ export function NoaaImport({ onLoad }: Props) {
   const [minElevation, setMinElevation] = useState(''); const [maxElevation, setMaxElevation] = useState('')
   const [earliestYear, setEarliestYear] = useState(''); const [latestYear, setLatestYear] = useState('')
   const [timeFormat, setTimeFormat] = useState<'CE' | 'BP'>('CE')
-  const [timeMethod, setTimeMethod] = useState('')
+  const [timeMethod, setTimeMethod] = useState('entireOver') // default: study spans the whole range
   const [recent, setRecent] = useState(false)
   const [reconstructionOnly, setReconstructionOnly] = useState(false)
 
@@ -295,6 +295,18 @@ export function NoaaImport({ onLoad }: Props) {
     }
   }
 
+  const renderMVF = (key: NoaaMultiKey) => {
+    const cfg = MVF_CONFIG.find(c => c.key === key)!
+    return (
+      <MultiValueField
+        label={cfg.label} tipText={tip(cfg.tipKey)}
+        values={multi[key]} onChange={v => setValues(key, v)}
+        andOr={andOr[key] ?? 'or'} onAndOr={v => setFieldAndOr(key, v)}
+        listId={cfg.listId} placeholder={cfg.placeholder}
+      />
+    )
+  }
+
   return (
     <div className="noaa-import">
       <div className="noaa-base-grid">
@@ -358,66 +370,82 @@ export function NoaaImport({ onLoad }: Props) {
 
       {showAdvanced && (
         <div className="noaa-advanced">
-          {MVF_CONFIG.map(cfg => (
-            <MultiValueField
-              key={cfg.key}
-              label={cfg.label}
-              tipText={tip(cfg.tipKey)}
-              values={multi[cfg.key]}
-              onChange={v => setValues(cfg.key, v)}
-              andOr={andOr[cfg.key] ?? 'or'}
-              onAndOr={v => setFieldAndOr(cfg.key, v)}
-              listId={cfg.listId}
-              placeholder={cfg.placeholder}
-            />
-          ))}
+          <fieldset className="noaa-group">
+            <legend>Proxy &amp; material</legend>
+            <div className="noaa-group-grid">
+              {renderMVF('variableName')}
+              {renderMVF('cvMaterials')}
+              {renderMVF('cvSeasonalities')}
+              {renderMVF('species')}
+            </div>
+          </fieldset>
 
-          <div className="noaa-range">
-            <span className="noaa-range-title">Latitude<InfoTip text={tip('search.latitude')} /></span>
-            <input type="number" step="any" placeholder="min" value={minLat} onChange={e => setMinLat(e.target.value)} />
-            <input type="number" step="any" placeholder="max" value={maxLat} onChange={e => setMaxLat(e.target.value)} />
-          </div>
-          <div className="noaa-range">
-            <span className="noaa-range-title">Longitude<InfoTip text={tip('search.longitude')} /></span>
-            <input type="number" step="any" placeholder="min" value={minLon} onChange={e => setMinLon(e.target.value)} />
-            <input type="number" step="any" placeholder="max" value={maxLon} onChange={e => setMaxLon(e.target.value)} />
-          </div>
-          <div className="noaa-range">
-            <span className="noaa-range-title">Elevation (m)<InfoTip text={tip('search.elevation')} /></span>
-            <input type="number" step="any" placeholder="min" value={minElevation} onChange={e => setMinElevation(e.target.value)} />
-            <input type="number" step="any" placeholder="max" value={maxElevation} onChange={e => setMaxElevation(e.target.value)} />
-          </div>
-          <div className="noaa-range">
-            <span className="noaa-range-title">
-              Year
-              <select className="noaa-time-basis" value={timeFormat}
-                onChange={e => setTimeFormat(e.target.value as 'CE' | 'BP')} aria-label="Year basis (CE or years BP)">
-                <option value="CE">CE</option>
-                <option value="BP">BP</option>
-              </select>
-              <InfoTip text={tip('search.year')} />
-            </span>
-            <input type="number" step="any" placeholder={timeFormat === 'BP' ? 'oldest' : 'from'} value={earliestYear} onChange={e => setEarliestYear(e.target.value)} />
-            <input type="number" step="any" placeholder={timeFormat === 'BP' ? 'youngest' : 'to'} value={latestYear} onChange={e => setLatestYear(e.target.value)} />
-          </div>
-          <label className="query-field">
-            <span>Time match<InfoTip text={tip('search.timeMatch')} /></span>
-            <select value={timeMethod} onChange={e => setTimeMethod(e.target.value)}>
-              <option value="">Overlaps range</option>
-              <option value="entireOver">Spans the whole range</option>
-              <option value="overEntire">Within the range</option>
-            </select>
-          </label>
-          <div className="noaa-checks">
-            <label className="noaa-check">
-              <input type="checkbox" checked={recent} onChange={e => setRecent(e.target.checked)} />
-              Recently added<InfoTip text={tip('search.recent')} />
-            </label>
-            <label className="noaa-check">
-              <input type="checkbox" checked={reconstructionOnly} onChange={e => setReconstructionOnly(e.target.checked)} />
-              Reconstructions only<InfoTip text={tip('search.reconstruction')} />
-            </label>
-          </div>
+          <fieldset className="noaa-group">
+            <legend>Location</legend>
+            <div className="noaa-group-grid">
+              {renderMVF('locations')}
+              <div className="noaa-range">
+                <span className="noaa-range-title">Latitude<InfoTip text={tip('search.latitude')} /></span>
+                <input type="number" step="any" placeholder="min" value={minLat} onChange={e => setMinLat(e.target.value)} />
+                <input type="number" step="any" placeholder="max" value={maxLat} onChange={e => setMaxLat(e.target.value)} />
+              </div>
+              <div className="noaa-range">
+                <span className="noaa-range-title">Longitude<InfoTip text={tip('search.longitude')} /></span>
+                <input type="number" step="any" placeholder="min" value={minLon} onChange={e => setMinLon(e.target.value)} />
+                <input type="number" step="any" placeholder="max" value={maxLon} onChange={e => setMaxLon(e.target.value)} />
+              </div>
+              <div className="noaa-range">
+                <span className="noaa-range-title">Elevation (m)<InfoTip text={tip('search.elevation')} /></span>
+                <input type="number" step="any" placeholder="min" value={minElevation} onChange={e => setMinElevation(e.target.value)} />
+                <input type="number" step="any" placeholder="max" value={maxElevation} onChange={e => setMaxElevation(e.target.value)} />
+              </div>
+            </div>
+          </fieldset>
+
+          <fieldset className="noaa-group">
+            <legend>Time</legend>
+            <div className="noaa-time-group">
+              <div className="noaa-range">
+                <span className="noaa-range-title">
+                  Year
+                  <select className="noaa-time-basis" value={timeFormat}
+                    onChange={e => setTimeFormat(e.target.value as 'CE' | 'BP')} aria-label="Year basis (CE or years BP)">
+                    <option value="CE">CE</option>
+                    <option value="BP">BP</option>
+                  </select>
+                  <InfoTip text={tip('search.year')} />
+                </span>
+                <input type="number" step="any" placeholder={timeFormat === 'BP' ? 'oldest' : 'from'} value={earliestYear} onChange={e => setEarliestYear(e.target.value)} />
+                <input type="number" step="any" placeholder={timeFormat === 'BP' ? 'youngest' : 'to'} value={latestYear} onChange={e => setLatestYear(e.target.value)} />
+              </div>
+              <label className="query-field noaa-time-match">
+                <span>Studies must<InfoTip text={tip('search.timeMatch')} /></span>
+                <select value={timeMethod} onChange={e => setTimeMethod(e.target.value)}>
+                  <option value="entireOver">span the whole Year range</option>
+                  <option value="overAny">overlap the Year range</option>
+                  <option value="overEntire">fall within the Year range</option>
+                </select>
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset className="noaa-group">
+            <legend>Study</legend>
+            <div className="noaa-group-grid">
+              {renderMVF('investigators')}
+              {renderMVF('keywords')}
+            </div>
+            <div className="noaa-checks">
+              <label className="noaa-check">
+                <input type="checkbox" checked={recent} onChange={e => setRecent(e.target.checked)} />
+                Recently added<InfoTip text={tip('search.recent')} />
+              </label>
+              <label className="noaa-check">
+                <input type="checkbox" checked={reconstructionOnly} onChange={e => setReconstructionOnly(e.target.checked)} />
+                Reconstructions only<InfoTip text={tip('search.reconstruction')} />
+              </label>
+            </div>
+          </fieldset>
 
           {/* Shared autocomplete lists (referenced by the fields above via list=). */}
           <datalist id="noaa-cv-whats">{whatOpts}</datalist>

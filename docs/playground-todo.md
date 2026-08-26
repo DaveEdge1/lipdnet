@@ -63,6 +63,12 @@ D. Edge is named as lead on Playground/PyleoTUPS integration.
   submits the 4-letter code). Investigator example → "Rasmussen"; the advanced
   controlled keyword field renamed "Keyword category" to disambiguate from the
   base Keywords search. Verified headless 34/34.
+- [x] **Grouped filters + clearer time match** — the advanced panel is now
+  organized into labeled groups (Proxy & material / Location / Time / Study);
+  Year and the time-match control sit together in the Time group so their link
+  is obvious. "Time match" reworded as a sentence ("Studies must **span the
+  whole Year range** / overlap / fall within") and its default changed to
+  **span the whole range** (`entireOver`; was overlap). Verified headless 37/37.
 - [ ] Remaining: numeric-range validation; server-side search proxy fallback
   (CORS resilience). Optionally archive-type-scoped CV suggestions (params.json
   is scoped by dataTypeId).
