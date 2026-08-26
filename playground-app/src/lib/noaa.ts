@@ -611,7 +611,7 @@ interface ServiceColumn {
   description?: string | null  // from cvDetail
   values: Array<number | string | null>
 }
-interface ServiceTable { tableName?: string | null; fileUrl?: string | null; review?: boolean; columns: ServiceColumn[] }
+interface ServiceTable { tableName?: string | null; fileUrl?: string | null; review?: boolean; kind?: 'chron' | 'paleo'; columns: ServiceColumn[] }
 interface ServicePayload {
   studyId: string
   dataSetName?: string | null
@@ -630,13 +630,13 @@ interface ServicePayload {
 
 function serviceToLipd(p: ServicePayload): NoaaImportResult {
   const paleoData: LipdPaleoData[] = []
-  const tables: LipdTable[] = p.tables.map((t, ti) => {
+  const built = p.tables.map((t, ti) => {
     // Track variableNames already used in this table so normalization never
     // collapses two distinct columns onto the same name (e.g. "age" + "ageMedian").
     const usedNames = new Set(t.columns.map(c => c.variableName))
-    return {
+    const table: LipdTable = {
       tableName: t.tableName || t.fileUrl?.split('/').pop() || `measurementTable${ti}`,
-      filename: `paleo0measurement${ti}.csv`,
+      filename: '',  // assigned per paleo/chron group below
       missingValue: 'NaN',
       // Heuristically-named fallback tables are flagged so the import flow can
       // ask the user to confirm/edit the column names first.
@@ -670,8 +670,13 @@ function serviceToLipd(p: ServicePayload): NoaaImportResult {
         }
       }),
     }
+    // Chronology/age-model tables (kind === 'chron') go to chronData, not paleoData.
+    return { table, chron: t.kind === 'chron' }
   })
-  const metadataOnly = tables.length === 0
+
+  const paleoTables = built.filter(b => !b.chron).map((b, i) => ({ ...b.table, filename: `paleo0measurement${i}.csv` }))
+  const chronTables = built.filter(b => b.chron).map((b, i) => ({ ...b.table, filename: `chron0measurement${i}.csv` }))
+  const metadataOnly = built.length === 0
   paleoData.push({
     measurementTable: metadataOnly
       ? [{
@@ -682,8 +687,9 @@ function serviceToLipd(p: ServicePayload): NoaaImportResult {
             number: i + 1, variableName: name, TSid: makeTSid(), values: Array(5).fill(null),
           })),
         }]
-      : tables,
+      : paleoTables,
   })
+  const chronData: LipdPaleoData[] = chronTables.length ? [{ measurementTable: chronTables }] : []
 
   const lat = p.geo?.latitude
   const lon = p.geo?.longitude
@@ -718,6 +724,7 @@ function serviceToLipd(p: ServicePayload): NoaaImportResult {
       doi: pub.doi ?? undefined,
     })),
     paleoData,
+    ...(chronData.length ? { chronData } : {}),
   }
 
   return {

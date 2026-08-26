@@ -106,6 +106,28 @@ def _extract_var(v) -> dict:
     }
 
 
+# A table is a chronology/age-model (chronData) rather than a measurement
+# (paleoData) table. NCEI/PyleoTUPS don't flag this, so it's a conservative
+# heuristic: an explicit chron-ish table name, or a table with NO proxy column
+# but age-control-style columns (radiocarbon/14C/calibrated age/tie points).
+# Biased toward "paleo" so a real proxy table is never stranded in chronData.
+_CHRON_NAME = re.compile(
+    r"chron|age[\s_-]?model|age[\s_-]?depth|age[\s_-]?control|radiocarbon|\b14c\b|\bams\b"
+    r"|dating|tie[\s_-]?point|age[\s_-]?determination", re.I)
+_CHRON_COL = re.compile(
+    r"radiocarbon|\b14c\b|calibrat|reservoir|\bdated\b|lab[\s_-]?code|tie[\s_-]?point|cal[\s_-]?age", re.I)
+
+
+def _classify_table(name: str | None, columns: list[dict]) -> str:
+    if name and _CHRON_NAME.search(name):
+        return "chron"
+    has_proxy = any(c.get("proxy") for c in columns)
+    has_age_control = any(_CHRON_COL.search(str(c.get("variableName") or "")) for c in columns)
+    if not has_proxy and has_age_control:
+        return "chron"
+    return "paleo"
+
+
 def _column_dict(name: str, values: list, meta: dict) -> dict:
     """One normalized-JSON column, carrying the LiPD-relevant per-variable
     metadata (units + proxy/material/method/seasonality/description)."""
@@ -393,13 +415,15 @@ def build_payload(study_id: int) -> dict:
                 fb = _fallback_parse(file_url, variables_for(tid), year_ranges) if _looks_text(file_url) else None
                 if fb:
                     fb_cols, fb_review = fb
+                    fb_name = _clean(t.get("DataTableName")) or (file_url.split("/")[-1] if file_url else None)
                     tables.append({
-                        "tableName": _clean(t.get("DataTableName")) or (file_url.split("/")[-1] if file_url else None),
+                        "tableName": fb_name,
                         "fileUrl": file_url,
                         "columns": fb_cols,
                         "parser": "fallback",
                         # Heuristic naming → ask the user to confirm/edit the columns.
                         "review": fb_review,
+                        "kind": _classify_table(fb_name, fb_cols),
                     })
                 elif file_url:
                     skipped.append(file_url)
@@ -424,10 +448,12 @@ def build_payload(study_id: int) -> dict:
                         meta = var_list[ci]
                     columns.append(_column_dict(str(col), [_clean(x) for x in df[col].tolist()], meta or {}))
                 if columns:
+                    name = _clean(t.get("DataTableName")) or (file_url.split("/")[-1] if file_url else None)
                     tables.append({
-                        "tableName": _clean(t.get("DataTableName")) or (file_url.split("/")[-1] if file_url else None),
+                        "tableName": name,
                         "fileUrl": file_url,
                         "columns": columns,
+                        "kind": _classify_table(name, columns),
                     })
 
     return {

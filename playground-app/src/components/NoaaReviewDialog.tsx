@@ -3,7 +3,7 @@ import type { LipdFile, LipdTable } from '../types/lipd'
 
 /** Tables the importer flagged for human review (heuristic column naming). */
 export function reviewTables(lipd: LipdFile): LipdTable[] {
-  return (lipd.metadata.paleoData ?? [])
+  return [...(lipd.metadata.paleoData ?? []), ...(lipd.metadata.chronData ?? [])]
     .flatMap(pd => pd.measurementTable ?? [])
     .filter(t => t.reviewNeeded)
 }

@@ -89,9 +89,21 @@ D. Edge is named as lead on Playground/PyleoTUPS integration.
   isotopic (read back from the autosaved session). Limitation: studies PyleoTUPS
   mis-parses (mismatched column/variable counts, e.g. 1003965) still get no
   proxy.
+- [x] **Chron/paleo table separation.** Neither PyleoTUPS nor NCEI flags this
+  (PyleoTUPS has no ChronData concept; NCEI puts everything under paleoData), so
+  it's a conservative heuristic in the service: a chron table is one whose NAME
+  matches chron/age-model/radiocarbon/14C/dating/… OR one with NO proxy column
+  but age-control-style columns. Biased toward paleo so a real proxy table is
+  never stranded. `serviceToLipd` routes `kind === 'chron'` tables into
+  `chronData` (separate filenames), the rest into `paleoData`. Verified: 33213 →
+  7 paleoData + 1 chronData ("U1446 Age Model"); 27490/2429 all paleo; headless
+  42/42 (chron routed correctly, read back from the autosaved session). Note:
+  the cleanest signal, NCEI's `>age control` keyword, isn't exposed by PyleoTUPS
+  to the service — a future refinement could fetch it. Mis-classifications are
+  user-correctable in the workspace (DataEditor manages paleo/chron tables).
 - [ ] Remaining Obj-2 fidelity: geo uses the SW bbox corner not the site point;
-  funding / abstract (studyNotes) / dataset-DOI not captured; chron vs paleo not
-  separated (all tables → paleoData[0]); seasonality → interpretation block.
+  funding / abstract (studyNotes) / dataset-DOI not captured; seasonality →
+  interpretation block.
 
 ### 📌 Parked (revisit after the NOAA-import focus)
 - **PANGAEA time-period search.** Report flags time as "a very important query
