@@ -67,6 +67,20 @@ const collectStrings = (root) => {
 const locations = collectStrings(params?.locations?.NOAA ?? {})
 const keywords = collectStrings(params?.keywords?.NOAA ?? {})
 
+// species.NOAA is keyed by dataTypeId -> ["Latin name:CODE", ...]. The search
+// `species` param wants the 4-letter CODE, so we keep {code, name}: show the
+// name in the dropdown, submit the code.
+const speciesMap = new Map()
+for (const s of collectStrings(params?.species?.NOAA ?? {})) {
+  const i = String(s).lastIndexOf(':')
+  if (i < 0) continue
+  const name = s.slice(0, i).trim(), code = s.slice(i + 1).trim()
+  if (code && !speciesMap.has(code)) speciesMap.set(code, name)
+}
+const SPECIES = [...speciesMap.entries()]
+  .sort((a, b) => a[0].localeCompare(b[0]))
+  .map(([code, name]) => ({ code, name }))
+
 const WHATS = clean(whats)
 const MATERIALS = clean(materials)
 const SEASONALITIES = clean(seasonalities)
@@ -86,7 +100,10 @@ const body =
   arr('NOAA_CV_MATERIALS', MATERIALS) + '\n' +
   arr('NOAA_CV_SEASONALITIES', SEASONALITIES) + '\n' +
   arr('NOAA_LOCATIONS', LOCATIONS) + '\n' +
-  arr('NOAA_KEYWORDS', KEYWORDS)
+  arr('NOAA_KEYWORDS', KEYWORDS) + '\n' +
+  `export const NOAA_SPECIES: ReadonlyArray<{ code: string; name: string }> = [\n` +
+  SPECIES.map(s => `  { code: ${JSON.stringify(s.code)}, name: ${JSON.stringify(s.name)} },`).join('\n') +
+  `\n]\n`
 
 writeFileSync(OUT, body)
 console.log(`Wrote ${OUT}`)
@@ -95,4 +112,5 @@ console.log(`  cvMaterials leaves:  ${MATERIALS.length}`)
 console.log(`  cvSeasonalities:     ${SEASONALITIES.length}`)
 console.log(`  locations:           ${LOCATIONS.length}`)
 console.log(`  keywords:            ${KEYWORDS.length}`)
+console.log(`  species:             ${SPECIES.length}`)
 console.log(`  generated size:      ${(body.length / 1024).toFixed(0)}KB`)

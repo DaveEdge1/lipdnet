@@ -4,7 +4,7 @@ import {
   NOAA_DATA_TYPES, type NoaaStudy, type NoaaSearchFilters, type NoaaMultiKey, type AndOr,
 } from '../lib/noaa'
 import {
-  NOAA_CV_WHATS, NOAA_CV_MATERIALS, NOAA_CV_SEASONALITIES, NOAA_LOCATIONS, NOAA_KEYWORDS,
+  NOAA_CV_WHATS, NOAA_CV_MATERIALS, NOAA_CV_SEASONALITIES, NOAA_LOCATIONS, NOAA_KEYWORDS, NOAA_SPECIES,
 } from '../lib/noaaVocab.generated'
 import { NoaaResultsMap } from './NoaaResultsMap'
 import { InfoTip } from './InfoTip'
@@ -19,13 +19,13 @@ interface Props {
 // The multi-value filter fields, in display order, with label / tooltip /
 // autocomplete list / placeholder. Keys match NoaaSearchFilters multi-value keys.
 const MVF_CONFIG: Array<{ key: NoaaMultiKey; label: string; tipKey: string; listId?: string; placeholder: string }> = [
-  { key: 'investigators',   label: 'Investigator', tipKey: 'search.investigators', placeholder: 'e.g. Khider, D.' },
+  { key: 'investigators',   label: 'Investigator', tipKey: 'search.investigators', placeholder: 'e.g. Rasmussen' },
   { key: 'variableName',    label: 'Variable',     tipKey: 'search.variable',      listId: 'noaa-cv-whats',         placeholder: 'e.g. surface temperature' },
   { key: 'cvMaterials',     label: 'Material',     tipKey: 'search.material',      listId: 'noaa-cv-materials',     placeholder: 'e.g. aragonite' },
   { key: 'cvSeasonalities', label: 'Seasonality',  tipKey: 'search.seasonality',   listId: 'noaa-cv-seasonalities', placeholder: 'e.g. annual' },
-  { key: 'species',         label: 'Species (4-letter code)', tipKey: 'search.species', placeholder: 'e.g. PCGL' },
+  { key: 'species',         label: 'Species',      tipKey: 'search.species',       listId: 'noaa-species',          placeholder: 'e.g. Picea glauca' },
   { key: 'locations',       label: 'Location',     tipKey: 'search.location',      listId: 'noaa-locations',        placeholder: 'e.g. Continent>Africa' },
-  { key: 'keywords',        label: 'Keywords',     tipKey: 'search.keywords',      listId: 'noaa-keywords',         placeholder: 'e.g. climate forcing' },
+  { key: 'keywords',        label: 'Keyword category', tipKey: 'search.keywords',  listId: 'noaa-keywords',         placeholder: 'e.g. climate forcing' },
 ]
 
 // A chip-style filter: several values, each removable, with an AND/OR toggle
@@ -145,7 +145,11 @@ function primaryPub(s: NoaaStudy): PubView | null {
 }
 
 export function NoaaImport({ onLoad }: Props) {
-  const [query, setQuery] = useState('')
+  // Base search: three distinct inputs (id / url / keywords) + archive type.
+  const [studyId, setStudyId] = useState('')
+  const [studyUrl, setStudyUrl] = useState('')
+  const [keywords, setKeywords] = useState('')
+  const [archiveName, setArchiveName] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -160,7 +164,6 @@ export function NoaaImport({ onLoad }: Props) {
   const [andOr, setAndOr] = useState<Partial<Record<NoaaMultiKey, AndOr>>>({})
   const setValues = (key: NoaaMultiKey, v: string[]) => setMulti(m => ({ ...m, [key]: v }))
   const setFieldAndOr = (key: NoaaMultiKey, v: AndOr) => setAndOr(a => ({ ...a, [key]: v }))
-  const [dataTypeId, setDataTypeId] = useState('')
   const [minLat, setMinLat] = useState(''); const [maxLat, setMaxLat] = useState('')
   const [minLon, setMinLon] = useState(''); const [maxLon, setMaxLon] = useState('')
   const [minElevation, setMinElevation] = useState(''); const [maxElevation, setMaxElevation] = useState('')
@@ -177,6 +180,10 @@ export function NoaaImport({ onLoad }: Props) {
   const seasonOpts = useMemo(() => NOAA_CV_SEASONALITIES.map(v => <option key={v} value={v} />), [])
   const locationOpts = useMemo(() => NOAA_LOCATIONS.map(v => <option key={v} value={v} />), [])
   const keywordOpts = useMemo(() => NOAA_KEYWORDS.map(v => <option key={v} value={v} />), [])
+  // Species: submit the 4-letter code, show the Latin name as the option label.
+  const speciesOpts = useMemo(() => NOAA_SPECIES.map(s => <option key={s.code} value={s.code} label={`${s.code} — ${s.name}`} />), [])
+  // Archive type is a combobox (dropdown + autocomplete) over the type names.
+  const archiveOpts = useMemo(() => NOAA_DATA_TYPES.map(d => <option key={d.id} value={d.name} />), [])
 
   const importStudy = async (study: NoaaStudy) => {
     setBusy(`Importing "${study.studyName}"…`)
@@ -239,6 +246,10 @@ export function NoaaImport({ onLoad }: Props) {
     const numOr = (s: string) => (s.trim() === '' ? undefined : Number(s))
     const hasYear = earliestYear.trim() !== '' || latestYear.trim() !== ''
     const arr = (v: string[]) => (v.length ? v : undefined)
+    // A study id or URL is an exact lookup; otherwise search by keywords.
+    const q = studyId.trim() || studyUrl.trim() || keywords.trim()
+    // Archive type is entered as a name; map it to the NCEI numeric dataTypeId.
+    const dataTypeId = NOAA_DATA_TYPES.find(d => d.name.toLowerCase() === archiveName.trim().toLowerCase())?.id
     const filters: NoaaSearchFilters = {
       investigators: arr(multi.investigators),
       variableName: arr(multi.variableName),
@@ -262,14 +273,14 @@ export function NoaaImport({ onLoad }: Props) {
     const anyFilter =
       Object.values(multi).some(v => v.length > 0) || !!dataTypeId || recent || reconstructionOnly ||
       [minLat, maxLat, minLon, maxLon, minElevation, maxElevation, earliestYear, latestYear].some(s => s.trim() !== '')
-    if (!query.trim() && !anyFilter) return
+    if (!q && !anyFilter) return
     setBusy('Searching NOAA…')
     setError(null)
     setNotice(null)
     setResults(null)
     setSelectedId(null)
     try {
-      const studies = await searchNoaaStudies(query, filters)
+      const studies = await searchNoaaStudies(q, filters)
       if (!studies.length) {
         setNotice('No NOAA studies matched. Try broadening your search terms or clearing a filter.')
       } else {
@@ -286,31 +297,38 @@ export function NoaaImport({ onLoad }: Props) {
 
   return (
     <div className="noaa-import">
-      <div className="noaa-import-row">
-        <a
-          className="noaa-import-logo"
-          href="https://github.com/LinkedEarth/PyleoTUPS"
-          target="_blank"
-          rel="noreferrer"
-          title="NOAA import based on PyleoTUPS — view on GitHub"
-        >
-          <img src={pyleotupsLogo} alt="PyleoTUPS" />
-        </a>
-        <input
-          type="text"
-          placeholder="NOAA study ID, study URL, or keywords"
-          value={query}
-          onChange={e => setQuery(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') search() }}
-          disabled={!!busy}
-        />
-        <button className="btn" onClick={search} disabled={!!busy}>
-          Search
-        </button>
-        <InfoTip text={tip('search.text')} />
+      <div className="noaa-base-grid">
+        <label className="query-field">
+          <span>NOAA study ID<InfoTip text={tip('search.studyId')} /></span>
+          <input inputMode="numeric" placeholder="e.g. 13156" value={studyId}
+            onChange={e => setStudyId(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') search() }} disabled={!!busy} />
+        </label>
+        <label className="query-field">
+          <span>Study URL<InfoTip text={tip('search.studyUrl')} /></span>
+          <input placeholder="…/paleo-search/study/13156" value={studyUrl}
+            onChange={e => setStudyUrl(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') search() }} disabled={!!busy} />
+        </label>
+        <label className="query-field">
+          <span>Keywords<InfoTip text={tip('search.text')} /></span>
+          <input placeholder="e.g. coral d18O" value={keywords}
+            onChange={e => setKeywords(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') search() }} disabled={!!busy} />
+        </label>
+        <label className="query-field">
+          <span>Archive type<InfoTip text={tip('search.archiveType')} /></span>
+          <input list="noaa-archive-types" placeholder="Any" value={archiveName}
+            onChange={e => setArchiveName(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') search() }} disabled={!!busy} />
+          <datalist id="noaa-archive-types">{archiveOpts}</datalist>
+        </label>
       </div>
 
       <div className="noaa-import-secondary">
+        <button className="btn" onClick={search} disabled={!!busy}>
+          Search
+        </button>
         <button
           className="noaa-advanced-toggle"
           onClick={() => setShowAdvanced(s => !s)}
@@ -327,18 +345,19 @@ export function NoaaImport({ onLoad }: Props) {
             onChange={e => { openLocalNoaaFile(e.target.files?.[0]); e.target.value = '' }}
           />
         </label>
+        <a
+          className="noaa-import-logo"
+          href="https://github.com/LinkedEarth/PyleoTUPS"
+          target="_blank"
+          rel="noreferrer"
+          title="NOAA import based on PyleoTUPS — view on GitHub"
+        >
+          <img src={pyleotupsLogo} alt="PyleoTUPS" />
+        </a>
       </div>
 
       {showAdvanced && (
         <div className="noaa-advanced">
-          <label className="query-field">
-            <span>Archive type<InfoTip text={tip('search.archiveType')} /></span>
-            <select value={dataTypeId} onChange={e => setDataTypeId(e.target.value)}>
-              <option value="">Any</option>
-              {NOAA_DATA_TYPES.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-            </select>
-          </label>
-
           {MVF_CONFIG.map(cfg => (
             <MultiValueField
               key={cfg.key}
@@ -406,6 +425,7 @@ export function NoaaImport({ onLoad }: Props) {
           <datalist id="noaa-cv-seasonalities">{seasonOpts}</datalist>
           <datalist id="noaa-locations">{locationOpts}</datalist>
           <datalist id="noaa-keywords">{keywordOpts}</datalist>
+          <datalist id="noaa-species">{speciesOpts}</datalist>
         </div>
       )}
 

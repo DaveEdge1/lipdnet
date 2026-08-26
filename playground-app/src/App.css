@@ -108,8 +108,10 @@ body { background: var(--bg); height: 100vh; overflow: hidden; }
   color: var(--accent); font-size: .8rem; cursor: pointer;
 }
 .noaa-file-link:hover { text-decoration: underline; }
-.noaa-import-logo { flex-shrink: 0; display: flex; }
+.noaa-import-logo { flex-shrink: 0; display: flex; margin-left: auto; }
 .noaa-import-logo img { height: 34px; width: 34px; border-radius: 6px; }
+.noaa-base-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem .8rem; }
+.noaa-base-grid .query-field > span { display: inline-flex; align-items: center; gap: .3rem; }
 .noaa-import-row input {
   flex: 1; padding: .5rem .75rem; background: var(--surface2, var(--surface));
   color: var(--text); border: 1px solid var(--border); border-radius: 6px; font-size: .875rem;

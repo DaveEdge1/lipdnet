@@ -54,6 +54,15 @@ D. Edge is named as lead on Playground/PyleoTUPS integration.
   pyleoTUPS validators (`and`/`or`) and the live endpoint. Verified headless
   31/31, incl. a request-param assertion that a 2-value cvWhats + AND + recent +
   BP + overEntire all reach NCEI in one request.
+- [x] **Base-search split + combobox consistency** — the single "ID / URL /
+  keywords" box became four distinct default-visible inputs: **NOAA study ID**,
+  **Study URL**, **Keywords** (searchText), and **Archive type** (now a
+  combobox: dropdown + autocomplete over the 17 type names, mapped to
+  dataTypeId). Every controlled-vocab field is now the same combobox pattern:
+  **Species** gained autocomplete (386 code↔name entries; shows the Latin name,
+  submits the 4-letter code). Investigator example → "Rasmussen"; the advanced
+  controlled keyword field renamed "Keyword category" to disambiguate from the
+  base Keywords search. Verified headless 34/34.
 - [ ] Remaining: numeric-range validation; server-side search proxy fallback
   (CORS resilience). Optionally archive-type-scoped CV suggestions (params.json
   is scoped by dataTypeId).
