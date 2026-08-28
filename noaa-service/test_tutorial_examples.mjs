@@ -91,6 +91,19 @@ await noaa(2429, b => rec('NOAA 2429 geo unchanged for point study (Camp Century
   Math.abs((b.geo?.latitude ?? 0) - 77.17) < 0.01 && Math.abs((b.geo?.longitude ?? 0) - -61.13) < 0.01,
   `geo=${b.geo?.latitude},${b.geo?.longitude}`))
 
+// Study-level metadata PyleoTUPS drops: funding, abstract (studyNotes), and the
+// dataset landing-page DOI (fetched from the NCEI search record).
+await noaa(33213, b => {
+  const f = b.funding ?? []
+  rec('NOAA 33213 captures funding + dataset DOI + notes',
+    f.length === 4 && f.every(x => x.agency && x.grant)
+      && /10\.25921\/mzh5-p372/.test(b.datasetDOI ?? '') && (b.studyNotes ?? '').length > 10,
+    `funding=${f.length}, doi=${b.datasetDOI}, notes=${(b.studyNotes ?? '').length}ch`)
+})
+await noaa(2429, b => rec('NOAA 2429 captures DOI + abstract, empty funding ok',
+  /10\.25921\/0537-2h54/.test(b.datasetDOI ?? '') && /CRREL|Camp Century/i.test(b.studyNotes ?? '') && Array.isArray(b.funding) && b.funding.length === 0,
+  `doi=${b.datasetDOI}, funding=${(b.funding ?? []).length}, notes=${(b.studyNotes ?? '').length}ch`))
+
 // ---- PANGAEA ----
 async function pangaea(id, check, timeout = 120000) {
   const { status, body, error } = await get(`/pangaea/${id}`, timeout)

@@ -158,6 +158,39 @@ def _publications(pubs: list[dict]) -> list[dict]:
     return out
 
 
+def _funding(items: Any) -> list[dict]:
+    """NOAA funding ([{fundingAgency, fundingGrant}]) -> LiPD ([{agency, grant}]),
+    matching the shape the playground's funding editor already uses."""
+    out = []
+    if not isinstance(items, list):
+        return out
+    for f in items:
+        if not isinstance(f, dict):
+            continue
+        agency = _clean(f.get("fundingAgency"))
+        grant = _clean(f.get("fundingGrant"))
+        if agency or grant:
+            out.append({"agency": agency, "grant": grant})
+    return out
+
+
+_SEARCH_URL = "https://www.ncei.noaa.gov/access/paleo-search/study/search.json"
+
+
+def _study_doi(study_id: int) -> str | None:
+    """The study's landing-page DOI (e.g. https://doi.org/10.25921/...). PyleoTUPS
+    doesn't surface it (it's not in the summary, NOAAStudy.metadata, or to_dict),
+    so read it from the NCEI search record. Best-effort — a failure here must
+    never break the import."""
+    try:
+        r = requests.get(_SEARCH_URL, params={"NOAAStudyId": study_id}, timeout=20)
+        r.raise_for_status()
+        studies = (r.json() or {}).get("study") or []
+        return _clean(studies[0].get("doi")) if studies else None
+    except Exception:
+        return None
+
+
 # --- Generic fallback parser for legacy WDC text files -----------------------
 # Many older NOAA/WDC files use a prose preamble + a "Column N: name (unit)"
 # legend + a whitespace/tab-delimited numeric block. PyleoTUPS sometimes returns
@@ -473,6 +506,9 @@ def build_payload(study_id: int) -> dict:
         "dataSetName": _clean(row.get("StudyName")),
         "archiveType": _clean(row.get("DataType")),
         "investigators": _clean(row.get("Investigators")),
+        "studyNotes": _clean(row.get("StudyNotes")),
+        "funding": _funding(row.get("Funding")),
+        "datasetDOI": _study_doi(study_id),
         "originalDataUrl": None,
         "geo": {
             "latitude": site_lat if site_lat is not None else box_lat,

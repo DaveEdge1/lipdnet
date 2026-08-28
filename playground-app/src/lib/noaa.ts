@@ -617,6 +617,9 @@ interface ServicePayload {
   dataSetName?: string | null
   archiveType?: string | null
   investigators?: string | null
+  studyNotes?: string | null
+  funding?: Array<Record<string, unknown>>
+  datasetDOI?: string | null
   originalDataUrl?: string | null
   geo?: { latitude?: number | null; longitude?: number | null; elevation?: number | null; siteName?: string | null }
   pub?: Array<{ author?: string | null; title?: string | null; journal?: string | null; year?: number | string | null; volume?: string | null; pages?: string | null; doi?: string | null }>
@@ -713,6 +716,12 @@ function serviceToLipd(p: ServicePayload): NoaaImportResult {
     investigators: p.investigators ?? undefined,
     originalDataUrl: p.originalDataUrl ?? undefined,
     NOAAStudyId: p.studyId,
+    // Study-level metadata NOAA carries but PyleoTUPS drops. notes → the NOAA
+    // "Description_Notes_and_Keywords" the exporter round-trips; funding + the
+    // dataset DOI feed the existing MetadataPanel editors and NOAA validation.
+    ...(p.studyNotes ? { notes: p.studyNotes } : {}),
+    ...(p.funding?.length ? { funding: p.funding } : {}),
+    ...(p.datasetDOI ? { datasetDOI: p.datasetDOI } : {}),
     geo,
     pub: (p.pub ?? []).map(pub => ({
       author: pub.author ? pub.author.split(/;\s*|,\s(?=[A-Z]\.)/).filter(Boolean).map(name => ({ name })) : undefined,

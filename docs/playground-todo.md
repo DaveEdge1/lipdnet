@@ -122,8 +122,17 @@ D. Edge is named as lead on Playground/PyleoTUPS integration.
   with siteName/elevation already taken from the first site), with the box CENTER
   as fallback. Point studies (Min==Max) are unchanged. Verified: 15076 → Vostok
   (-78.47, 106.8); 2429/33213 unchanged; service suite 15/15.
-- [ ] Remaining Obj-2 fidelity: funding / abstract (studyNotes) / dataset-DOI not
-  captured; seasonality → interpretation block.
+- [x] **Study-level metadata (funding / abstract / dataset DOI).** PyleoTUPS
+  drops these; now `build_payload` carries `StudyNotes` → `metadata.notes` (the
+  NOAA "Description_Notes_and_Keywords" the exporter round-trips), `Funding`
+  ([{fundingAgency, fundingGrant}] → [{agency, grant}], feeding the existing
+  funding editor), and the dataset landing-page DOI → `metadata.datasetDOI`
+  (validated + editable). The DOI isn't in the PyleoTUPS summary/metadata/
+  to_dict, so the service reads it from the NCEI search record directly (best-
+  effort, never fails the import). Verified: 33213 → 4 funding entries + DOI +
+  notes; 2429 → DOI + 977-char abstract + empty funding; service suite 17/17,
+  headless 47/47 (metadata read back from the imported session).
+- [ ] Remaining Obj-2 fidelity: seasonality → interpretation block.
 
 ### 📌 Parked (revisit after the NOAA-import focus)
 - **PANGAEA time-period search.** Report flags time as "a very important query
