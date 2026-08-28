@@ -366,10 +366,18 @@ def build_payload(study_id: int) -> dict:
         raise HTTPException(status_code=404, detail=f"NOAA study {study_id} not found")
     row = summary.iloc[0]
 
-    # Geo from the coverage box (point studies have min == max)
+    # Geo: prefer the actual site point (get_tables carries per-site
+    # coordinates), falling back to the CENTER of the study's coverage box.
+    # The summary's "Coverage [S, N, W, E]" is the envelope across ALL of a
+    # study's sites, so its SW corner (the old cov[S], cov[W]) mislocates any
+    # multi-site study — e.g. the AICC2012 ice-core compilation, whose box
+    # spans Antarctica to Greenland — to a corner that is nowhere near a real
+    # site. Per-site Min/Max are equal for the common single-point study, so
+    # this is a no-op there and a correctness fix for boxed/multi-site studies.
     cov = row.get("Coverage [S, N, W, E]") or (None, None, None, None)
-    lat = _clean(cov[0]) if len(cov) > 0 else None
-    lon = _clean(cov[2]) if len(cov) > 2 else None
+    box_lat = _midpoint(cov[0], cov[1]) if len(cov) > 1 else None
+    box_lon = _midpoint(cov[2], cov[3]) if len(cov) > 3 else None
+    site_lat = site_lon = None
 
     # The study's declared temporal span (CE and BP) — used by the fallback
     # parser to identify the age/time column by the data it actually contains.
@@ -403,6 +411,10 @@ def build_payload(study_id: int) -> dict:
             file_url = _clean(t.get("FileURL"))
             site_name = site_name or _clean(t.get("SiteName"))
             elevation = elevation if elevation is not None else _clean(t.get("MinElevation"))
+            if site_lat is None:
+                site_lat = _midpoint(t.get("MinLatitude"), t.get("MaxLatitude"))
+            if site_lon is None:
+                site_lon = _midpoint(t.get("MinLongitude"), t.get("MaxLongitude"))
             try:
                 dfs = ds.get_data(dataTableIDs=tid)
             except Exception:
@@ -463,8 +475,8 @@ def build_payload(study_id: int) -> dict:
         "investigators": _clean(row.get("Investigators")),
         "originalDataUrl": None,
         "geo": {
-            "latitude": lat,
-            "longitude": lon,
+            "latitude": site_lat if site_lat is not None else box_lat,
+            "longitude": site_lon if site_lon is not None else box_lon,
             "elevation": _num(elevation),
             "siteName": site_name,
         },
@@ -482,6 +494,17 @@ def _num(v: Any) -> Any:
         return float(v)
     except (ValueError, TypeError):
         return None
+
+
+def _midpoint(a: Any, b: Any) -> Any:
+    """Center of two coordinates; tolerates a missing endpoint. 0.0 is a valid
+    coordinate, so this is careful never to treat it as absent."""
+    a, b = _num(a), _num(b)
+    if a is None:
+        return b
+    if b is None:
+        return a
+    return (a + b) / 2
 
 
 # Convert a column of a PyleoTUPS DataFrame into a normalized-JSON column

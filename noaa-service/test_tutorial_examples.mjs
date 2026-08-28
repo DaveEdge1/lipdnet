@@ -75,6 +75,22 @@ await noaa(2429, b => {
     `tables=${b.tables?.length}, cleanNamed=${named}, units=${withUnits}`)
 })
 
+// Geo site-point (not the coverage-box SW corner). 15076 (AICC2012) is a
+// multi-core compilation whose coverage box spans Antarctica→Greenland; the geo
+// must resolve to a real site (first site = Vostok ~-78.47, 106.8°E), NOT the
+// box's SW corner (~-78.47, -42.32°W, out in the South Atlantic).
+await noaa(15076, b => {
+  const { latitude: lat, longitude: lon } = b.geo ?? {}
+  rec('NOAA 15076 geo = real site point (Vostok), not box SW corner',
+    Math.abs(lat - -78.47) < 0.1 && Math.abs(lon - 106.8) < 0.1,
+    `geo=${lat},${lon}`)
+})
+
+// Point studies: geo unchanged (per-site Min==Max == the coverage box).
+await noaa(2429, b => rec('NOAA 2429 geo unchanged for point study (Camp Century)',
+  Math.abs((b.geo?.latitude ?? 0) - 77.17) < 0.01 && Math.abs((b.geo?.longitude ?? 0) - -61.13) < 0.01,
+  `geo=${b.geo?.latitude},${b.geo?.longitude}`))
+
 // ---- PANGAEA ----
 async function pangaea(id, check, timeout = 120000) {
   const { status, body, error } = await get(`/pangaea/${id}`, timeout)

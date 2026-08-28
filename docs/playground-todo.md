@@ -113,9 +113,17 @@ D. Edge is named as lead on Playground/PyleoTUPS integration.
   filename prefix, and pruning an emptied source section. Verified headless
   46/46: reclassifying 33213's Age Model flips 7p/1c → 8p/0c, all 87 columns
   preserved, filenames relabeled paleo0..7.
-- [ ] Remaining Obj-2 fidelity: geo uses the SW bbox corner not the site point;
-  funding / abstract (studyNotes) / dataset-DOI not captured; seasonality →
-  interpretation block.
+- [x] **Geo site-point (not the coverage-box SW corner).** `build_payload` used
+  the SW corner of the summary's coverage box (`cov[S]`, `cov[W]`), which is the
+  envelope across ALL of a study's sites — so multi-site studies mislocated to a
+  corner nowhere near a real site (AICC2012/15076's box spans Antarctica→
+  Greenland; the old geo was ~-78.47,-42.32 in the South Atlantic). Now it uses
+  the real per-site point from `get_tables()` (MinLat/MaxLat midpoint, consistent
+  with siteName/elevation already taken from the first site), with the box CENTER
+  as fallback. Point studies (Min==Max) are unchanged. Verified: 15076 → Vostok
+  (-78.47, 106.8); 2429/33213 unchanged; service suite 15/15.
+- [ ] Remaining Obj-2 fidelity: funding / abstract (studyNotes) / dataset-DOI not
+  captured; seasonality → interpretation block.
 
 ### 📌 Parked (revisit after the NOAA-import focus)
 - **PANGAEA time-period search.** Report flags time as "a very important query
