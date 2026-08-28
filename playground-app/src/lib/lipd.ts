@@ -553,6 +553,46 @@ export function deleteTable(metadata: LipdMetadata, tablePath: string): LipdMeta
   return clone
 }
 
+// Move a measurement table between paleoData and chronData so the user can
+// designate a table as chronology or proxy data after import (the importer's
+// chron/paleo guess is only a starting point). The table keeps its human-facing
+// tableName and all data; only its filename prefix (paleo/chron) is rewritten.
+// Empty source sections are pruned. Returns the new path, or null if the path
+// isn't a measurement table or is already in the target section.
+export function moveTableToSection(
+  metadata: LipdMetadata,
+  tablePath: string,
+  target: SectionKey,
+): { metadata: LipdMetadata; path: string } | null {
+  const secMatch = tablePath.match(/^(paleoData|chronData)\[(\d+)\]\.measurementTable\[(\d+)\]$/)
+  if (!secMatch) return null
+  const from = secMatch[1] as SectionKey
+  if (from === target) return null
+  const clone = JSON.parse(JSON.stringify(metadata)) as LipdMetadata
+  reattachAllValues(metadata, clone)
+  const si = Number(secMatch[2])
+  const ti = Number(secMatch[3])
+  const srcSections = clone[from] ?? []
+  const srcSection = srcSections[si]
+  const table = srcSection?.measurementTable?.[ti]
+  if (!table) return null
+
+  // Detach from the source section (prune the section, and the array, if empty)
+  srcSection.measurementTable!.splice(ti, 1)
+  const srcEmpty = !srcSection.measurementTable!.length && !(srcSection.model ?? []).length
+  if (srcEmpty) srcSections.splice(si, 1)
+  if (!srcSections.length) delete clone[from]
+
+  // Attach to the target section (creating it if needed) with a fresh, prefixed
+  // filename. Computed while the table is detached so its old name can be reused.
+  const tgtSections = (clone[target] ??= [])
+  if (tgtSections.length === 0) tgtSections.push({})
+  const tgtTables = (tgtSections[0].measurementTable ??= [])
+  table.filename = nextTableFilename(clone, target, 0)
+  tgtTables.push(table)
+  return { metadata: clone, path: `${target}[0].measurementTable[${tgtTables.length - 1}]` }
+}
+
 // Turn a loaded dataset into a structure-only template: keep tables, columns,
 // and metadata, but clear every data value and assign fresh TSids (matching
 // the old playground's "Upload as Template").

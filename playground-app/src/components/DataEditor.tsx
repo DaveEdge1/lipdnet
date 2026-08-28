@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useMemo, useEffect, useTransition } from 'react'
 import type { LipdMetadata } from '../types/lipd'
-import { getTables, updateCellValue, deleteTableRow, addTableRow, replaceTableData, addTableColumn, deleteTableColumn, addMeasurementTable, duplicateTable, deleteTable } from '../lib/lipd'
+import { getTables, updateCellValue, deleteTableRow, addTableRow, replaceTableData, addTableColumn, deleteTableColumn, addMeasurementTable, duplicateTable, deleteTable, moveTableToSection } from '../lib/lipd'
 import { parseTabular } from '../lib/tabular'
 
 interface Props {
@@ -238,6 +238,25 @@ export function DataEditor({ metadata, onChange, selectedPath }: Props) {
     setEditCell(null)
   }
 
+  // Which section the current table lives in, and whether it can be reclassified
+  const currentKey = entry?.path.match(/^(paleoData|chronData)/)?.[1] as
+    | 'paleoData' | 'chronData' | undefined
+  const isMeasurementTable = entry ? /measurementTable\[\d+\]$/.test(entry.path) : false
+
+  function reclassifyCurrentTable() {
+    if (!entry || !currentKey) return
+    if (!isMeasurementTable) {
+      alert('Only measurement tables can be reclassified. Model tables can be moved in the JSON tab.')
+      return
+    }
+    const target = currentKey === 'paleoData' ? 'chronData' : 'paleoData'
+    const result = moveTableToSection(metadata, entry.path, target)
+    if (!result) return
+    onChange(result.metadata)
+    setPendingPath(result.path)
+    setEditCell(null)
+  }
+
   const newTableButtons = (
     <>
       <button className="btn-add-row" onClick={() => newTable('paleoData')} title="Add an empty measurement table to paleoData">
@@ -276,6 +295,17 @@ export function DataEditor({ metadata, onChange, selectedPath }: Props) {
         <button className="btn-add-row" onClick={duplicateCurrent} title="Duplicate this table (fresh TSids)">
           Duplicate
         </button>
+        {isMeasurementTable && currentKey && (
+          <button
+            className="btn-add-row"
+            onClick={reclassifyCurrentTable}
+            title={currentKey === 'paleoData'
+              ? 'Move this table to chronData — mark it as a chronology / age-model table'
+              : 'Move this table to paleoData — mark it as proxy / measurement data'}
+          >
+            {currentKey === 'paleoData' ? 'Make chron' : 'Make paleo'}
+          </button>
+        )}
         <button className="btn-add-row btn-danger" onClick={deleteCurrentTable} title="Delete this table and its data">
           Delete table
         </button>
