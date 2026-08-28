@@ -99,8 +99,20 @@ D. Edge is named as lead on Playground/PyleoTUPS integration.
   7 paleoData + 1 chronData ("U1446 Age Model"); 27490/2429 all paleo; headless
   42/42 (chron routed correctly, read back from the autosaved session). Note:
   the cleanest signal, NCEI's `>age control` keyword, isn't exposed by PyleoTUPS
-  to the service — a future refinement could fetch it. Mis-classifications are
-  user-correctable in the workspace (DataEditor manages paleo/chron tables).
+  to the service — a future refinement could fetch it. Measured its prevalence
+  against the live NCEI API (500-study sample, 1990–2026): `NOAAKeywords` is
+  ~100% populated, but only ~6% of studies carry an age-control table and only
+  ~40% of those are age-control-ONLY (true standalone chronology) — the rest mix
+  age control with a proxy keyword and must stay paleo. So the keyword is a
+  high-precision / low-prevalence signal; with user re-designation as the safety
+  net it's optional, not required.
+- [x] **User re-designation of chron/paleo after import.** The heuristic guess is
+  now correctable: `moveTableToSection()` (lib/lipd.ts) + a "Make chron" / "Make
+  paleo" toolbar button in the DataEditor move any measurement table between
+  paleoData and chronData, keeping tableName + data, relabeling only the
+  filename prefix, and pruning an emptied source section. Verified headless
+  46/46: reclassifying 33213's Age Model flips 7p/1c → 8p/0c, all 87 columns
+  preserved, filenames relabeled paleo0..7.
 - [ ] Remaining Obj-2 fidelity: geo uses the SW bbox corner not the site point;
   funding / abstract (studyNotes) / dataset-DOI not captured; seasonality →
   interpretation block.
