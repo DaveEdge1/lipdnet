@@ -524,6 +524,36 @@ body { background: var(--bg); height: 100vh; overflow: hidden; }
 }
 .col-divider:hover, .row-divider:hover { background: rgba(113,164,54,.35); }
 
+/* ---- Single-pane workspace (default): left nav + one view ---- */
+.workspace-single { display: flex; flex: 1; overflow: hidden; padding: 3px; gap: 3px; background: var(--bg); min-height: 0; }
+.workspace-nav {
+  flex: 0 0 auto; width: 150px; display: flex; flex-direction: column; gap: 2px;
+  padding: 6px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 6px; overflow-y: auto;
+}
+.workspace-nav-item {
+  display: flex; align-items: center; gap: .5rem; width: 100%; text-align: left;
+  padding: .42rem .55rem; border: none; background: none; color: var(--text-muted);
+  border-radius: 5px; cursor: pointer; font-size: .84rem; font-weight: 500;
+  transition: background .12s, color .12s;
+}
+.workspace-nav-item:hover { background: var(--surface2); color: var(--text); }
+.workspace-nav-item.active { background: rgba(113,164,54,.18); color: var(--accent); }
+.workspace-nav-icon { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; flex-shrink: 0; }
+.workspace-nav-label { flex: 1; }
+.workspace-nav-item .tab-issues-count { margin-left: auto; }
+.workspace-single-main { flex: 1; min-width: 0; }
+
+/* ---- Layout switcher (single ⇄ 4 panes) ---- */
+.view-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin-right: .25rem; }
+.view-toggle button {
+  background: var(--surface2); border: none; color: var(--text-muted);
+  padding: .3rem .55rem; cursor: pointer; font-size: .78rem; font-weight: 500; white-space: nowrap;
+}
+.view-toggle button + button { border-left: 1px solid var(--border); }
+.view-toggle button:hover { color: var(--text); }
+.view-toggle button.active { background: rgba(113,164,54,.18); color: var(--accent); font-weight: 600; }
+
 .panel-cell {
   display: flex;
   flex-direction: column;

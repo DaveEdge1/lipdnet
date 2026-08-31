@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import type { CSSProperties } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { DropZone } from '../components/DropZone'
 import { NoaaImport } from '../components/NoaaImport'
 import { PangaeaImport } from '../components/PangaeaImport'
@@ -52,6 +52,7 @@ interface AutosavePayload {
 type PaneKey = 'tl' | 'bl' | 'tr' | 'br'
 
 interface Layout {
+  mode: 'single' | 'quad'  // one view at a time (default) or the 2×2 grid
   colPct: number     // left column width as % of the grid
   leftFrac: number   // top pane fraction of the left column
   rightFrac: number  // top pane fraction of the right column
@@ -59,11 +60,41 @@ interface Layout {
 }
 
 const DEFAULT_LAYOUT: Layout = {
+  mode: 'single',
   colPct: 35,
   leftFrac: 0.5,
   rightFrac: 0.5,
   collapsed: { tl: false, bl: false, tr: false, br: false },
 }
+
+// The eight views a loaded dataset exposes. In single-pane mode the left nav
+// lists them; in the 2×2 grid they're grouped into the four panes' tabs.
+type ViewKey = 'metadata' | 'structure' | 'column' | 'data' | 'plot' | 'map' | 'issues' | 'json'
+
+const svg = (children: ReactNode): ReactNode => (
+  <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor"
+       strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{children}</svg>
+)
+const VIEW_ICON: Record<ViewKey, ReactNode> = {
+  metadata: svg(<><rect x="3" y="2" width="10" height="12" rx="1.5" /><path d="M5.5 5.5h5M5.5 8h5M5.5 10.5h3" /></>),
+  structure: svg(<><rect x="6" y="1.5" width="4" height="3" rx="1" /><rect x="2" y="11.5" width="4" height="3" rx="1" /><rect x="10" y="11.5" width="4" height="3" rx="1" /><path d="M8 4.5v3M8 7.5H4v4M8 7.5h4v4" /></>),
+  column: svg(<><rect x="2.5" y="2.5" width="11" height="11" rx="1" /><path d="M6.5 2.5v11M9.5 2.5v11" /></>),
+  data: svg(<><rect x="2.5" y="2.5" width="11" height="11" rx="1" /><path d="M2.5 6h11M2.5 9.5h11M6.5 2.5v11" /></>),
+  plot: svg(<><path d="M2.5 2.5v11h11" /><path d="M4.5 10l3-3.5 2.5 2 3-4" /></>),
+  map: svg(<><path d="M8 14.5s4.5-4 4.5-7A4.5 4.5 0 0 0 3.5 7.5c0 3 4.5 7 4.5 7z" /><circle cx="8" cy="7.5" r="1.6" /></>),
+  issues: svg(<><path d="M8 2l6 11H2z" /><path d="M8 6.5v3.5M8 11.6v.1" /></>),
+  json: svg(<><path d="M6 2.5c-1.5 0-2 1-2 2.5s.3 2-1 2.5c1.3.5 1 1 1 2.5s.5 2.5 2 2.5" /><path d="M10 2.5c1.5 0 2 1 2 2.5s-.3 2 1 2.5c-1.3.5-1 1-1 2.5s-.5 2.5-2 2.5" /></>),
+}
+const VIEWS: Array<{ key: ViewKey; label: string }> = [
+  { key: 'metadata', label: 'Metadata' },
+  { key: 'structure', label: 'Structure' },
+  { key: 'column', label: 'Column' },
+  { key: 'data', label: 'Data' },
+  { key: 'plot', label: 'Plot' },
+  { key: 'map', label: 'Map' },
+  { key: 'issues', label: 'Issues' },
+  { key: 'json', label: 'JSON' },
+]
 
 const LAYOUT_KEY = 'pg-workspace-layout'
 
@@ -123,10 +154,11 @@ export function PlaygroundView() {
     return () => window.clearTimeout(autosaveTimer.current)
   }, [lipd])
 
-  // Per-panel tab state
+  // Per-panel tab state (2×2 grid) + the single-pane view selection
   const [tlTab, setTlTab] = useState<'metadata' | 'issues' | 'json'>('metadata')
   const [blTab, setBlTab] = useState<'map' | 'plot'>('map')
   const [brTab, setBrTab] = useState<'column' | 'data'>('column')
+  const [singleView, setSingleView] = useState<ViewKey>('metadata')
   const [dataTablePath, setDataTablePath] = useState<string | undefined>(undefined)
 
   const savedHashRef = useRef<string>('')
@@ -140,6 +172,8 @@ export function PlaygroundView() {
 
   const togglePane = (k: PaneKey) =>
     setLayout(l => ({ ...l, collapsed: { ...l.collapsed, [k]: !l.collapsed[k] } }))
+
+  const setMode = (mode: Layout['mode']) => setLayout(l => ({ ...l, mode }))
 
   const startColDrag = (e: React.PointerEvent) => {
     e.preventDefault()
@@ -396,40 +430,139 @@ export function PlaygroundView() {
 
   const c = layout.collapsed
 
+  // Switch to a view: in single-pane mode select it directly; in the grid,
+  // activate the tab of whichever pane hosts it.
+  const showView = (key: ViewKey) => {
+    if (layout.mode === 'single') { setSingleView(key); return }
+    if (key === 'metadata' || key === 'issues' || key === 'json') setTlTab(key)
+    else if (key === 'map' || key === 'plot') setBlTab(key)
+    else if (key === 'column' || key === 'data') setBrTab(key)
+    // 'structure' has its own pane — nothing to toggle
+  }
+
+  // The content of one view, reused by both the single pane and the grid tabs.
+  const renderView = (key: ViewKey): ReactNode => {
+    switch (key) {
+      case 'metadata':
+        return (
+          <div className="metadata-tab">
+            <MetadataPanel metadata={lipd.metadata} onChange={handleMetadataChange} />
+            <ChangelogPanel metadata={lipd.metadata} />
+          </div>
+        )
+      case 'issues':
+        return <ValidationPanel metadata={lipd.metadata} />
+      case 'json':
+        return <JsonEditor metadata={lipd.metadata} onChange={handleMetadataChange} />
+      case 'map':
+        return <SiteMap metadata={lipd.metadata} />
+      case 'plot':
+        return (
+          <div className="panel-split">
+            <ColumnList className="panel-sidebar" metadata={lipd.metadata} selectedTSid={selectedTSid}
+              onSelect={tsid => setSelectedTSid(tsid)} />
+            <div className="panel-split-main">
+              <TimeSeriesPlot metadata={lipd.metadata} selectedTSid={selectedTSid} />
+            </div>
+          </div>
+        )
+      case 'structure':
+        return (
+          <StructureView metadata={lipd.metadata} selectedTSid={selectedTSid}
+            onSelect={tsid => setSelectedTSid(tsid)}
+            onNavigate={t => showView(t as ViewKey)}
+            onOpenData={path => { setDataTablePath(path); showView('data') }} />
+        )
+      case 'column':
+        return (
+          <div className="panel-split">
+            <ColumnList className="panel-sidebar" metadata={lipd.metadata} selectedTSid={selectedTSid}
+              onSelect={tsid => setSelectedTSid(tsid)} />
+            <div className="panel-split-main">
+              <ColumnEditor metadata={lipd.metadata} selectedTSid={selectedTSid} onChange={handleMetadataChange} />
+            </div>
+          </div>
+        )
+      case 'data':
+        return <DataEditor metadata={lipd.metadata} onChange={handleMetadataChange} selectedPath={dataTablePath} />
+    }
+  }
+
+  // Single ⇄ grid switcher, shown in the toolbar in both modes.
+  const layoutToggle = (
+    <div className="view-toggle" role="group" aria-label="Workspace layout">
+      <button className={layout.mode === 'single' ? 'active' : ''} onClick={() => setMode('single')}
+        title="Show one pane at a time" aria-pressed={layout.mode === 'single'}>▭ 1 pane</button>
+      <button className={layout.mode === 'quad' ? 'active' : ''} onClick={() => setMode('quad')}
+        title="Show four panes at once" aria-pressed={layout.mode === 'quad'}>⊞ 4 panes</button>
+    </div>
+  )
+
+  const toolbar = (
+    <header className="toolbar">
+      <span className="toolbar-title">{lipd.metadata.dataSetName ?? lipd.filename}</span>
+      {lipd.metadata.datasetVersion && (
+        <span className="toolbar-version">v{lipd.metadata.datasetVersion}</span>
+      )}
+      <div className="toolbar-actions">
+        {layoutToggle}
+        <button
+          onClick={() => { downloadNoaa(lipd).catch(e => alert(e instanceof Error ? e.message : String(e))) }}
+          className="btn-close"
+          title="Download this dataset in the NOAA WDS-Paleo template format"
+        >
+          NOAA .txt
+        </button>
+        <button onClick={handleSave} disabled={saving} className="btn-save">
+          {saving ? 'Saving…' : 'Save .lpd'}
+        </button>
+        <button
+          onClick={() => {
+            window.clearTimeout(autosaveTimer.current)
+            clearSession()
+            setAutosave(null)
+            setLipd(null)
+            setSelectedTSid(null)
+          }}
+          className="btn-close"
+        >
+          Close
+        </button>
+      </div>
+    </header>
+  )
+
+  // ── Single-pane workspace: left nav lists the views, main shows one. ──────
+  if (layout.mode === 'single') {
+    return (
+      <div className="app workspace">
+        {toolbar}
+        <div className="workspace-single">
+          <nav className="workspace-nav" aria-label="Views">
+            {VIEWS.map(v => (
+              <button
+                key={v.key}
+                className={`workspace-nav-item ${singleView === v.key ? 'active' : ''}`}
+                onClick={() => setSingleView(v.key)}
+                aria-current={singleView === v.key}
+              >
+                <span className="workspace-nav-icon">{VIEW_ICON[v.key]}</span>
+                <span className="workspace-nav-label">{v.label}</span>
+                {v.key === 'issues' && issuesBadge}
+              </button>
+            ))}
+          </nav>
+          <div className="panel-cell workspace-single-main">
+            <div className="panel-body">{renderView(singleView)}</div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="app workspace">
-      <header className="toolbar">
-        <span className="toolbar-title">
-          {lipd.metadata.dataSetName ?? lipd.filename}
-        </span>
-        {lipd.metadata.datasetVersion && (
-          <span className="toolbar-version">v{lipd.metadata.datasetVersion}</span>
-        )}
-        <div className="toolbar-actions">
-          <button
-            onClick={() => { downloadNoaa(lipd).catch(e => alert(e instanceof Error ? e.message : String(e))) }}
-            className="btn-close"
-            title="Download this dataset in the NOAA WDS-Paleo template format"
-          >
-            NOAA .txt
-          </button>
-          <button onClick={handleSave} disabled={saving} className="btn-save">
-            {saving ? 'Saving…' : 'Save .lpd'}
-          </button>
-          <button
-            onClick={() => {
-              window.clearTimeout(autosaveTimer.current)
-              clearSession()
-              setAutosave(null)
-              setLipd(null)
-              setSelectedTSid(null)
-            }}
-            className="btn-close"
-          >
-            Close
-          </button>
-        </div>
-      </header>
+      {toolbar}
 
       <div className="workspace-grid" ref={gridRef}>
 
@@ -452,20 +585,7 @@ export function PlaygroundView() {
               >JSON</button>
               {collapseBtn('tl')}
             </div>
-            <div className="panel-body">
-              {tlTab === 'metadata' && (
-                <div className="metadata-tab">
-                  <MetadataPanel metadata={lipd.metadata} onChange={handleMetadataChange} />
-                  <ChangelogPanel metadata={lipd.metadata} />
-                </div>
-              )}
-              {tlTab === 'issues' && (
-                <ValidationPanel metadata={lipd.metadata} />
-              )}
-              {tlTab === 'json' && (
-                <JsonEditor metadata={lipd.metadata} onChange={handleMetadataChange} />
-              )}
-            </div>
+            <div className="panel-body">{renderView(tlTab)}</div>
           </div>
 
           {!c.tl && !c.bl && <div className="row-divider" onPointerDown={startRowDrag('left')} />}
@@ -482,22 +602,7 @@ export function PlaygroundView() {
               >Plot</button>
               {collapseBtn('bl')}
             </div>
-            <div className="panel-body">
-              {blTab === 'map' && <SiteMap metadata={lipd.metadata} />}
-              {blTab === 'plot' && (
-                <div className="panel-split">
-                  <ColumnList
-                    className="panel-sidebar"
-                    metadata={lipd.metadata}
-                    selectedTSid={selectedTSid}
-                    onSelect={tsid => { setSelectedTSid(tsid) }}
-                  />
-                  <div className="panel-split-main">
-                    <TimeSeriesPlot metadata={lipd.metadata} selectedTSid={selectedTSid} />
-                  </div>
-                </div>
-              )}
-            </div>
+            <div className="panel-body">{renderView(blTab)}</div>
           </div>
         </div>
 
@@ -511,15 +616,7 @@ export function PlaygroundView() {
               <span className="panel-label">Structure</span>
               {collapseBtn('tr')}
             </div>
-            <div className="panel-body">
-              <StructureView
-                metadata={lipd.metadata}
-                selectedTSid={selectedTSid}
-                onSelect={tsid => { setSelectedTSid(tsid) }}
-                onNavigate={t => { if (t === 'plot') setBlTab('plot') }}
-                onOpenData={path => { setDataTablePath(path); setBrTab('data') }}
-              />
-            </div>
+            <div className="panel-body">{renderView('structure')}</div>
           </div>
 
           {!c.tr && !c.br && <div className="row-divider" onPointerDown={startRowDrag('right')} />}
@@ -536,28 +633,7 @@ export function PlaygroundView() {
               >Data</button>
               {collapseBtn('br')}
             </div>
-            <div className="panel-body">
-              {brTab === 'column' && (
-                <div className="panel-split">
-                  <ColumnList
-                    className="panel-sidebar"
-                    metadata={lipd.metadata}
-                    selectedTSid={selectedTSid}
-                    onSelect={tsid => { setSelectedTSid(tsid); setBrTab('column') }}
-                  />
-                  <div className="panel-split-main">
-                    <ColumnEditor
-                      metadata={lipd.metadata}
-                      selectedTSid={selectedTSid}
-                      onChange={handleMetadataChange}
-                    />
-                  </div>
-                </div>
-              )}
-              {brTab === 'data' && (
-                <DataEditor metadata={lipd.metadata} onChange={handleMetadataChange} selectedPath={dataTablePath} />
-              )}
-            </div>
+            <div className="panel-body">{renderView(brTab)}</div>
           </div>
         </div>
 
