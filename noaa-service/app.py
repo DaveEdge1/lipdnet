@@ -99,7 +99,9 @@ def _extract_var(v) -> dict:
         "proxy": _proxy_from_what(v.get("cvWhat")),
         "material": _cv_leaf(v.get("cvMaterial")),
         "method": _clean(v.get("cvMethod")),
-        "seasonality": _clean(v.get("cvSeasonality")),
+        # cvSeasonality is hierarchical ("3-month period>Dec-Feb", "1-month
+        # period>Apr"); the leaf ("Dec-Feb", "Apr") is the LiPD seasonality form.
+        "seasonality": _cv_leaf(v.get("cvSeasonality")),
         "description": _clean(v.get("cvDetail")) or _clean(v.get("cvAdditionalInfo")),
         "is_age": bool(re.search(r"\bage\b|year|chronolog", str(name or "").lower())
                        or "age variable" in what or "time unit" in unit_raw),

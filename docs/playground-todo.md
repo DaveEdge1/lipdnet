@@ -132,7 +132,21 @@ D. Edge is named as lead on Playground/PyleoTUPS integration.
   effort, never fails the import). Verified: 33213 → 4 funding entries + DOI +
   notes; 2429 → DOI + 977-char abstract + empty funding; service suite 17/17,
   headless 47/47 (metadata read back from the imported session).
-- [ ] Remaining Obj-2 fidelity: seasonality → interpretation block.
+- [x] **Seasonality → column interpretation block.** NOAA cvSeasonality is
+  hierarchical ("non-calendric period>summer", "1-month period>Jul"); the service
+  now returns the leaf ("summer", "Jul") via `_cv_leaf` (like material), and
+  `serviceToLipd` puts it in the LiPD-native home — `column.interpretation =
+  [{ seasonality }]` — canonicalizing onto the LiPD SEASONALITY vocab casing via
+  a new `normalizeSeasonality` (annual→Annual, summer→Summer, …; 79/100 NOAA
+  leaves match exactly, 8 differ only in case), keeping the leaf verbatim when
+  there's no vocab entry. Verified: 5466 (Baffin summer temp) → Temp_degC with
+  interpretation.seasonality "Summer"; service 18/18, headless 48/48.
+
+**Objective 2 is complete** — load fidelity now matches or beats PyleoTUPS:
+per-variable proxy/material/method/description, chron/paleo separation with user
+re-designation, real site-point geo, study-level funding/abstract/DOI, and
+seasonality interpretation. (The parked items — PANGAEA time search,
+NOAA-not-in-LiPDverse gap discovery — remain for later.)
 
 ### 📌 Parked (revisit after the NOAA-import focus)
 - **PANGAEA time-period search.** Report flags time as "a very important query

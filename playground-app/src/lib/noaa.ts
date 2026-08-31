@@ -4,7 +4,7 @@
 // NOAA-templated text files (# metadata, ## variable lines, delimited data).
 import type { LipdFile, LipdMetadata, LipdPub, LipdTable, LipdPaleoData } from '../types/lipd'
 import { makeTSid } from './newDataset'
-import { normalizeArchiveType, normalizeUnits, normalizeVariableName, normalizeProxy, proxyGeneralFor } from './synonyms'
+import { normalizeArchiveType, normalizeUnits, normalizeVariableName, normalizeProxy, proxyGeneralFor, normalizeSeasonality } from './synonyms'
 
 const SEARCH_URL = 'https://www.ncei.noaa.gov/access/paleo-search/study/search.json'
 
@@ -657,6 +657,12 @@ function serviceToLipd(p: ServicePayload): NoaaImportResult {
         const material = c.material?.trim() || undefined
         const method = c.method?.trim() || undefined
         const description = c.description?.trim() || undefined
+        // NOAA seasonality → a LiPD column interpretation block (its natural home
+        // in the model). Canonicalize onto the LiPD vocabulary casing where known
+        // (annual → Annual); otherwise keep the leaf verbatim.
+        const seasonality = c.seasonality?.trim()
+          ? (normalizeSeasonality(c.seasonality) ?? c.seasonality.trim())
+          : undefined
         return {
           number: ci + 1,
           variableName,
@@ -669,6 +675,7 @@ function serviceToLipd(p: ServicePayload): NoaaImportResult {
           ...(description ? { description } : {}),
           ...(material ? { measurementMaterial: material } : {}),
           ...(method ? { method } : {}),
+          ...(seasonality ? { interpretation: [{ seasonality }] } : {}),
           values: toValues(c.values.map(v => (v === null || v === undefined ? '' : String(v)))),
         }
       }),

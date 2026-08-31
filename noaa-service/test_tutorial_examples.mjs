@@ -104,6 +104,17 @@ await noaa(2429, b => rec('NOAA 2429 captures DOI + abstract, empty funding ok',
   /10\.25921\/0537-2h54/.test(b.datasetDOI ?? '') && /CRREL|Camp Century/i.test(b.studyNotes ?? '') && Array.isArray(b.funding) && b.funding.length === 0,
   `doi=${b.datasetDOI}, funding=${(b.funding ?? []).length}, notes=${(b.studyNotes ?? '').length}ch`))
 
+// Seasonality: cvSeasonality is hierarchical ("non-calendric period>summer");
+// the service returns just the leaf ("summer") for the client to put in an
+// interpretation block. 5466 (Baffin Island summer temperature) has one.
+await noaa(5466, b => {
+  const seas = (b.tables ?? []).flatMap(t => (t.columns ?? []))
+    .map(c => c.seasonality).filter(Boolean)
+  rec('NOAA 5466 seasonality returned as bare leaf (no ">")',
+    seas.length >= 1 && seas.every(s => !s.includes('>')) && seas.includes('summer'),
+    `seasonality=${JSON.stringify(seas)}`)
+})
+
 // ---- PANGAEA ----
 async function pangaea(id, check, timeout = 120000) {
   const { status, body, error } = await get(`/pangaea/${id}`, timeout)

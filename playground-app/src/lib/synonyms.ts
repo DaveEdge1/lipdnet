@@ -10,6 +10,7 @@
 // docs/playground-todo.md, workstream C follow-up).
 
 import { VARIABLE_NAME_SYNONYMS } from './synonyms.varnames.generated'
+import { SEASONALITY } from './vocabulary'
 
 // Normalize a lookup key: lowercase, trim, collapse internal whitespace.
 const norm = (s: string) => s.toLowerCase().trim().replace(/\s+/g, ' ')
@@ -222,4 +223,17 @@ export function proxyGeneralFor(proxy?: string | null): string | undefined {
 export function normalizeVariableName(raw?: string | null): string | undefined {
   if (!raw) return undefined
   return VARNAME_MAP.get(norm(raw))
+}
+
+// NOAA cvSeasonality leaves ("Apr", "Dec-Feb", "annual", "summer") map to the
+// LiPD SEASONALITY vocabulary, differing only in case for the named seasons
+// (annual→Annual, summer→Summer, growing season→Growing Season, …). A
+// case-insensitive lookup recovers the canonical LiPD casing.
+const SEASONALITY_MAP = new Map(SEASONALITY.map(s => [norm(s), s]))
+
+/** Canonical LiPD seasonality for a raw leaf (case-normalized), or undefined
+ *  when it isn't in the vocabulary (caller keeps the original leaf). */
+export function normalizeSeasonality(raw?: string | null): string | undefined {
+  if (!raw) return undefined
+  return SEASONALITY_MAP.get(norm(raw))
 }
