@@ -157,6 +157,7 @@ export function NoaaImport({ onLoad }: Props) {
   const [results, setResults] = useState<NoaaStudy[] | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [review, setReview] = useState<LipdFile | null>(null)  // human-in-the-loop for heuristic tables
+  const [importingId, setImportingId] = useState<string | null>(null)  // study currently importing (spinner)
 
   // Advanced filters
   const [showAdvanced, setShowAdvanced] = useState(false)
@@ -189,6 +190,7 @@ export function NoaaImport({ onLoad }: Props) {
 
   const importStudy = async (study: NoaaStudy) => {
     setBusy(`Importing "${study.studyName}"…`)
+    setImportingId(study.NOAAStudyId)
     setError(null)
     setNotice(null)
     try {
@@ -220,6 +222,7 @@ export function NoaaImport({ onLoad }: Props) {
       setError(e instanceof Error ? e.message : 'Import failed')
     } finally {
       setBusy(null)
+      setImportingId(null)
     }
   }
 
@@ -551,9 +554,26 @@ export function NoaaImport({ onLoad }: Props) {
                       {s.studyNotes && <p className="noaa-detail-notes">{s.studyNotes}</p>}
 
                       <div className="noaa-result-actions">
-                        <button type="button" className="btn" onClick={() => importStudy(s)} disabled={!!busy}>
-                          Import to workspace
+                        <button
+                          type="button"
+                          className="btn"
+                          onClick={() => importStudy(s)}
+                          disabled={!!busy}
+                          aria-busy={importingId === s.NOAAStudyId}
+                        >
+                          {importingId === s.NOAAStudyId ? (
+                            <>
+                              <svg className="btn-spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} aria-hidden="true">
+                                <circle cx={12} cy={12} r={9} strokeOpacity={0.3} />
+                                <path d="M12 3a9 9 0 0 1 9 9" strokeLinecap="round" />
+                              </svg>
+                              Importing…
+                            </>
+                          ) : 'Import to workspace'}
                         </button>
+                        {importingId === s.NOAAStudyId && (
+                          <span className="noaa-import-hint" aria-live="polite">Fetching &amp; parsing from NOAA — this can take up to ~20&nbsp;seconds.</span>
+                        )}
                         {s.onlineResourceLink && (
                           <a className="noaa-ext-link" href={s.onlineResourceLink} target="_blank" rel="noreferrer">
                             View at NOAA ↗

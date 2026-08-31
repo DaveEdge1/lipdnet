@@ -298,6 +298,11 @@ body { background: var(--bg); height: 100vh; overflow: hidden; }
   font-size: .875rem; font-weight: 500;
 }
 .btn:hover { background: var(--accent-hover); }
+/* A button mid-import keeps full accent styling (not greyed) so its spinner
+   reads as "working", while other buttons disable normally. */
+.btn[aria-busy="true"] { display: inline-flex; align-items: center; gap: .45rem; opacity: 1; cursor: progress; background: var(--accent); }
+.btn-spinner { width: 14px; height: 14px; animation: spin 0.9s linear infinite; flex-shrink: 0; }
+.noaa-import-hint { color: var(--text-muted); font-size: .8rem; }
 .error { color: var(--danger); font-size: .85rem; }
 
 /* ---- Welcome / what's new brief ---- */
