@@ -188,6 +188,11 @@ body { background: var(--bg); height: 100vh; overflow: hidden; }
 /* ---- NOAA search results: previewable cards ---- */
 .noaa-results-wrap { display: flex; flex-direction: column; gap: .4rem; }
 .noaa-results-hint { font-size: .76rem; color: var(--text-muted); }
+.noaa-results-capped {
+  font-size: .76rem; color: #7a5c00;
+  background: #fff8e1; border: 1px solid #f0d98a; border-radius: 6px;
+  padding: .4rem .6rem;
+}
 .noaa-map-wrap { display: flex; flex-direction: column; gap: .25rem; }
 .noaa-map-note { font-size: .72rem; color: var(--text-muted); }
 .noaa-map { height: 300px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }

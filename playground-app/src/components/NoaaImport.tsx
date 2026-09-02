@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import {
   searchNoaaStudies, noaaStudyToLipd, noaaStudyViaService, noaaFileToLipd, noaaFileViaService,
-  NOAA_DATA_TYPES, type NoaaStudy, type NoaaSearchFilters, type NoaaMultiKey, type AndOr,
+  NOAA_DATA_TYPES, NOAA_SEARCH_LIMIT, type NoaaStudy, type NoaaSearchFilters, type NoaaMultiKey, type AndOr,
 } from '../lib/noaa'
 import {
   NOAA_CV_WHATS, NOAA_CV_MATERIALS, NOAA_CV_SEASONALITIES, NOAA_LOCATIONS, NOAA_KEYWORDS, NOAA_SPECIES,
@@ -481,6 +481,12 @@ export function NoaaImport({ onLoad }: Props) {
             }}
           />
           <p className="noaa-results-hint">Select a study on the map or in the list to preview it, then import.</p>
+          {results.length >= NOAA_SEARCH_LIMIT && (
+            <p className="noaa-results-capped" role="note">
+              Showing the first {NOAA_SEARCH_LIMIT} matches — there may be more.
+              Add filters or search terms to narrow the results.
+            </p>
+          )}
           <ul className="noaa-results">
             {results.map(s => {
               const selected = selectedId === s.NOAAStudyId

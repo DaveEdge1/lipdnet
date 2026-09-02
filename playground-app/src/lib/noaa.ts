@@ -8,6 +8,12 @@ import { normalizeArchiveType, normalizeUnits, normalizeVariableName, normalizeP
 
 const SEARCH_URL = 'https://www.ncei.noaa.gov/access/paleo-search/study/search.json'
 
+// NCEI's search.json has no total-count field and no pagination, so we cap
+// results at this many. A full page (exactly this many hits) means there are
+// likely more matches that aren't shown — the UI flags that so the user knows
+// to narrow their search rather than assume this is the complete set.
+export const NOAA_SEARCH_LIMIT = 25
+
 // ---- Study search -----------------------------------------------------------
 
 export interface NoaaDataFile {
@@ -157,7 +163,7 @@ export async function searchNoaaStudies(query: string, filters: NoaaSearchFilter
     }
     if (filters.recent) params.set('recent', 'true')
     if (filters.reconstructionOnly) params.set('reconstructionsOnly', 'Y')
-    params.set('limit', '25')
+    params.set('limit', String(NOAA_SEARCH_LIMIT))
   }
 
   const res = await fetch(`${SEARCH_URL}?${params.toString()}`)
