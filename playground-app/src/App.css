@@ -197,6 +197,11 @@ body { background: var(--bg); height: 100vh; overflow: hidden; }
 .noaa-map-note { font-size: .72rem; color: var(--text-muted); }
 .noaa-map { height: 300px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
 .noaa-map .leaflet-container { height: 100%; background: var(--surface); }
+/* Selected study's marker: tint toward the accent green + a glow. Filter only —
+   Leaflet positions markers with a transform, so a transform here would move it. */
+.noaa-marker-selected {
+  filter: hue-rotate(-105deg) saturate(1.6) drop-shadow(0 0 6px rgba(113,164,54,.9));
+}
 .noaa-map-select {
   margin-top: .25rem; background: none; border: none; padding: 0;
   color: var(--accent); font-size: .78rem; cursor: pointer; text-decoration: underline;

@@ -215,6 +215,19 @@ export function NoaaImport({ onLoad, initialSession, onSession }: Props) {
     earliestYear, latestYear, timeFormat, timeMethod, recent, reconstructionOnly,
   ])
 
+  // On a restored session ("back to search results"), the landing remounts
+  // scrolled to the top, so bring the previously selected study back into view.
+  useEffect(() => {
+    if (!s0?.selectedId || !s0.results?.length) return
+    const id = s0.selectedId
+    const t = window.setTimeout(() => {
+      document.getElementById(`noaa-result-${id}`)?.scrollIntoView({ block: 'center' })
+    }, 100)
+    return () => window.clearTimeout(t)
+    // Runs once on mount; s0 is the initial (restore) snapshot.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // NOAA controlled-vocabulary autocompletes. The option lists are large
   // (~2000 total), so build the <option> elements once rather than per keystroke.
   const whatOpts = useMemo(() => NOAA_CV_WHATS.map(v => <option key={v} value={v} />), [])
