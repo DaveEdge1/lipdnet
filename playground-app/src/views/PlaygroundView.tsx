@@ -18,6 +18,8 @@ import { downloadNoaa } from '../lib/noaaExport'
 import { NewDatasetWizard } from '../components/NewDatasetWizard'
 import { DataTableDialog } from '../components/DataTableDialog'
 import { saveSession, loadSession, clearSession } from '../lib/autosaveStore'
+import { listLibrary, saveToLibrary, deleteFromLibrary, libraryKey, type LibraryEntry } from '../lib/browserLibrary'
+import type { NoaaSearchSession } from '../components/NoaaImport'
 import { WelcomeDialog } from '../components/WelcomeDialog'
 import { validateLipd } from '../lib/validate'
 import { proxiedLpdUrl } from '../lib/remote'
@@ -163,6 +165,22 @@ export function PlaygroundView() {
 
   const savedHashRef = useRef<string>('')
 
+  // Whether the open dataset came from a NOAA search — gates the "back to
+  // search results" button. The search state itself is held in a ref and fed
+  // back to NoaaImport so returning to the landing restores the same results.
+  const [openedFromNoaa, setOpenedFromNoaa] = useState(false)
+  const noaaSessionRef = useRef<NoaaSearchSession | null>(null)
+  const handleNoaaSession = useCallback((s: NoaaSearchSession) => { noaaSessionRef.current = s }, [])
+
+  // "Saved in this browser" library (explicit, multi-entry; separate from the
+  // single crash-recovery autosave slot above).
+  const [library, setLibrary] = useState<LibraryEntry[]>([])
+  const [browserSaved, setBrowserSaved] = useState(false)
+  const refreshLibrary = useCallback(() => {
+    listLibrary().then(setLibrary).catch(() => { /* IndexedDB unavailable */ })
+  }, [])
+  useEffect(() => { refreshLibrary() }, [refreshLibrary])
+
   // Workspace layout
   const [layout, setLayout] = useState<Layout>(loadLayout)
   const gridRef = useRef<HTMLDivElement>(null)
@@ -224,11 +242,46 @@ export function PlaygroundView() {
     </button>
   )
 
-  const handleLoad = useCallback((f: LipdFile) => {
+  const handleLoad = useCallback((f: LipdFile, origin?: 'noaa') => {
     setLipd(f)
     setSelectedTSid(null)
+    setOpenedFromNoaa(origin === 'noaa')
     savedHashRef.current = contentHash(f.metadata)
   }, [])
+
+  // Explicitly keep the current dataset in the browser library (named).
+  const handleSaveToBrowser = useCallback(async () => {
+    if (!lipd) return
+    const defaultName = lipd.metadata.dataSetName ?? lipd.filename
+    const name = window.prompt('Save this dataset in your browser as:', defaultName)
+    if (name === null) return  // cancelled
+    try {
+      await saveToLibrary({
+        id: libraryKey(lipd.metadata, lipd.filename),
+        name: name.trim() || defaultName,
+        filename: lipd.filename,
+        metadata: lipd.metadata,
+        savedAt: new Date().toISOString(),
+      })
+      refreshLibrary()
+      setBrowserSaved(true)
+      window.setTimeout(() => setBrowserSaved(false), 1800)
+    } catch {
+      alert('Could not save to the browser library — storage may be full or unavailable.')
+    }
+  }, [lipd, refreshLibrary])
+
+  // Return to the landing WITHOUT clearing the NOAA search — NoaaImport
+  // remounts seeded from noaaSessionRef, so the results reappear.
+  const backToSearch = useCallback(() => {
+    setLipd(null)
+    setSelectedTSid(null)
+    refreshLibrary()
+  }, [refreshLibrary])
+
+  const handleDeleteLibrary = useCallback((id: string) => {
+    deleteFromLibrary(id).then(refreshLibrary).catch(() => { /* ignore */ })
+  }, [refreshLibrary])
 
   // Deep link: /playground?open=<lipdverse .lpd url> (used by the Query page)
   useEffect(() => {
@@ -359,6 +412,39 @@ export function PlaygroundView() {
         )}
 
         <div className="landing-cards">
+          {library.length > 0 && (
+            <section className="landing-card landing-card-wide">
+              <h2>Saved in this browser</h2>
+              <p className="landing-card-hint">
+                Datasets you kept on this device. Reopen one to pick up where you left off.
+              </p>
+              <ul className="library-list">
+                {library.map(entry => (
+                  <li key={entry.id} className="library-item">
+                    <button
+                      type="button"
+                      className="library-open"
+                      onClick={() => handleLoad({ metadata: entry.metadata, filename: entry.filename, csvData: {} })}
+                      title="Open this saved dataset"
+                    >
+                      <span className="library-name">{entry.name}</span>
+                      <span className="library-meta">Saved {new Date(entry.savedAt).toLocaleString()}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="library-delete"
+                      onClick={() => handleDeleteLibrary(entry.id)}
+                      aria-label={`Remove ${entry.name} from this browser`}
+                      title="Remove from this browser"
+                    >
+                      ×
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
           <section className="landing-card">
             <h2>Open a LiPD</h2>
             <DropZone onLoad={handleLoad} />
@@ -393,7 +479,11 @@ export function PlaygroundView() {
             <p className="landing-card-hint">
               Pull a study from the NOAA NCEI Paleoclimatology archive, or open a NOAA text file.
             </p>
-            <NoaaImport onLoad={handleLoad} />
+            <NoaaImport
+              onLoad={f => handleLoad(f, 'noaa')}
+              initialSession={noaaSessionRef.current}
+              onSession={handleNoaaSession}
+            />
           </section>
 
           <section className="landing-card landing-card-wide">
@@ -506,12 +596,28 @@ export function PlaygroundView() {
       )}
       <div className="toolbar-actions">
         {layoutToggle}
+        {openedFromNoaa && (
+          <button
+            onClick={backToSearch}
+            className="btn-back"
+            title="Return to your NOAA search results"
+          >
+            ← Search results
+          </button>
+        )}
         <button
           onClick={() => { downloadNoaa(lipd).catch(e => alert(e instanceof Error ? e.message : String(e))) }}
           className="btn-close"
           title="Download this dataset in the NOAA WDS-Paleo template format"
         >
           NOAA .txt
+        </button>
+        <button
+          onClick={handleSaveToBrowser}
+          className="btn-browser"
+          title="Keep this dataset in your browser to reopen later"
+        >
+          {browserSaved ? 'Saved ✓' : 'Save to browser'}
         </button>
         <button onClick={handleSave} disabled={saving} className="btn-save">
           {saving ? 'Saving…' : 'Save .lpd'}

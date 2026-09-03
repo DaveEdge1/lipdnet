@@ -1,17 +1,25 @@
 // Crash-recovery store for the open dataset. Uses IndexedDB, not localStorage:
 // a dataset with its data values easily exceeds localStorage's ~5 MB cap, while
-// IndexedDB holds hundreds of MB. One object store, one record. Structured
-// clone stores the in-memory column values directly (no JSON round-trip).
+// IndexedDB holds hundreds of MB. Structured clone stores the in-memory column
+// values directly (no JSON round-trip).
+//
+// The same database also backs the user's "Saved in this browser" library (see
+// lib/browserLibrary) in a second object store, so both share this opener to
+// keep the schema version in one place.
 
 const DB_NAME = 'lipd-playground'
 const STORE = 'session'
+export const LIBRARY_STORE = 'library'
 const KEY = 'autosave'
 
-function openDb(): Promise<IDBDatabase> {
+// v1: `session` (single autosave record). v2: adds `library` (keyed by dataset).
+export function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1)
+    const req = indexedDB.open(DB_NAME, 2)
     req.onupgradeneeded = () => {
-      if (!req.result.objectStoreNames.contains(STORE)) req.result.createObjectStore(STORE)
+      const db = req.result
+      if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE)
+      if (!db.objectStoreNames.contains(LIBRARY_STORE)) db.createObjectStore(LIBRARY_STORE)
     }
     req.onsuccess = () => resolve(req.result)
     req.onerror = () => reject(req.error)

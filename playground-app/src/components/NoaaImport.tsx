@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   searchNoaaStudies, noaaStudyToLipd, noaaStudyViaService, noaaFileToLipd, noaaFileViaService,
   NOAA_DATA_TYPES, NOAA_SEARCH_LIMIT, type NoaaStudy, type NoaaSearchFilters, type NoaaMultiKey, type AndOr,
@@ -13,8 +13,30 @@ import { tip } from '../lib/tooltips'
 import type { LipdFile } from '../types/lipd'
 import pyleotupsLogo from '../assets/pyleotups_logo.png'
 
+// A snapshot of the whole search state (inputs + results + selection), lifted so
+// the Playground can restore "back to search results" after a dataset is opened.
+// Transient status (busy/error/spinner) is intentionally excluded.
+export interface NoaaSearchSession {
+  studyId: string; studyUrl: string; keywords: string; archiveName: string
+  results: NoaaStudy[] | null
+  selectedId: string | null
+  showAdvanced: boolean
+  multi: Record<NoaaMultiKey, string[]>
+  andOr: Partial<Record<NoaaMultiKey, AndOr>>
+  minLat: string; maxLat: string; minLon: string; maxLon: string
+  minElevation: string; maxElevation: string
+  earliestYear: string; latestYear: string
+  timeFormat: 'CE' | 'BP'; timeMethod: string
+  recent: boolean; reconstructionOnly: boolean
+}
+
 interface Props {
   onLoad: (lipd: LipdFile) => void
+  // When set, seed the search state from a prior session (restore-on-remount).
+  initialSession?: NoaaSearchSession | null
+  // Called with the current snapshot whenever it changes, so the parent can
+  // hold onto it and pass it back as initialSession after the workspace closes.
+  onSession?: (session: NoaaSearchSession) => void
 }
 
 // The multi-value filter fields, in display order, with label / tooltip /
@@ -145,36 +167,53 @@ function primaryPub(s: NoaaStudy): PubView | null {
   }
 }
 
-export function NoaaImport({ onLoad }: Props) {
+export function NoaaImport({ onLoad, initialSession, onSession }: Props) {
+  // Seed persisted fields from a prior session (read once, on mount) so
+  // "back to search results" restores the inputs, results, and selection.
+  const s0 = initialSession
   // Base search: three distinct inputs (id / url / keywords) + archive type.
-  const [studyId, setStudyId] = useState('')
-  const [studyUrl, setStudyUrl] = useState('')
-  const [keywords, setKeywords] = useState('')
-  const [archiveName, setArchiveName] = useState('')
+  const [studyId, setStudyId] = useState(() => s0?.studyId ?? '')
+  const [studyUrl, setStudyUrl] = useState(() => s0?.studyUrl ?? '')
+  const [keywords, setKeywords] = useState(() => s0?.keywords ?? '')
+  const [archiveName, setArchiveName] = useState(() => s0?.archiveName ?? '')
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
-  const [results, setResults] = useState<NoaaStudy[] | null>(null)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [results, setResults] = useState<NoaaStudy[] | null>(() => s0?.results ?? null)
+  const [selectedId, setSelectedId] = useState<string | null>(() => s0?.selectedId ?? null)
   const [review, setReview] = useState<LipdFile | null>(null)  // human-in-the-loop for heuristic tables
   const [importingId, setImportingId] = useState<string | null>(null)  // study currently importing (spinner)
 
   // Advanced filters
-  const [showAdvanced, setShowAdvanced] = useState(false)
-  const [multi, setMulti] = useState<Record<NoaaMultiKey, string[]>>({
+  const [showAdvanced, setShowAdvanced] = useState(() => s0?.showAdvanced ?? false)
+  const [multi, setMulti] = useState<Record<NoaaMultiKey, string[]>>(() => s0?.multi ?? {
     investigators: [], variableName: [], cvMaterials: [], cvSeasonalities: [], species: [], locations: [], keywords: [],
   })
-  const [andOr, setAndOr] = useState<Partial<Record<NoaaMultiKey, AndOr>>>({})
+  const [andOr, setAndOr] = useState<Partial<Record<NoaaMultiKey, AndOr>>>(() => s0?.andOr ?? {})
   const setValues = (key: NoaaMultiKey, v: string[]) => setMulti(m => ({ ...m, [key]: v }))
   const setFieldAndOr = (key: NoaaMultiKey, v: AndOr) => setAndOr(a => ({ ...a, [key]: v }))
-  const [minLat, setMinLat] = useState(''); const [maxLat, setMaxLat] = useState('')
-  const [minLon, setMinLon] = useState(''); const [maxLon, setMaxLon] = useState('')
-  const [minElevation, setMinElevation] = useState(''); const [maxElevation, setMaxElevation] = useState('')
-  const [earliestYear, setEarliestYear] = useState(''); const [latestYear, setLatestYear] = useState('')
-  const [timeFormat, setTimeFormat] = useState<'CE' | 'BP'>('CE')
-  const [timeMethod, setTimeMethod] = useState('entireOver') // default: study spans the whole range
-  const [recent, setRecent] = useState(false)
-  const [reconstructionOnly, setReconstructionOnly] = useState(false)
+  const [minLat, setMinLat] = useState(() => s0?.minLat ?? ''); const [maxLat, setMaxLat] = useState(() => s0?.maxLat ?? '')
+  const [minLon, setMinLon] = useState(() => s0?.minLon ?? ''); const [maxLon, setMaxLon] = useState(() => s0?.maxLon ?? '')
+  const [minElevation, setMinElevation] = useState(() => s0?.minElevation ?? ''); const [maxElevation, setMaxElevation] = useState(() => s0?.maxElevation ?? '')
+  const [earliestYear, setEarliestYear] = useState(() => s0?.earliestYear ?? ''); const [latestYear, setLatestYear] = useState(() => s0?.latestYear ?? '')
+  const [timeFormat, setTimeFormat] = useState<'CE' | 'BP'>(() => s0?.timeFormat ?? 'CE')
+  const [timeMethod, setTimeMethod] = useState(() => s0?.timeMethod ?? 'entireOver') // default: study spans the whole range
+  const [recent, setRecent] = useState(() => s0?.recent ?? false)
+  const [reconstructionOnly, setReconstructionOnly] = useState(() => s0?.reconstructionOnly ?? false)
+
+  // Report the current snapshot up whenever any persisted field changes, so the
+  // parent always holds the latest state to restore after the workspace closes.
+  useEffect(() => {
+    onSession?.({
+      studyId, studyUrl, keywords, archiveName, results, selectedId, showAdvanced,
+      multi, andOr, minLat, maxLat, minLon, maxLon, minElevation, maxElevation,
+      earliestYear, latestYear, timeFormat, timeMethod, recent, reconstructionOnly,
+    })
+  }, [
+    onSession, studyId, studyUrl, keywords, archiveName, results, selectedId, showAdvanced,
+    multi, andOr, minLat, maxLat, minLon, maxLon, minElevation, maxElevation,
+    earliestYear, latestYear, timeFormat, timeMethod, recent, reconstructionOnly,
+  ])
 
   // NOAA controlled-vocabulary autocompletes. The option lists are large
   // (~2000 total), so build the <option> elements once rather than per keystroke.
