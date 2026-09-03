@@ -179,25 +179,14 @@ export function PlaygroundView() {
   }, [])
 
   // "Saved in this browser" library (explicit, multi-entry; separate from the
-  // single crash-recovery autosave slot above). Listed in the landing footer,
-  // and reachable while editing via a toolbar dropdown (showSavedMenu).
+  // single crash-recovery autosave slot above). Shown in an always-visible
+  // footer bar pinned to the bottom of both the landing and the editor.
   const [library, setLibrary] = useState<LibraryEntry[]>([])
   const [browserSaved, setBrowserSaved] = useState(false)
-  const [showSavedMenu, setShowSavedMenu] = useState(false)
-  const savedMenuRef = useRef<HTMLDivElement>(null)
   const refreshLibrary = useCallback(() => {
     listLibrary().then(setLibrary).catch(() => { /* IndexedDB unavailable */ })
   }, [])
   useEffect(() => { refreshLibrary() }, [refreshLibrary])
-  // Close the toolbar dropdown on an outside click.
-  useEffect(() => {
-    if (!showSavedMenu) return
-    const onDown = (e: MouseEvent) => {
-      if (savedMenuRef.current && !savedMenuRef.current.contains(e.target as Node)) setShowSavedMenu(false)
-    }
-    document.addEventListener('mousedown', onDown)
-    return () => document.removeEventListener('mousedown', onDown)
-  }, [showSavedMenu])
 
   // Workspace layout
   const [layout, setLayout] = useState<Layout>(loadLayout)
@@ -322,7 +311,6 @@ export function PlaygroundView() {
   // Open a saved dataset. If one is already open (editing), checkpoint it first
   // so switching never loses work; a no-op if it's the same dataset.
   const openSaved = useCallback(async (entry: LibraryEntry) => {
-    setShowSavedMenu(false)
     if (lipd) {
       if (libraryKey(lipd.metadata, lipd.filename) === entry.id) return  // already editing it
       await autoSaveToLibrary(lipd)
@@ -417,38 +405,43 @@ export function PlaygroundView() {
   const errorCount = issues.filter(i => i.severity === 'error').length
   const warningCount = issues.filter(i => i.severity === 'warning').length
 
-  // The saved-datasets list, shared by the landing footer and the editor's
-  // toolbar dropdown. openSaved checkpoints any open dataset before switching.
-  const savedList = (
-    <ul className="library-list">
-      {library.map(entry => (
-        <li key={entry.id} className="library-item">
-          <button
-            type="button"
-            className="library-open"
-            onClick={() => openSaved(entry)}
-            title="Open this saved dataset"
-          >
-            <span className="library-name">{entry.name}</span>
-            <span className="library-meta">Saved {new Date(entry.savedAt).toLocaleString()}</span>
-          </button>
-          <button
-            type="button"
-            className="library-delete"
-            onClick={() => handleDeleteLibrary(entry.id)}
-            aria-label={`Remove ${entry.name} from this browser`}
-            title="Remove from this browser"
-          >
-            ×
-          </button>
-        </li>
-      ))}
-    </ul>
+  // Always-visible footer bar of saved datasets, pinned to the bottom of both
+  // the landing and the editor. Each is a clickable chip; openSaved checkpoints
+  // any open dataset before switching. The chip for the open dataset is marked.
+  const currentKey = lipd ? libraryKey(lipd.metadata, lipd.filename) : null
+  const savedFooter = library.length > 0 && (
+    <footer className="saved-footer" aria-label="Datasets saved in this browser">
+      <span className="saved-footer-label">Saved</span>
+      <ul className="saved-footer-list">
+        {library.map(entry => (
+          <li key={entry.id} className={`saved-chip ${entry.id === currentKey ? 'active' : ''}`}>
+            <button
+              type="button"
+              className="saved-chip-open"
+              onClick={() => openSaved(entry)}
+              title={`Open “${entry.name}” — saved ${new Date(entry.savedAt).toLocaleString()}`}
+            >
+              {entry.name}
+            </button>
+            <button
+              type="button"
+              className="saved-chip-del"
+              onClick={() => handleDeleteLibrary(entry.id)}
+              aria-label={`Remove ${entry.name} from this browser`}
+              title="Remove from this browser"
+            >
+              ×
+            </button>
+          </li>
+        ))}
+      </ul>
+    </footer>
   )
 
   if (!lipd) {
     return (
       <div className="app landing">
+        <div className="landing-scroll">
         <header className="landing-header">
           <h1>LiPD Playground</h1>
           <p>Open, edit, validate, and visualize paleoclimate data — right in your browser.</p>
@@ -538,16 +531,9 @@ export function PlaygroundView() {
             <PangaeaImport onLoad={handleLoad} />
           </section>
         </div>
+        </div>
 
-        {library.length > 0 && (
-          <footer className="landing-saved">
-            <h2>Saved in this browser</h2>
-            <p className="landing-saved-hint">
-              Datasets you kept on this device. Reopen one to pick up where you left off.
-            </p>
-            {savedList}
-          </footer>
-        )}
+        {savedFooter}
 
         {showWizard && (
           <NewDatasetWizard
@@ -658,24 +644,6 @@ export function PlaygroundView() {
             ← Search results
           </button>
         )}
-        {library.length > 0 && (
-          <div className="saved-menu" ref={savedMenuRef}>
-            <button
-              className="btn-browser"
-              onClick={() => setShowSavedMenu(s => !s)}
-              aria-expanded={showSavedMenu}
-              aria-haspopup="menu"
-              title="Open another dataset saved in this browser"
-            >
-              Saved ({library.length}) ▾
-            </button>
-            {showSavedMenu && (
-              <div className="saved-menu-panel" role="menu">
-                {savedList}
-              </div>
-            )}
-          </div>
-        )}
         <button
           onClick={() => { downloadNoaa(lipd).catch(e => alert(e instanceof Error ? e.message : String(e))) }}
           className="btn-close"
@@ -733,6 +701,7 @@ export function PlaygroundView() {
             <div className="panel-body">{renderView(singleView)}</div>
           </div>
         </div>
+        {savedFooter}
       </div>
     )
   }
@@ -815,6 +784,7 @@ export function PlaygroundView() {
         </div>
 
       </div>
+      {savedFooter}
     </div>
   )
 }
