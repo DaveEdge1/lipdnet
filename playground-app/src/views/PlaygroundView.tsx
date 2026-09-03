@@ -140,24 +140,26 @@ export function PlaygroundView() {
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      const lib = await listLibrary().catch(() => [] as LibraryEntry[])
       let session: AutosavePayload | null = null
       try { session = await loadSession<AutosavePayload>() } catch { /* IndexedDB unavailable */ }
       if (cancelled) return
-      const existing = session?.metadata
-        ? lib.find(e => e.id === libraryKey(session!.metadata, session!.filename))
-        : undefined
-      if (session?.metadata && existing) {
-        const updated: LibraryEntry = {
-          ...existing, metadata: session.metadata, filename: session.filename, savedAt: session.savedAt,
+      if (session?.metadata) {
+        const lib = await listLibrary().catch(() => [] as LibraryEntry[])
+        const existing = lib.find(e => e.id === libraryKey(session!.metadata, session!.filename))
+        if (existing) {
+          // Already in the footer — fold the newer crash-slot edits in, drop the slot.
+          const updated: LibraryEntry = {
+            ...existing, metadata: session.metadata, filename: session.filename, savedAt: session.savedAt,
+          }
+          await saveToLibrary(updated).catch(() => {})
+          await clearSession().catch(() => {})
+        } else if (!cancelled) {
+          setAutosave(session)  // genuinely unsaved → offer restore
         }
-        await saveToLibrary(updated).catch(() => {})
-        await clearSession().catch(() => {})
-        if (!cancelled) setLibrary(await listLibrary().catch(() => lib))
-      } else {
-        if (session?.metadata) setAutosave(session)
-        setLibrary(lib)
       }
+      // Load the library from a fresh read, so this (possibly late-resolving)
+      // effect never clobbers an entry the user saved while it was still running.
+      if (!cancelled) setLibrary(await listLibrary().catch(() => [] as LibraryEntry[]))
     })()
     return () => { cancelled = true }
   }, [])
@@ -202,8 +204,8 @@ export function PlaygroundView() {
   // footer bar pinned to the bottom of both the landing and the editor.
   const [library, setLibrary] = useState<LibraryEntry[]>([])
   const [browserSaved, setBrowserSaved] = useState(false)
-  const refreshLibrary = useCallback(() => {
-    listLibrary().then(setLibrary).catch(() => { /* IndexedDB unavailable */ })
+  const refreshLibrary = useCallback(async () => {
+    try { setLibrary(await listLibrary()) } catch { /* IndexedDB unavailable */ }
   }, [])
   // (Initial library load happens in the crash-recovery reconcile effect above.)
 
@@ -288,7 +290,7 @@ export function PlaygroundView() {
         metadata: lipd.metadata,
         savedAt: new Date().toISOString(),
       })
-      refreshLibrary()
+      await refreshLibrary()
       setBrowserSaved(true)
       window.setTimeout(() => setBrowserSaved(false), 1800)
     } catch {
