@@ -165,12 +165,18 @@ export function PlaygroundView() {
 
   const savedHashRef = useRef<string>('')
 
-  // Whether the open dataset came from a NOAA search — gates the "back to
-  // search results" button. The search state itself is held in a ref and fed
-  // back to NoaaImport so returning to the landing restores the same results.
-  const [openedFromNoaa, setOpenedFromNoaa] = useState(false)
+  // Preserved NOAA search state — held in a ref and fed back to NoaaImport so
+  // returning to the landing restores the same results. `hasSearchResults`
+  // mirrors "are there results to go back to" and gates the "← Search results"
+  // button, so the editor and the search stay one click apart for the whole
+  // session — including after resuming a saved dataset that didn't itself come
+  // from the search.
   const noaaSessionRef = useRef<NoaaSearchSession | null>(null)
-  const handleNoaaSession = useCallback((s: NoaaSearchSession) => { noaaSessionRef.current = s }, [])
+  const [hasSearchResults, setHasSearchResults] = useState(false)
+  const handleNoaaSession = useCallback((s: NoaaSearchSession) => {
+    noaaSessionRef.current = s
+    setHasSearchResults((s.results?.length ?? 0) > 0)
+  }, [])
 
   // "Saved in this browser" library (explicit, multi-entry; separate from the
   // single crash-recovery autosave slot above).
@@ -242,10 +248,9 @@ export function PlaygroundView() {
     </button>
   )
 
-  const handleLoad = useCallback((f: LipdFile, origin?: 'noaa') => {
+  const handleLoad = useCallback((f: LipdFile) => {
     setLipd(f)
     setSelectedTSid(null)
-    setOpenedFromNoaa(origin === 'noaa')
     savedHashRef.current = contentHash(f.metadata)
   }, [])
 
@@ -271,13 +276,32 @@ export function PlaygroundView() {
     }
   }, [lipd, refreshLibrary])
 
-  // Return to the landing WITHOUT clearing the NOAA search — NoaaImport
-  // remounts seeded from noaaSessionRef, so the results reappear.
-  const backToSearch = useCallback(() => {
+  // Auto-checkpoint the current dataset into the library so it can be resumed
+  // with a click. Preserves any existing entry's name; keyed by dataset id so
+  // it updates in place rather than piling up copies.
+  const autoSaveToLibrary = useCallback(async (l: LipdFile) => {
+    const id = libraryKey(l.metadata, l.filename)
+    const existingName = library.find(e => e.id === id)?.name
+    try {
+      await saveToLibrary({
+        id,
+        name: existingName ?? l.metadata.dataSetName ?? l.filename,
+        filename: l.filename,
+        metadata: l.metadata,
+        savedAt: new Date().toISOString(),
+      })
+      setLibrary(await listLibrary())
+    } catch { /* storage unavailable — skip */ }
+  }, [library])
+
+  // Return to the search results, auto-saving the current work first so it's
+  // waiting in the saved list to resume. The NOAA search itself is untouched —
+  // NoaaImport remounts seeded from noaaSessionRef, so the results reappear.
+  const backToSearch = useCallback(async () => {
+    if (lipd) await autoSaveToLibrary(lipd)
     setLipd(null)
     setSelectedTSid(null)
-    refreshLibrary()
-  }, [refreshLibrary])
+  }, [lipd, autoSaveToLibrary])
 
   const handleDeleteLibrary = useCallback((id: string) => {
     deleteFromLibrary(id).then(refreshLibrary).catch(() => { /* ignore */ })
@@ -480,7 +504,7 @@ export function PlaygroundView() {
               Pull a study from the NOAA NCEI Paleoclimatology archive, or open a NOAA text file.
             </p>
             <NoaaImport
-              onLoad={f => handleLoad(f, 'noaa')}
+              onLoad={handleLoad}
               initialSession={noaaSessionRef.current}
               onSession={handleNoaaSession}
             />
@@ -596,11 +620,11 @@ export function PlaygroundView() {
       )}
       <div className="toolbar-actions">
         {layoutToggle}
-        {openedFromNoaa && (
+        {hasSearchResults && (
           <button
             onClick={backToSearch}
             className="btn-back"
-            title="Return to your NOAA search results"
+            title="Save the current work and return to your NOAA search results"
           >
             ← Search results
           </button>
