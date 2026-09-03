@@ -179,13 +179,25 @@ export function PlaygroundView() {
   }, [])
 
   // "Saved in this browser" library (explicit, multi-entry; separate from the
-  // single crash-recovery autosave slot above).
+  // single crash-recovery autosave slot above). Listed in the landing footer,
+  // and reachable while editing via a toolbar dropdown (showSavedMenu).
   const [library, setLibrary] = useState<LibraryEntry[]>([])
   const [browserSaved, setBrowserSaved] = useState(false)
+  const [showSavedMenu, setShowSavedMenu] = useState(false)
+  const savedMenuRef = useRef<HTMLDivElement>(null)
   const refreshLibrary = useCallback(() => {
     listLibrary().then(setLibrary).catch(() => { /* IndexedDB unavailable */ })
   }, [])
   useEffect(() => { refreshLibrary() }, [refreshLibrary])
+  // Close the toolbar dropdown on an outside click.
+  useEffect(() => {
+    if (!showSavedMenu) return
+    const onDown = (e: MouseEvent) => {
+      if (savedMenuRef.current && !savedMenuRef.current.contains(e.target as Node)) setShowSavedMenu(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [showSavedMenu])
 
   // Workspace layout
   const [layout, setLayout] = useState<Layout>(loadLayout)
@@ -307,6 +319,17 @@ export function PlaygroundView() {
     deleteFromLibrary(id).then(refreshLibrary).catch(() => { /* ignore */ })
   }, [refreshLibrary])
 
+  // Open a saved dataset. If one is already open (editing), checkpoint it first
+  // so switching never loses work; a no-op if it's the same dataset.
+  const openSaved = useCallback(async (entry: LibraryEntry) => {
+    setShowSavedMenu(false)
+    if (lipd) {
+      if (libraryKey(lipd.metadata, lipd.filename) === entry.id) return  // already editing it
+      await autoSaveToLibrary(lipd)
+    }
+    handleLoad({ metadata: entry.metadata, filename: entry.filename, csvData: {} })
+  }, [lipd, autoSaveToLibrary, handleLoad])
+
   // Deep link: /playground?open=<lipdverse .lpd url> (used by the Query page)
   useEffect(() => {
     const url = new URLSearchParams(window.location.search).get('open')
@@ -394,6 +417,35 @@ export function PlaygroundView() {
   const errorCount = issues.filter(i => i.severity === 'error').length
   const warningCount = issues.filter(i => i.severity === 'warning').length
 
+  // The saved-datasets list, shared by the landing footer and the editor's
+  // toolbar dropdown. openSaved checkpoints any open dataset before switching.
+  const savedList = (
+    <ul className="library-list">
+      {library.map(entry => (
+        <li key={entry.id} className="library-item">
+          <button
+            type="button"
+            className="library-open"
+            onClick={() => openSaved(entry)}
+            title="Open this saved dataset"
+          >
+            <span className="library-name">{entry.name}</span>
+            <span className="library-meta">Saved {new Date(entry.savedAt).toLocaleString()}</span>
+          </button>
+          <button
+            type="button"
+            className="library-delete"
+            onClick={() => handleDeleteLibrary(entry.id)}
+            aria-label={`Remove ${entry.name} from this browser`}
+            title="Remove from this browser"
+          >
+            ×
+          </button>
+        </li>
+      ))}
+    </ul>
+  )
+
   if (!lipd) {
     return (
       <div className="app landing">
@@ -436,39 +488,6 @@ export function PlaygroundView() {
         )}
 
         <div className="landing-cards">
-          {library.length > 0 && (
-            <section className="landing-card landing-card-wide">
-              <h2>Saved in this browser</h2>
-              <p className="landing-card-hint">
-                Datasets you kept on this device. Reopen one to pick up where you left off.
-              </p>
-              <ul className="library-list">
-                {library.map(entry => (
-                  <li key={entry.id} className="library-item">
-                    <button
-                      type="button"
-                      className="library-open"
-                      onClick={() => handleLoad({ metadata: entry.metadata, filename: entry.filename, csvData: {} })}
-                      title="Open this saved dataset"
-                    >
-                      <span className="library-name">{entry.name}</span>
-                      <span className="library-meta">Saved {new Date(entry.savedAt).toLocaleString()}</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="library-delete"
-                      onClick={() => handleDeleteLibrary(entry.id)}
-                      aria-label={`Remove ${entry.name} from this browser`}
-                      title="Remove from this browser"
-                    >
-                      ×
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-
           <section className="landing-card">
             <h2>Open a LiPD</h2>
             <DropZone onLoad={handleLoad} />
@@ -519,6 +538,16 @@ export function PlaygroundView() {
             <PangaeaImport onLoad={handleLoad} />
           </section>
         </div>
+
+        {library.length > 0 && (
+          <footer className="landing-saved">
+            <h2>Saved in this browser</h2>
+            <p className="landing-saved-hint">
+              Datasets you kept on this device. Reopen one to pick up where you left off.
+            </p>
+            {savedList}
+          </footer>
+        )}
 
         {showWizard && (
           <NewDatasetWizard
@@ -628,6 +657,24 @@ export function PlaygroundView() {
           >
             ← Search results
           </button>
+        )}
+        {library.length > 0 && (
+          <div className="saved-menu" ref={savedMenuRef}>
+            <button
+              className="btn-browser"
+              onClick={() => setShowSavedMenu(s => !s)}
+              aria-expanded={showSavedMenu}
+              aria-haspopup="menu"
+              title="Open another dataset saved in this browser"
+            >
+              Saved ({library.length}) ▾
+            </button>
+            {showSavedMenu && (
+              <div className="saved-menu-panel" role="menu">
+                {savedList}
+              </div>
+            )}
+          </div>
         )}
         <button
           onClick={() => { downloadNoaa(lipd).catch(e => alert(e instanceof Error ? e.message : String(e))) }}

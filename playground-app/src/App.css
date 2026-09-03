@@ -894,7 +894,25 @@ body { background: var(--bg); height: 100vh; overflow: hidden; }
 .btn-discard { background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 6px; padding: .35rem .9rem; font-size: .82rem; cursor: pointer; }
 .btn-discard:hover { border-color: #c0392b; color: #c0392b; }
 
-/* ---- Saved-in-browser library (landing) ---- */
+/* ---- Saved-in-browser library ---- */
+/* Landing footer */
+.landing-saved {
+  width: 100%; max-width: 720px; margin: 2.5rem auto 0;
+  padding-top: 1.5rem; border-top: 1px solid var(--border);
+}
+.landing-saved h2 {
+  font-size: .85rem; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--text-muted); margin-bottom: .3rem;
+}
+.landing-saved-hint { color: var(--text-muted); font-size: .8rem; margin-bottom: .6rem; }
+/* Editor toolbar dropdown */
+.saved-menu { position: relative; }
+.saved-menu-panel {
+  position: absolute; top: calc(100% + 4px); right: 0; z-index: 1200;
+  width: 340px; max-width: 80vw; max-height: 60vh; overflow-y: auto;
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 8px; padding: .4rem; box-shadow: 0 8px 24px rgba(0, 0, 0, .14);
+}
 .library-list { list-style: none; display: flex; flex-direction: column; gap: .4rem; }
 .library-item {
   display: flex; align-items: stretch; gap: .5rem;
