@@ -909,6 +909,7 @@ body { background: var(--bg); height: 100vh; overflow: hidden; }
   flex: 0 0 auto; font-size: .7rem; text-transform: uppercase; letter-spacing: .05em;
   color: var(--text-muted); font-weight: 600;
 }
+.saved-footer-empty { font-size: .78rem; color: var(--text-muted); }
 .saved-footer-list {
   list-style: none; display: flex; align-items: center; gap: .4rem;
   overflow-x: auto; padding: 2px 0; min-width: 0;

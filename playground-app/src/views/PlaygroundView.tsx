@@ -131,15 +131,34 @@ export function PlaygroundView() {
     setShowWelcome(false)
   }
 
-  // Unsaved-session recovery: offer to restore an auto-saved dataset on landing
+  // Unsaved-session recovery: offer to restore an auto-saved dataset on landing.
+  // Only for work with no home in the saved footer — if the crash slot holds a
+  // dataset that's already saved there, fold its (newer) edits into that entry
+  // and skip the banner, so the same dataset never shows up in both places.
   const [autosave, setAutosave] = useState<AutosavePayload | null>(null)
   const autosaveTimer = useRef<number | undefined>(undefined)
-  // Load any previously auto-saved session once on mount
   useEffect(() => {
     let cancelled = false
-    loadSession<AutosavePayload>()
-      .then(s => { if (!cancelled && s?.metadata) setAutosave(s) })
-      .catch(() => { /* IndexedDB unavailable — no restore offered */ })
+    ;(async () => {
+      const lib = await listLibrary().catch(() => [] as LibraryEntry[])
+      let session: AutosavePayload | null = null
+      try { session = await loadSession<AutosavePayload>() } catch { /* IndexedDB unavailable */ }
+      if (cancelled) return
+      const existing = session?.metadata
+        ? lib.find(e => e.id === libraryKey(session!.metadata, session!.filename))
+        : undefined
+      if (session?.metadata && existing) {
+        const updated: LibraryEntry = {
+          ...existing, metadata: session.metadata, filename: session.filename, savedAt: session.savedAt,
+        }
+        await saveToLibrary(updated).catch(() => {})
+        await clearSession().catch(() => {})
+        if (!cancelled) setLibrary(await listLibrary().catch(() => lib))
+      } else {
+        if (session?.metadata) setAutosave(session)
+        setLibrary(lib)
+      }
+    })()
     return () => { cancelled = true }
   }, [])
   // Debounced persist of the open dataset
@@ -186,7 +205,7 @@ export function PlaygroundView() {
   const refreshLibrary = useCallback(() => {
     listLibrary().then(setLibrary).catch(() => { /* IndexedDB unavailable */ })
   }, [])
-  useEffect(() => { refreshLibrary() }, [refreshLibrary])
+  // (Initial library load happens in the crash-recovery reconcile effect above.)
 
   // Workspace layout
   const [layout, setLayout] = useState<Layout>(loadLayout)
@@ -408,33 +427,40 @@ export function PlaygroundView() {
   // Always-visible footer bar of saved datasets, pinned to the bottom of both
   // the landing and the editor. Each is a clickable chip; openSaved checkpoints
   // any open dataset before switching. The chip for the open dataset is marked.
+  // Shown even when empty, with a hint, so it's a constant, findable place.
   const currentKey = lipd ? libraryKey(lipd.metadata, lipd.filename) : null
-  const savedFooter = library.length > 0 && (
+  const savedFooter = (
     <footer className="saved-footer" aria-label="Datasets saved in this browser">
       <span className="saved-footer-label">Saved</span>
-      <ul className="saved-footer-list">
-        {library.map(entry => (
-          <li key={entry.id} className={`saved-chip ${entry.id === currentKey ? 'active' : ''}`}>
-            <button
-              type="button"
-              className="saved-chip-open"
-              onClick={() => openSaved(entry)}
-              title={`Open “${entry.name}” — saved ${new Date(entry.savedAt).toLocaleString()}`}
-            >
-              {entry.name}
-            </button>
-            <button
-              type="button"
-              className="saved-chip-del"
-              onClick={() => handleDeleteLibrary(entry.id)}
-              aria-label={`Remove ${entry.name} from this browser`}
-              title="Remove from this browser"
-            >
-              ×
-            </button>
-          </li>
-        ))}
-      </ul>
+      {library.length === 0 ? (
+        <span className="saved-footer-empty">
+          Nothing saved yet — use “Save to browser” to keep a dataset here.
+        </span>
+      ) : (
+        <ul className="saved-footer-list">
+          {library.map(entry => (
+            <li key={entry.id} className={`saved-chip ${entry.id === currentKey ? 'active' : ''}`}>
+              <button
+                type="button"
+                className="saved-chip-open"
+                onClick={() => openSaved(entry)}
+                title={`Open “${entry.name}” — saved ${new Date(entry.savedAt).toLocaleString()}`}
+              >
+                {entry.name}
+              </button>
+              <button
+                type="button"
+                className="saved-chip-del"
+                onClick={() => handleDeleteLibrary(entry.id)}
+                aria-label={`Remove ${entry.name} from this browser`}
+                title="Remove from this browser"
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </footer>
   )
 
