@@ -578,7 +578,7 @@ export function PlaygroundView() {
             <h2>PANGAEA to LiPD</h2>
             <p className="landing-card-hint">
               Import a dataset from the <a href="https://www.pangaea.de" target="_blank" rel="noreferrer">PANGAEA</a> archive
-              by ID or DOI (fast), or by keyword search (slower).
+              by ID, DOI, or URL.
             </p>
             <PangaeaImport onLoad={handleLoad} />
           </section>
