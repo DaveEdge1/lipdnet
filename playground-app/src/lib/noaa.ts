@@ -676,7 +676,7 @@ interface ServicePayload {
   members?: Array<{ id: string; name?: string }>
 }
 
-function serviceToLipd(p: ServicePayload): NoaaImportResult {
+function serviceToLipd(p: ServicePayload, source: 'NOAA' | 'PANGAEA' = 'NOAA'): NoaaImportResult {
   const paleoData: LipdPaleoData[] = []
   const built = p.tables.map((t, ti) => {
     // Track variableNames already used in this table so normalization never
@@ -756,10 +756,10 @@ function serviceToLipd(p: ServicePayload): NoaaImportResult {
       }
     : undefined
 
-  const dataSetName = (p.dataSetName || `NOAA-${p.studyId}`).replace(/[^\w.\- ]+/g, '').trim()
+  const dataSetName = (p.dataSetName || `${source}-${p.studyId}`).replace(/[^\w.\- ]+/g, '').trim()
   const metadata: LipdMetadata = {
     lipdVersion: 1.3,
-    createdBy: 'lipd.net playground (NOAA import via PyleoTUPS)',
+    createdBy: `lipd.net playground (${source} import via PyleoTUPS)`,
     dataSetName,
     datasetVersion: '1.0.0',
     // Prefer the synonyms map (e.g. "Marine" → MarineSediment); fall back to the
@@ -767,7 +767,9 @@ function serviceToLipd(p: ServicePayload): NoaaImportResult {
     archiveType: normalizeArchiveType(p.archiveType) ?? (p.archiveType ? ARCHIVE_MAP[p.archiveType.toUpperCase()] : undefined),
     investigators: p.investigators ?? undefined,
     originalDataUrl: p.originalDataUrl ?? undefined,
-    NOAAStudyId: p.studyId,
+    // NOAAStudyId identifies an NCEI study; don't stamp it on PANGAEA imports
+    // (p.studyId is a PANGAEA id there) — it drives the NOAA source-text view.
+    ...(source === 'NOAA' ? { NOAAStudyId: p.studyId } : {}),
     // Study-level metadata NOAA carries but PyleoTUPS drops. notes → the NOAA
     // "Description_Notes_and_Keywords" the exporter round-trips; funding + the
     // dataset DOI feed the existing MetadataPanel editors and NOAA validation.
@@ -941,7 +943,7 @@ export async function pangaeaImport(id: string, expand = false): Promise<Pangaea
     if (payload.metadataOnly || !payload.tables.length) {
       return { status: 'error', message: 'No importable data table found in this PANGAEA dataset.' }
     }
-    return { status: 'ok', result: serviceToLipd(payload) }
+    return { status: 'ok', result: serviceToLipd(payload, 'PANGAEA') }
   } catch (e) {
     return { status: 'error', message: e instanceof Error ? e.message : 'Bad service response' }
   }

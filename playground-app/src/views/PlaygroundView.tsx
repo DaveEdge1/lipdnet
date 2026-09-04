@@ -24,6 +24,7 @@ import type { NoaaSearchSession } from '../components/NoaaImport'
 import { WelcomeDialog } from '../components/WelcomeDialog'
 import { validateLipd } from '../lib/validate'
 import { proxiedLpdUrl } from '../lib/remote'
+import { setFeedbackDataset } from '../lib/feedbackContext'
 import type { LipdFile, LipdMetadata } from '../types/lipd'
 
 function contentHash(metadata: LipdMetadata): string {
@@ -178,6 +179,26 @@ export function PlaygroundView() {
       } satisfies AutosavePayload).catch(() => { /* storage unavailable — skip */ })
     }, 1000)
     return () => window.clearTimeout(autosaveTimer.current)
+  }, [lipd])
+
+  // Publish the open dataset's identity so the NavBar's Feedback link can fold
+  // it into the pre-filled GitHub issue (dataset name/id, and NOAA/PANGAEA
+  // source when known). Cleared when no dataset is open.
+  useEffect(() => {
+    if (!lipd) { setFeedbackDataset(null); return }
+    const m = lipd.metadata
+    const created = typeof m.createdBy === 'string' ? m.createdBy : ''
+    const source = m.NOAAStudyId ? 'NOAA'
+      : /PANGAEA/i.test(created) ? 'PANGAEA'
+      : /NOAA/i.test(created) ? 'NOAA'
+      : undefined
+    setFeedbackDataset({
+      dataSetName: m.dataSetName,
+      datasetId: typeof m.datasetId === 'string' ? m.datasetId : undefined,
+      noaaStudyId: m.NOAAStudyId ? String(m.NOAAStudyId) : undefined,
+      source,
+    })
+    return () => setFeedbackDataset(null)
   }, [lipd])
 
   // Per-panel tab state (2×2 grid) + the single-pane view selection
