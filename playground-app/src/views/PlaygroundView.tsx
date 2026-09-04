@@ -2,7 +2,6 @@ import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { DropZone } from '../components/DropZone'
 import { NoaaImport } from '../components/NoaaImport'
-import { PangaeaImport } from '../components/PangaeaImport'
 import { MetadataPanel } from '../components/MetadataPanel'
 import { ChangelogPanel } from '../components/ChangelogPanel'
 import { ColumnList } from '../components/ColumnList'
@@ -572,15 +571,6 @@ export function PlaygroundView() {
               initialSession={noaaSessionRef.current}
               onSession={handleNoaaSession}
             />
-          </section>
-
-          <section className="landing-card landing-card-wide">
-            <h2>PANGAEA to LiPD</h2>
-            <p className="landing-card-hint">
-              Import a dataset from the <a href="https://www.pangaea.de" target="_blank" rel="noreferrer">PANGAEA</a> archive
-              by ID, DOI, or URL.
-            </p>
-            <PangaeaImport onLoad={handleLoad} />
           </section>
         </div>
         </div>
