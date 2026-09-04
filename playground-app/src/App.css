@@ -58,6 +58,13 @@ body { background: var(--bg); height: 100vh; overflow: hidden; }
 }
 .site-nav-links a:hover { color: var(--accent); background: none; }
 .site-nav-links a.active { color: #111; }
+.site-nav-cta a {
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  line-height: 20px;
+}
+.site-nav-cta a:hover { color: #fff; background: var(--accent); }
 
 /* ---- Landing (title at top, card layout) ---- */
 .app.landing {
