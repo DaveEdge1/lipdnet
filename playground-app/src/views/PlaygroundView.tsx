@@ -339,7 +339,7 @@ export function PlaygroundView() {
     handleLoad({ metadata: entry.metadata, filename: entry.filename, csvData: {} })
   }, [lipd, autoSaveToLibrary, handleLoad])
 
-  // Deep link: /playground?open=<lipdverse .lpd url> (used by the Query page)
+  // Deep link: /playground-new?open=<lipdverse .lpd url> (used by the Query page)
   useEffect(() => {
     const url = new URLSearchParams(window.location.search).get('open')
     if (!url) return

@@ -1,0 +1,59 @@
+md-toolbar.md-hue-1
+  h2.md-toolbar-tools
+    span Root
+
+//- div(layout='', layout-padding='', layout-sm='column')
+
+//-   md-input-container(flex="")
+
+//-     label archive type
+//-     input.mdautocomplete(type="text" list="archiveType" ng-model="files.json.archiveType" ng-change="predictNextValue('archiveType', files.json.archiveType)")
+//-     datalist(id="archiveType")
+//-       option(ng-repeat="entry in ontology['archiveType']" value="{{entry}}")
+
+div(layout='', layout-padding='', layout-sm='column')
+
+  md-input-container(flex="")
+    label LiPD Version *
+    input(ng-model='files.json.lipdVersion' disabled)
+    md-tooltip {{getTooltip("root", "lipdVersion")}}
+  md-input-container(flex='', ng-class="md-input-has-value")
+    label Dataset Name *
+    input(ng-model='files.json.dataSetName' ng-change="getSet(files.json.dataSetName)")
+    md-tooltip {{getTooltip("root", "dataSetName")}}
+
+div(layout='', layout-padding='', layout-sm='column')
+  md-input-container(flex="")
+    label Created By *
+    input.mdautocomplete(type="text" ng-model="files.json.createdBy"
+          uib-typeahead="entry for entry in dropdowns.createdBy | filter:$viewValue" typeahead-min-length="0")
+    md-tooltip {{getTooltip("root", "createdBy")}}
+
+  md-input-container(flex="")
+    label Archive Type *
+    input.mdautocomplete(type="text" list="archiveType" ng-model="files.json.archiveType" ng-change="predictNextValue('archiveType', null)")
+    datalist(id="archiveType")
+        option(ng-repeat="entry in common['standardized_keys']['archiveType']" value="{{entry}}")
+    md-tooltip {{getTooltip("root", "archiveType")}}
+
+div(layout='', layout-padding='', layout-sm='column')
+  md-input-container(flex='66', ng-class="md-input-has-value")
+    label(ng-if="pageMeta.noaaReady") Investigators *
+    label(ng-if="!pageMeta.noaaReady") Investigators
+    input(ng-model='files.json.investigators' aria-label="Investigators")
+    md-tooltip {{getTooltip("root", "investigators")}}
+
+  //  md-input-container(flex='33', ng-class="md-input-has-value")
+  //    label(ng-if="pageMeta.noaaReady") Collection Name *
+  //    label(ng-if="!pageMeta.noaaReady") Collection Name
+  //    input(ng-model='files.json.collectionName' aria-label="Collection Name")
+  //    md-tooltip {{getTooltip("root", "collectionName")}}
+
+
+
+div(layout='', layout-padding='', layout-sm='column')
+  md-input-container(flex='', ng-class="md-input-has-value")
+    label Notes
+    textarea(ng-model='files.json.notes', columns='1')
+    md-tooltip {{getTooltip("root", "notes")}}
+

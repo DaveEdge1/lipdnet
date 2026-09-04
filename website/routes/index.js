@@ -1399,9 +1399,17 @@ router.post('/', function(req, res, next){
 router.get("/playground", function(req, res, next){
   // Track playground page visit
   stats.recordPageVisit('playground', {}, getClientIp(req));
+  // The classic (AngularJS) playground remains the default. The new React
+  // playground is served alongside it as a beta at /playground-new.
+  res.render('playground', {title: 'Playground'});
+});
+
+router.get("/playground-new", function(req, res, next){
+  // Track beta playground page visit
+  stats.recordPageVisit('playground-new', {}, getClientIp(req));
   // Serve the React playground SPA (built from /playground-app into public/playground-app).
-  var indexPath = path.join(process.cwd(), "public", "playground-app", "index.html");
-  res.sendFile(indexPath, function(err){
+  // The SPA picks the Playground view from the pathname (see App.tsx).
+  res.sendFile(path.join(process.cwd(), "public", "playground-app", "index.html"), function(err){
     if(err){ next(err); }
   });
 });

@@ -4,13 +4,14 @@ import { QueryView } from './views/QueryView'
 import { MergeView } from './views/MergeView'
 import './App.css'
 
-// The Express app serves this SPA at /playground, /query, and /merge — each
-// route is a full page load, so the view is picked from the pathname.
-function currentRoute(): '/playground' | '/query' | '/merge' {
+// The Express app serves this SPA at /playground-new (beta), /query, and /merge
+// — each route is a full page load, so the view is picked from the pathname.
+// (/playground stays the classic AngularJS page, served by Express directly.)
+function currentRoute(): '/playground-new' | '/query' | '/merge' {
   const path = window.location.pathname.replace(/\/+$/, '')
   if (path === '/query') return '/query'
   if (path === '/merge') return '/merge'
-  return '/playground'
+  return '/playground-new'
 }
 
 export default function App() {
@@ -21,7 +22,7 @@ export default function App() {
       <div className="site-view">
         {route === '/query' && <QueryView />}
         {route === '/merge' && <MergeView />}
-        {route === '/playground' && <PlaygroundView />}
+        {route === '/playground-new' && <PlaygroundView />}
       </div>
     </div>
   )

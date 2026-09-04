@@ -2,6 +2,7 @@ const LINKS = [
   { href: '/', label: 'Home' },
   { href: '/format', label: 'Format' },
   { href: '/playground', label: 'Playground' },
+  { href: '/playground-new', label: 'Playground (beta)' },
   { href: '/query', label: 'Query' },
   { href: '/merge', label: 'Merge' },
 ]

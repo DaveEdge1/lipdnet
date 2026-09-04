@@ -1,0 +1,966 @@
+/* upload.css */
+
+
+/*
+
+strong color scheme
+red: #d9534f
+yellow: #e2b41d
+green: #8FA864
+blue: #337AB7
+gray: #848484
+
+
+Light color scheme
+red: #FEBABB
+yellow: #FEEEB6
+green: #DEF1C0
+blue: #AADAFF
+gray: #808080
+
+
+ */
+
+
+
+
+/* BASIC STYLINGS
+============================================================================= */
+body                            { padding-top:20px;}
+
+/* form styling */
+#form-container                { background:#fff; margin-bottom:20px;
+    border-radius:5px; }
+#form-container .page-header   { background: transparent; margin:0; padding:30px;
+    border-top-left-radius:5px; border-top-right-radius:5px; }
+
+/* numbered buttons */
+#status-buttons                 {  }
+#status-buttons a               { color:#111; display:inline-block; font-size:12px; margin-right:10px; text-align:center; text-transform:uppercase; }
+#status-buttons a:hover         { text-decoration:none; }
+
+/* span as the circled number */
+#status-buttons span            { background:#fff; display:block; height:30px; margin:0 auto 10px; padding-top:5px; width:30px;
+    border-radius:50%; }
+
+/* active buttons*/
+#status-buttons a.active span   { background:#71a436; color:#fff }
+
+.md-button.md-small {
+  max-width: 20px;
+  height: 20px;
+  line-height: 20px;
+  min-height: 20px;
+  vertical-align: bottom;
+  font-size: 10px;
+  padding: 0 0;
+  margin: auto auto;
+}
+
+.on {
+  border: none;
+}
+.off {
+  border: none;
+  opacity: 0.2;
+}
+
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.alert-info {
+    margin-bottom:0;
+    background-color: #FDEDB9;
+    border-color: white;
+    color: black;
+}
+
+/* Autocomplete database form (in FileCtrl)
+============================================================================= */
+.ac-db li {
+  border-bottom: 1px solid #ccc;
+  height: auto;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  white-space: normal; }
+
+.ac-db li:last-child {
+  border-bottom-width: 0; }
+
+.ac-db .item-title, .ac-db .item-metadata {
+  display: block;
+  line-height: 2; }
+
+.ac-db .item-title md-icon {
+  height: 18px;
+  width: 18px; }
+
+
+
+/* ANIMATION STYLINGS
+============================================================================= */
+#upload-form            { position:relative; min-height:300px; overflow:hidden; padding:30px; }
+#form-views             { width:auto; }
+
+/* basic styling for entering and leaving */
+/* left and right added to ensure full width */
+#form-views.ng-enter,
+#form-views.ng-leave      { position:absolute; left:30px; right:30px;
+    transition:0.5s all ease; -moz-transition:0.5s all ease; -webkit-transition:0.5s all ease;
+}
+
+/* enter animation */
+#form-views.ng-enter            {
+    -webkit-animation:slideInRight 0.5s both ease;
+    -moz-animation:slideInRight 0.5s both ease;
+    animation:slideInRight 0.5s both ease;
+}
+
+/* leave animation */
+#form-views.ng-leave            {
+    -webkit-animation:slideOutLeft 0.5s both ease;
+    -moz-animation:slideOutLeft 0.5s both ease;
+    animation:slideOutLeft 0.5s both ease;
+}
+
+/* ANIMATIONS
+============================================================================= */
+/* slide out to the left */
+@keyframes slideOutLeft {
+    to      { transform: translateX(-200%); }
+}
+@-moz-keyframes slideOutLeft {
+    to      { -moz-transform: translateX(-200%); }
+}
+@-webkit-keyframes slideOutLeft {
+    to      { -webkit-transform: translateX(-200%); }
+}
+
+/* slide in from the right */
+@keyframes slideInRight {
+    from    { transform:translateX(200%); }
+    to      { transform: translateX(0); }
+}
+@-moz-keyframes slideInRight {
+    from    { -moz-transform:translateX(200%); }
+    to      { -moz-transform: translateX(0); }
+}
+@-webkit-keyframes slideInRight {
+    from    { -webkit-transform:translateX(200%); }
+    to      { -webkit-transform: translateX(0); }
+}
+
+
+
+/* NG - ANIMATE TRANSITIONS
+============================================================================= */
+
+.animate-enter,
+.animate-leave
+{
+    -webkit-transition: 1075ms cubic-bezier(0.645, 0.045, 0.355, 1.000) all;
+    -moz-transition: 1075ms cubic-bezier(0.645, 0.045, 0.355, 1.000) all;
+    -ms-transition: 1075ms cubic-bezier(0.645, 0.045, 0.355, 1.000) all;
+    -o-transition: 1075ms cubic-bezier(0.645, 0.045, 0.355, 1.000) all;
+    transition: 1075ms cubic-bezier(0.645, 0.045, 0.355, 1.000) all;
+}
+
+.animate-enter {
+    left: 100%;
+}
+.animate-enter.animate-enter-active {
+    left: 0;
+}
+
+.animate-leave {
+    left: 0;
+}
+.animate-leave.animate-leave-active{
+    left: -100%;
+}
+
+.datepickerdemoBasicUsage {
+  /** Demo styles for mdCalendar. */ }
+  .datepickerdemoBasicUsage md-content {
+    padding-bottom: 200px; }
+
+.x-button {
+    height: 20px;
+    width: 20px;
+    position:relative;
+    margin-top:5%;}
+
+  body{
+    -webkit-text-size-adjust: none;
+  }
+
+  #container {
+  	width: 700px;
+  }
+
+  #buttons {
+  	padding-bottom: 10px;
+  }
+
+  #demo-container li {
+  	margin-bottom: 1em;
+  	min-height: 40px;
+  }
+
+  #file-list {
+  	padding-left: 10px;
+  	padding-top: 5px;
+  	padding-bottom: 14px;
+  	font-family: 'Droid Sans Mono', courier;
+  	font-size: 10pt;
+  	overflow: hidden;
+  	white-space: nowrap;
+  	margin-top: 14px;
+  	border: 1px solid #808080;
+  	border-radius: 5px;
+  	min-height: 28px;
+  	/*background-color: #eee;*/
+  	background-color:#f9f9f9;
+  }
+
+  #file-list li {
+  	overflow: hidden;
+  	text-overflow: ellipsis;
+  	position: relative;
+  	font-size: 11pt;
+  	margin: .5em;
+  	min-height: 28px;
+  }
+
+  .form-label {
+  	width: 270px;
+  	display: inline-block;
+  	font-size: 12pt;
+  }
+
+  #demo-container {
+  	margin-right: 50px;
+  }
+
+  input[type=text] {
+  	height: 21px;
+  }
+
+  input[type=text],select {
+  	font-size: 12pt;
+  	padding: 4px;
+  	border: solid 1px #AACFE4;
+  	width: 200px;
+  	border-radius: 5px;
+  	/* text-align: center; */
+  	box-shadow: 0px 0px 10px #ccc;
+  }
+
+  select {
+  	width: 212px;
+  }
+
+  input[type=file] {
+  	color: transparent;
+  	font-size: 12pt;
+    border-radius: 0 0 5px 5px;
+  }
+
+  input[type=file]::-webkit-file-upload-button {
+  	font-size: 10pt;
+  	color: gray;
+  	border: solid 1px gray;
+  	width: 150px !important;
+  	max-width: 150px;
+  	height: 31px;
+  	border-radius: 0 0 5px 5px;
+  	box-sizing:border-box;
+  	background-color: white;
+  }
+
+  input[type=file][disabled]::-webkit-file-upload-button {
+  	font-size: 10pt;
+  	color: #eee;
+  	border: solid 1px #eee;
+  	width: 150px !important;
+  	max-width: 150px;
+  	height: 31px;
+    border-radius: 0 0 5px 5px;
+  	box-sizing:border-box;
+  	background-color: white;
+  }
+
+    .green-btn-on{
+        font-size: 10pt;
+        background-color: #8FA864;
+        font-family: RobotoDraft,Roboto,'Helvetica Neue',sans-serif;
+        margin-right: 5px;
+        padding: 4px;
+        width: 150px;
+        height: 31px;
+        border-radius: 5px;
+        color: white;
+        border: solid 1px #8FA864;
+    }
+
+  .green-btn-off{
+  	font-size: 10pt;
+  	background-color: white;
+  	font-family: RobotoDraft,Roboto,'Helvetica Neue',sans-serif;
+  	margin-right: 5px;
+  	padding: 4px;
+  	width: 150px;
+  	height: 31px;
+  	border-radius: 5px;
+  	color: #8FA864;
+  	border: solid 1px #8FA864;
+      font-weight: 400;
+
+  }
+
+  .green-btn[disabled]{
+  	font-size: 10pt;
+  	background-color: white;
+  	font-family: RobotoDraft,Roboto,'Helvetica Neue',sans-serif;
+  	margin-right: 5px;
+  	padding: 4px;
+  	width: 150px;
+  	height: 31px;
+  	border-radius: 5px;
+  	color: #eee;
+  	border: solid 1px #eee;
+      font-weight: 400;
+  }
+
+.blue-btn-on{
+    width: 150px;
+    height:50px;
+    margin: 1.5em;
+    padding: 2px 5px 2px 5px;
+    color: white;
+    border: solid 1px #2C6FAE;
+    background-color: #2C6FAE;
+    border-radius: 5px;
+    font-weight: 400;
+
+}
+
+.blue-btn-off{
+    width: 150px;
+    height:50px;
+    border-radius: 5px;
+    margin: 1.5em;
+    padding: 2px 5px 2px 5px;
+    color: #2C6FAE;
+    background-color: white;
+    border: solid 1px #2C6FAE;
+    font-weight: 400;
+
+}
+
+
+
+  .green-btn-sm{
+    font-size: 10pt;
+    background-color: white;
+    font-family: RobotoDraft,Roboto,'Helvetica Neue',sans-serif;
+    margin-right: 5px;
+    padding: 4px;
+    width: 30px;
+    height: 30px;
+    border-radius: 5px;
+    color: #8FA864;
+    border: solid 1px #8FA864;
+      font-weight: 400;
+
+  }
+
+.yellow-btn-on{
+    font-size: 10pt;
+    background-color: #e2b41d;
+    font-family: RobotoDraft,Roboto,'Helvetica Neue',sans-serif;
+    margin-right: 5px;
+    padding: 4px;
+    width: 150px;
+    height: 31px;
+    border-radius: 5px;
+    color: white;
+    border: solid 1px #e2b41d;
+    font-weight: 400;
+
+}
+.yellow-btn-off{
+    font-size: 10pt;
+    background-color: white;
+    font-family: RobotoDraft,Roboto,'Helvetica Neue',sans-serif;
+    margin-right: 5px;
+    padding: 4px;
+    width: 150px;
+    height: 31px;
+    border-radius: 5px;
+    color: #e2b41d;
+    border: solid 1px #e2b41d;
+    font-weight: 400;
+
+}
+
+
+.red-btn-on{
+    font-size: 10pt;
+    font-family: RobotoDraft,Roboto,'Helvetica Neue',sans-serif;
+    margin-right: 5px;
+    padding: 4px;
+    width: 150px;
+    height: 31px;
+    border-radius: 5px;
+    color: white;
+    background-color:#C63B3B;
+    border: solid 1px #C63B3B;
+    font-weight: 400;
+
+}
+
+
+.red-btn-off{
+    font-size: 10pt;
+    background-color: white;
+    font-family: RobotoDraft,Roboto,'Helvetica Neue',sans-serif;
+    margin-right: 5px;
+    padding: 4px;
+    width: 150px;
+    height: 31px;
+    border-radius: 5px;
+    color: #C63B3B;
+    border: solid 1px #C63B3B;
+    font-weight: 400;
+
+}
+
+.red-btn-sm-on{
+    font-size: 10pt;
+    background-color: #C63B3B;
+    font-family: RobotoDraft,Roboto,'Helvetica Neue',sans-serif;
+    margin: 5px;
+    padding: 4px;
+    width: 30px;
+    height: 30px;
+    border-radius: 5px;
+    color: white;
+    border: solid 1px #C63B3B;
+    font-weight: 400;
+
+}
+
+.red-btn-sm-off{
+    font-size: 10pt;
+    background-color: white;
+    font-family: RobotoDraft,Roboto,'Helvetica Neue',sans-serif;
+    margin: 5px;
+    padding: 4px;
+    width: 30px;
+    height: 30px;
+    border-radius: 5px;
+    color: #C63B3B;
+    border: solid 1px #C63B3B;
+    font-weight: 400;
+
+}
+
+.tab-btn-on{
+    font-size: 10pt;
+    font-weight: 400;
+    background-color: #2C6FAE;
+    border: solid 1px #2C6FAE;
+    font-family: RobotoDraft,Roboto,'Helvetica Neue',sans-serif;
+    margin-right: 3px;
+    width: 120px;
+    height: 31px;
+    border-radius: 0 0 5px 5px;
+    color: white;
+}
+
+.tab-btn-off{
+    font-size: 10pt;
+    font-weight: 400;
+    background-color: white;
+    border-color: transparent #dddddd #dddddd #dddddd;
+    font-family: RobotoDraft,Roboto,'Helvetica Neue',sans-serif;
+    margin-right: 3px;
+    width: 120px;
+    height: 31px;
+    border-radius: 0 0 5px 5px;
+    border-style: solid;
+    color: #2C6FAE;
+}
+
+
+
+
+.table-tab-btn-on{
+    font-size: 10pt;
+    font-weight: 400;
+    background-color: #2C6FAE;
+    font-family: RobotoDraft,Roboto,'Helvetica Neue',sans-serif;
+    margin-right: 3px;
+    width: 120px;
+    height: 50px;
+    border-radius: 0 0 5px 5px;
+    border: solid 1px #2C6FAE;
+    color: white;
+}
+
+.table-tab-btn-off{
+    font-size: 10pt;
+    font-weight: 400;
+    background-color: white;
+    border-color: transparent #dddddd #dddddd #dddddd;
+    font-family: RobotoDraft,Roboto,'Helvetica Neue',sans-serif;
+    margin-right: 3px;
+    width: 120px;
+    height: 50px;
+    border-radius: 0 0 5px 5px;
+    border-style: solid;
+    color: #2C6FAE;
+}
+
+
+
+/* Make the horizontal scroll bars thin. Without it, they're very thick and do not match the style of the default vertical
+scroll bars.
+ */
+::-webkit-scrollbar {
+    height: 7px;              /* height of horizontal scrollbar ← You're missing this */
+    width: 5px;               /* width of vertical scrollbar */
+}
+
+
+
+progress {
+  	position: absolute;
+  	right: 0px;
+  	top: 1px;
+  	opacity: .7;
+  	width: 80px;
+  }
+
+  .btn-row {
+      overflow: scroll;
+      height: auto;
+      margin: 0px 0px;
+      padding-bottom: 10px;
+      overflow-y: hidden;
+      overflow-x: auto;
+  }
+
+.btn-danger {
+    background-color: #FDBABC;
+    color: white;
+    border: solid 1px #FDBABC;
+    font-weight: 400;
+
+}
+
+.btn-success {
+    background-color: #DBEFB9;
+    color: white;
+    border: solid 1px #DBEFB9;
+    font-weight: 400;
+
+}
+
+.btn-primary {
+    background-color: #99C5FF;
+    color: white;
+    border: solid 1px #99C5FF;
+    font-weight: 400;
+
+}
+
+
+
+.table-blue-btn-on{
+    width: 120px;
+    height:50px;
+    margin: 1.5em;
+    padding: 2px 5px 2px 5px;
+    color: white;
+    border: solid 1px #2C6FAE;
+    background-color: #2C6FAE;
+    border-radius: 5px;
+    font-weight: 400;
+
+}
+
+.table-blue-btn-off{
+    width: 120px;
+    height:50px;
+    border-radius: 5px;
+    margin: 1.5em;
+    padding: 2px 5px 2px 5px;
+    color: #2C6FAE;
+    background-color: white;
+    border: solid 1px #2C6FAE;
+    font-weight: 400;
+
+}
+
+
+.plain {
+    background: white;
+    color: #8FA864;
+}
+
+
+
+
+/* Always show scroll bars! */
+::-webkit-scrollbar {
+    -webkit-appearance: none;
+    width: 7px;
+}
+::-webkit-scrollbar-thumb {
+    border-radius: 4px;
+    background-color: rgba(0, 0, 0, .5);
+    -webkit-box-shadow: 0 0 1px rgba(255, 255, 255, .5);
+}
+
+
+
+/* Multi step progress bar indicator for Merge.jade page */
+.progressbarcontainer {
+    width: 100%;
+    display: inline-grid;
+    margin: 50px auto;
+}
+.progressbar {
+    margin: 0;
+    padding: 0;
+    counter-reset: step;
+}
+.progressbar li {
+    list-style-type: none;
+    width: 25%;
+    float: left;
+    font-size: 14px;
+    font-weight: 400;
+    position: relative;
+    text-align: center;
+    /*text-transform: uppercase;*/
+    color: rgba(0,0,0,0.8);
+}
+.progressbar li:before {
+    width: 30px;
+    height: 30px;
+    content: counter(step);
+    counter-increment: step;
+    line-height: 30px;
+    border: 2px solid rgba(0,0,0,0.8);
+    display: block;
+    text-align: center;
+    margin: 0 auto 10px auto;
+    border-radius: 50%;
+    background-color: white;
+}
+.progressbar li:after {
+    width: 100%;
+    height: 2px;
+    content: '';
+    position: absolute;
+    background-color: rgba(0,0,0,0.8);
+    top: 15px;
+    left: -50%;
+    z-index: -1;
+}
+.progressbar li:first-child:after {
+    content: none;
+}
+.progressbar li.active {
+    color: #8FA864;
+}
+.progressbar li.active:before {
+    border-color: #8FA864;
+}
+.progressbar li.active + li:after {
+    background-color: #8FA864;
+}
+
+.progress-bar-warning {
+    background-color: #E2B31B !important;
+}
+
+.progress-bar-success {
+    background-color: #8FA864;
+
+}
+
+.progress-bar-danger {
+    background-color: #D9534F;
+
+}
+
+/* Used on the Merge page */
+.compareitem {
+    margin-left: 20px;
+    position: relative;
+    vertical-align: middle;
+}
+
+
+.mdautocomplete {
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    height: inherit !important;
+    border-bottom-color: rgba(0,0,0, 0.12) !important;
+    border-bottom-style: solid !important;
+    border-bottom-width: 1px !important;
+
+}
+
+
+/* Make the text darker on all inputs, labels, and spans. The default opacity is too light to see well. */
+.md-input-container label:not(md-container-ignore) label {
+    color: rgba(0,0,0,.9);
+}
+
+label , md-label, input{
+    color: rgba(0,0,0,.9) !important;
+    font-weight: 400 !important;
+}
+
+.pr-label{
+    color: #2C6FAE !important;
+}
+
+input{
+    color: rgba(0,0,0,1) !important;
+    font-weight: 400 !important;
+}
+
+/* Removes the "No File Chosen" text on file chooser buttons */
+input[type='file'] {
+    color: transparent !important;
+}
+
+span{
+    color: rgba(0,0,0,.9) !important;
+    font-weight: 400 !important;
+}
+
+md-input-container.md-input-focused:not(.md-input-has-value) md-select .md-select-value.md-select-placeholder {
+    color: rgba(0,0,0,.9) !important;
+}
+
+.md-select-value span{
+    color: rgba(0,0,0,.9) !important;
+    font-weight: 400 !important;
+}
+input[type=text], select {
+    font-size: 12pt;
+    padding: 4px;
+    border: solid 1px #AACFE4;
+    width: 100%; !important
+    border-radius: 5px;
+    /* text-align: center; */
+    box-shadow: 0px 0px 10px #ccc;
+}
+.darkertext, ::placeholder, label {
+    font-weight: 400;
+    color: rgba(0,0,0,0.8);
+}
+
+.sub-card {
+    /*background-color: #fcfcfc;*/
+    border: 1px dotted #AAAAAA;
+}
+
+.yellow-header {
+    color: white;
+    padding-left: 20px;
+    border-radius: 5px 5px 0px 0px;
+    border: solid 1px #e2b41d;
+    background-color: #e2b41d;
+    font-weight: 400;
+    width: 450px;
+}
+
+.yellow-btn-left{
+    font-size: 10pt;
+    background-color: white;
+    font-family: RobotoDraft,Roboto,'Helvetica Neue',sans-serif;
+    width: 150px;
+    height: 31px;
+    border-radius: 0px 0px 0px 5px;
+    color: #e2b41d;
+    border: solid 1px #e2b41d;
+    font-weight: 400;
+
+}
+
+.yellow-btn-middle{
+    font-size: 10pt;
+    background-color: white;
+    font-family: RobotoDraft,Roboto,'Helvetica Neue',sans-serif;
+    width: 150px;
+    height: 31px;
+    color: #e2b41d;
+    border-radius: 0;
+    border: solid 1px #e2b41d;
+    font-weight: 400;
+
+}
+
+.yellow-btn-right{
+    font-size: 10pt;
+    background-color: white;
+    font-family: RobotoDraft,Roboto,'Helvetica Neue',sans-serif;
+    width: 150px;
+    height: 31px;
+    border-radius: 0px 0px 5px 0px;
+    color: #e2b41d;
+    border: solid 1px #e2b41d;
+    font-weight: 400;
+
+}
+
+.choosefileheader {
+    color: white;
+    padding-left: 20px;
+    border: solid 1px #848484;
+    background-color: #848484;
+    font-weight: 400;
+    width: 150px;
+    border-radius: 5px 5px 0 0;
+}
+
+.choosefileheadertemp {
+    color: white;
+    padding-left: 20px;
+    border: solid 1px #873260;
+    background-color: #873260;
+    font-weight: 400;
+    width: 150px;
+    border-radius: 5px 5px 0 0;
+
+}
+
+.choosefile {
+    max-width:200px;
+    width:175px;
+    display:inline;
+    border-radius: 5px 5px 0 0;
+    font-weight: 400;
+}
+
+.choosefiletemp {
+    max-width:200px;
+    width:150px;
+    display:inline;
+    border: solid 1px #873260;
+    border-radius: 5px 5px 0 0;
+    font-weight: 400;
+}
+
+.green-header {
+    color: white;
+    padding-left: 20px;
+    border-radius: 5px 5px 0 0;
+    border: solid 1px #8FA864;
+    background-color: #8FA864;
+    font-weight: 400;
+    width: 300px;
+}
+
+.green-btn-left{
+    font-size: 10pt;
+    background-color: white;
+    font-family: RobotoDraft,Roboto,'Helvetica Neue',sans-serif;
+    width: 150px;
+    height: 31px;
+    border-radius: 0 0 0 5px;
+    color: #8FA864;
+    border: solid 1px #8FA864;
+    font-weight: 400;
+
+}
+
+.green-btn-right{
+    font-size: 10pt;
+    background-color: white;
+    font-family: RobotoDraft,Roboto,'Helvetica Neue',sans-serif;
+    width: 150px;
+    height: 31px;
+    border-radius: 0 0 5px 0;
+    color: #8FA864;
+    border: solid 1px #8FA864;
+    font-weight: 400;
+
+}
+
+
+.long-header {
+    color: white;
+    border-radius: 5px 5px 0 0;
+    border: solid 1px #848484;
+    background-color: #848484;
+    font-weight: 400;
+}
+
+.progress {
+    border-radius:0 0 5px 5px;
+    -webkit-box-shadow:none !important;
+    box-shadow:none !important;
+    background-color:#fafafa;
+    color: black;
+}
+
+.progress {
+    background-color: #fafafa;
+    box-shadow: none;
+    -webkit-box-shadow: none;
+    color: black;
+
+}
+
+table .progress {
+    box-shadow: none;
+    -webkit-box-shadow: none;
+    color: black;
+
+}
+
+.progress-bar {
+    box-shadow: none;
+    -webkit-box-shadow: none;
+    color: black;
+
+}
+
+
+.presuccess {
+    background-color:#DEF1C0;
+    border: none;
+    /*color:white;*/
+}
+
+.predanger {
+    background-color:#FEBABB;
+    border: none;
+    /*color:white;*/
+}
+
+.prewarning {
+    background-color:#FEEEB6;
+    border: none;
+    /*color:white;*/
+}
+
+.pregray {
+    background-color:#eee;
+    border: none;
+    /*color:white;*/
+}
+

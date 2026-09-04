@@ -1,0 +1,5 @@
+div(layout='', layout-padding='', layout-sm='column')
+    md-input-container(flex='25', ng-class="md-input-has-value")
+        label Missing Value *
+        input(ng-model='entry2.missingValue')
+        md-tooltip {{getTooltip("paleoData", "missingValue")}}

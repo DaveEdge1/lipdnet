@@ -61,7 +61,7 @@ export function QueryMap({ results }: Props) {
                   {r.lipdverseLink && ' · '}
                   <a href={proxiedLpdUrl(r.downloadUrl)} download={`${r.name}.lpd`}>Download</a>
                   {' · '}
-                  <a href={`/playground?open=${encodeURIComponent(r.downloadUrl)}`}>Open in playground</a>
+                  <a href={`/playground-new?open=${encodeURIComponent(r.downloadUrl)}`}>Open in playground</a>
                 </>
               )}
             </Popup>

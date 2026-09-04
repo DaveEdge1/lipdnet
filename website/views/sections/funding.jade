@@ -1,0 +1,42 @@
+// FUNDING
+md-toolbar.md-hue-1
+  h2.md-toolbar-tools
+    span Funding
+    md-tooltip Source of monetary support underlying the collection/creation/analysis/curation of the Dataset
+
+div.btn-row( layout="row")
+  div(ng-repeat="entry in files.json.funding track by $index")
+    md-divider
+    button.tab-btn-on(type="button" ng-if="entry.tmp.toggle" ng-click="entry.tmp.toggle = false;") Funding {{$index+1}}
+    button.tab-btn-off(type="button" ng-if="!entry.tmp.toggle" ng-click="expandEntry(files.json.funding, entry)") Funding {{$index+1}}
+
+
+div(ng-repeat='entry in files.json.funding track by $index' layout-wrap="")
+  md-card(ng-show="entry.tmp.toggle")
+    md-subheader.md-primary Funding {{$index+1}}
+    div(layout='', layout-padding='', layout-sm='column')
+      md-input-container(flex='', ng-class="md-input-has-value")
+        label Agency
+        input(ng-model='entry.agency')
+        md-tooltip {{getTooltip("funding", "agency")}}
+      md-input-container(flex='', ng-class="md-input-has-value")
+        label Grant
+        input(ng-model='entry.grant')
+        md-tooltip {{getTooltip("funding", "grant")}}
+    div(layout='', layout-padding='', layout-sm='column')
+      md-input-container(flex='', ng-class="md-input-has-value")
+        label Principal Investigator
+        input(ng-model='entry.investigator')
+        md-tooltip {{getTooltip("funding", "principalInvestigator")}}
+      md-input-container(flex='', ng-class="md-input-has-value")
+        label Country
+        input(ng-model='entry.country')
+        md-tooltip {{getTooltip("funding", "country")}}
+        
+    .md-toolbar-tools(style="background-color:white;")
+      span(flex)
+      button.red-btn-off(ng-click='removeBlock(files.json.funding, $index)' style="margin: 1.5em;" type="button") Delete
+      
+div(layout='', layout-padding='', layout-sm='column' style="float: right;")
+  button.green-btn-off(ng-click='addBlock(files.json.funding, "funding", null)' style="margin: 1.5em;" type="button") Add
+  //- button.valid-btn(ng-click='addBlock(entry, "funding")' style="margin: 1.5em;")  + Add Funding

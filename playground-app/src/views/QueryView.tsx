@@ -156,7 +156,7 @@ export function QueryView() {
                     {r.downloadUrl && (
                       <>
                         <a href={proxiedLpdUrl(r.downloadUrl)} download={`${r.name}.lpd`}>Download</a>
-                        <a href={`/playground?open=${encodeURIComponent(r.downloadUrl)}`}>Open in playground</a>
+                        <a href={`/playground-new?open=${encodeURIComponent(r.downloadUrl)}`}>Open in playground</a>
                       </>
                     )}
                   </div>
