@@ -14,6 +14,13 @@ var stats = require("../node_modules_custom/node_stats.js");
 var port = process.env.PORT || 3000;
 var dev = port === 3000;
 var router = express.Router();
+
+// Base URL of the NOAA-conversion service (the flask app) used by the CLASSIC
+// playground's server-side NOAA export: POST /noaa forwards to <base>/api/noaa.
+// Set CONVERT_API_URL in the environment (docker-compose / run) for production
+// so this no longer has to be hand-edited inside the container — that edit is
+// lost on every image pull. Defaults to the historical value for compatibility.
+var CONVERT_API_URL = (process.env.CONVERT_API_URL || 'http://64.23.255.172:3002').replace(/\/+$/, '');
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
 // Disable console logs in production
@@ -1545,7 +1552,7 @@ router.post("/noaa", function(req, res, next){
       var request = require('request');
       // Pack up the options that we want to give the request module
       var options = {
-        uri: 'http://64.23.255.172:3002/api/noaa',
+        uri: CONVERT_API_URL + '/api/noaa',
         method: 'POST',
         json: master.dat,
         timeout: 6000

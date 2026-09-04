@@ -18,7 +18,13 @@ services:
     image: ${IMAGE_PREFIX:-davidedge}/lipdnet:${IMAGE_TAG:-latest}
     environment:
       - NODE_ENV=production
+      # NOAA/PANGAEA *import* (React playground) → the PyleoTUPS service below.
       - NOAA_SERVICE_URL=http://noaa-service:8000
+      # NOAA *export* (classic playground, POST /noaa) → the flask conversion
+      # service. Point this at wherever flask is reachable from this container
+      # (e.g. http://lipdnet_flask:3002 on a shared network, or the published
+      # host URL). Replaces hand-editing the IP inside the container.
+      - CONVERT_API_URL=${CONVERT_API_URL:-http://64.23.255.172:3002}
     ports:
       - "${WEB_PORT:-3001}:3000"
     volumes:
