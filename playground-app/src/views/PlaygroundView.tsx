@@ -13,6 +13,7 @@ import { SiteMap } from '../components/SiteMap'
 import { DataEditor } from '../components/DataEditor'
 import { StructureView } from '../components/StructureView'
 import { JsonEditor } from '../components/JsonEditor'
+import { NoaaTextView } from '../components/NoaaTextView'
 import { serializeLipd, appendChangelog, parseLipd, makeTemplate } from '../lib/lipd'
 import { downloadNoaa } from '../lib/noaaExport'
 import { NewDatasetWizard } from '../components/NewDatasetWizard'
@@ -69,9 +70,10 @@ const DEFAULT_LAYOUT: Layout = {
   collapsed: { tl: false, bl: false, tr: false, br: false },
 }
 
-// The eight views a loaded dataset exposes. In single-pane mode the left nav
-// lists them; in the 2×2 grid they're grouped into the four panes' tabs.
-type ViewKey = 'metadata' | 'structure' | 'column' | 'data' | 'plot' | 'map' | 'issues' | 'json'
+// The views a loaded dataset exposes. In single-pane mode the left nav lists
+// them; in the 2×2 grid they're grouped into the four panes' tabs. 'noaa' is an
+// extra single-pane view shown only for datasets imported from NOAA.
+type ViewKey = 'metadata' | 'structure' | 'column' | 'data' | 'plot' | 'map' | 'issues' | 'json' | 'noaa'
 
 const svg = (children: ReactNode): ReactNode => (
   <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor"
@@ -86,6 +88,7 @@ const VIEW_ICON: Record<ViewKey, ReactNode> = {
   map: svg(<><path d="M8 14.5s4.5-4 4.5-7A4.5 4.5 0 0 0 3.5 7.5c0 3 4.5 7 4.5 7z" /><circle cx="8" cy="7.5" r="1.6" /></>),
   issues: svg(<><path d="M8 2l6 11H2z" /><path d="M8 6.5v3.5M8 11.6v.1" /></>),
   json: svg(<><path d="M6 2.5c-1.5 0-2 1-2 2.5s.3 2-1 2.5c1.3.5 1 1 1 2.5s.5 2.5 2 2.5" /><path d="M10 2.5c1.5 0 2 1 2 2.5s-.3 2 1 2.5c-1.3.5-1 1-1 2.5s-.5 2.5-2 2.5" /></>),
+  noaa: svg(<><path d="M4 1.5h5l3 3v10a.5.5 0 0 1-.5.5h-7a.5.5 0 0 1-.5-.5v-13a.5.5 0 0 1 .5-.5z" /><path d="M9 1.5v3h3M5.5 8h5M5.5 10.5h5M5.5 13h3" /></>),
 }
 const VIEWS: Array<{ key: ViewKey; label: string }> = [
   { key: 'metadata', label: 'Metadata' },
@@ -587,6 +590,13 @@ export function PlaygroundView() {
 
   const c = layout.collapsed
 
+  // The NOAA source-text view is offered only for datasets that came from NOAA
+  // (captured source text, or a NOAAStudyId to fetch by). It lives in the
+  // single-pane nav only — the 2×2 grid keeps its fixed panes.
+  const isNoaa = !!(lipd.metadata.NOAAStudyId || lipd.noaaFiles?.length)
+  const navViews = isNoaa ? [...VIEWS, { key: 'noaa' as ViewKey, label: 'NOAA' }] : VIEWS
+  const effectiveSingleView: ViewKey = (singleView === 'noaa' && !isNoaa) ? 'metadata' : singleView
+
   // Switch to a view: in single-pane mode select it directly; in the grid,
   // activate the tab of whichever pane hosts it.
   const showView = (key: ViewKey) => {
@@ -642,6 +652,15 @@ export function PlaygroundView() {
         )
       case 'data':
         return <DataEditor metadata={lipd.metadata} onChange={handleMetadataChange} selectedPath={dataTablePath} />
+      case 'noaa':
+        return (
+          <NoaaTextView
+            key={String(lipd.metadata.NOAAStudyId ?? lipd.filename)}
+            sourceFiles={lipd.noaaFiles}
+            studyId={lipd.metadata.NOAAStudyId ? String(lipd.metadata.NOAAStudyId) : undefined}
+            originalUrl={typeof lipd.metadata.originalDataUrl === 'string' ? lipd.metadata.originalDataUrl : undefined}
+          />
+        )
     }
   }
 
@@ -712,12 +731,12 @@ export function PlaygroundView() {
         {toolbar}
         <div className="workspace-single">
           <nav className="workspace-nav" aria-label="Views">
-            {VIEWS.map(v => (
+            {navViews.map(v => (
               <button
                 key={v.key}
-                className={`workspace-nav-item ${singleView === v.key ? 'active' : ''}`}
+                className={`workspace-nav-item ${effectiveSingleView === v.key ? 'active' : ''}`}
                 onClick={() => setSingleView(v.key)}
-                aria-current={singleView === v.key}
+                aria-current={effectiveSingleView === v.key}
               >
                 <span className="workspace-nav-icon">{VIEW_ICON[v.key]}</span>
                 <span className="workspace-nav-label">{v.label}</span>
@@ -726,7 +745,7 @@ export function PlaygroundView() {
             ))}
           </nav>
           <div className="panel-cell workspace-single-main">
-            <div className="panel-body">{renderView(singleView)}</div>
+            <div className="panel-body">{renderView(effectiveSingleView)}</div>
           </div>
         </div>
         {savedFooter}

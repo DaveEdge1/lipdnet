@@ -633,6 +633,55 @@ body { background: var(--bg); height: 100vh; overflow: hidden; }
   min-height: 0;
 }
 
+/* ---- NOAA source-text view ---- */
+.noaa-text-view { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+.noaa-text-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  flex-wrap: wrap;
+  padding: .4rem .6rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.noaa-text-name {
+  font-weight: 600;
+  font-size: .82rem;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 40ch;
+}
+.noaa-text-select { font-size: .8rem; max-width: 40ch; }
+.noaa-text-actions { margin-left: auto; display: flex; gap: .35rem; align-items: center; }
+.noaa-text-btn {
+  font-size: .74rem;
+  padding: .2rem .5rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface2);
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.noaa-text-btn:hover:not(:disabled) { border-color: var(--accent); }
+.noaa-text-btn:disabled { color: var(--text-muted); cursor: default; opacity: .6; }
+.noaa-text-body { flex: 1; overflow: auto; min-height: 0; }
+.noaa-text-pre {
+  margin: 0;
+  padding: .8rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .78rem;
+  line-height: 1.45;
+  white-space: pre;
+  color: var(--text);
+}
+.noaa-text-msg { padding: 1rem; font-size: .84rem; color: var(--text-muted); }
+.noaa-text-err { color: var(--danger); }
+
 /* ---- Split layout (sidebar + main) ---- */
 .panel-split { display: flex; height: 100%; overflow: hidden; }
 

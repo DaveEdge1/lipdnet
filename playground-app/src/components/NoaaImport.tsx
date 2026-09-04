@@ -287,7 +287,9 @@ export function NoaaImport({ onLoad, initialSession, onSession }: Props) {
       // Prefer the PyleoTUPS service (handles old/non-standard formats too)
       const viaService = await noaaFileViaService(text, file.name)
       if (viaService.status === 'ok') {
-        onLoad(viaService.result.lipd)
+        // Keep the original text for the NOAA view (a local file has no study id
+        // to re-fetch by, and the service doesn't echo the raw text back).
+        onLoad({ ...viaService.result.lipd, noaaFiles: [{ name: file.name, text }] })
         return
       }
       if (viaService.status === 'error') {

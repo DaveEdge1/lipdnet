@@ -2,7 +2,7 @@
 // browser. Modeled on PyleoTUPS (https://github.com/LinkedEarth/PyleoTUPS):
 // same study-search endpoint and the same "standard parser" strategy for
 // NOAA-templated text files (# metadata, ## variable lines, delimited data).
-import type { LipdFile, LipdMetadata, LipdPub, LipdTable, LipdPaleoData } from '../types/lipd'
+import type { LipdFile, LipdMetadata, LipdPub, LipdTable, LipdPaleoData, NoaaSourceFile } from '../types/lipd'
 import { makeTSid } from './newDataset'
 import { normalizeArchiveType, normalizeUnits, normalizeVariableName, normalizeProxy, proxyGeneralFor, normalizeSeasonality } from './synonyms'
 
@@ -173,6 +173,37 @@ export async function searchNoaaStudies(query: string, filters: NoaaSearchFilter
   if (!text.trim()) return []
   const json = JSON.parse(text)
   return (json.study ?? []) as NoaaStudy[]
+}
+
+// List the data files attached to a NOAA study, by id — used by the editor's
+// NOAA view to show a dataset's original source text after a reload (when the
+// text wasn't captured in memory at import). Returns {name, url} entries; the
+// view fetches each file's text lazily via fetchNoaaFileText.
+export async function listNoaaStudyFiles(studyId: string): Promise<NoaaSourceFile[]> {
+  const studies = await searchNoaaStudies(studyId)
+  const study = studies.find(s => s.NOAAStudyId === studyId) ?? studies[0]
+  if (!study) return []
+  const files: NoaaSourceFile[] = []
+  const seen = new Set<string>()
+  for (const site of study.site ?? []) {
+    for (const pd of site.paleoData ?? []) {
+      for (const df of pd.dataFile ?? []) {
+        if (!df.fileUrl || seen.has(df.fileUrl)) continue
+        seen.add(df.fileUrl)
+        files.push({ name: df.urlDescription || df.fileUrl.split('/').pop() || df.fileUrl, url: df.fileUrl })
+      }
+    }
+  }
+  return files
+}
+
+// Fetch a NOAA data file's raw text in the browser. NCEI data files are
+// CORS-fetchable (the browser import path relies on it); a blocked fetch throws
+// so the NOAA view can fall back to a link-out.
+export async function fetchNoaaFileText(url: string): Promise<string> {
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  return res.text()
 }
 
 // ---- NOAA-template text file parser -----------------------------------------
@@ -427,6 +458,7 @@ export async function noaaStudyToLipd(study: NoaaStudy): Promise<NoaaImportResul
   const skippedFiles: string[] = []
   const paleoData: LipdPaleoData[] = []
   const csvData: Record<string, string> = {}
+  const noaaFiles: NoaaSourceFile[] = []  // raw source text, for the NOAA view
 
   const sites = study.site ?? []
   for (const site of sites) {
@@ -444,7 +476,9 @@ export async function noaaStudyToLipd(study: NoaaStudy): Promise<NoaaImportResul
         try {
           const res = await fetch(df.fileUrl)
           if (!res.ok) throw new Error(`HTTP ${res.status}`)
-          const parsed = parseNoaaTemplate(await res.text())
+          const rawText = await res.text()
+          noaaFiles.push({ name: df.urlDescription || df.fileUrl.split('/').pop() || df.fileUrl, url: df.fileUrl, text: rawText })
+          const parsed = parseNoaaTemplate(rawText)
           const pi = paleoData.length
           const ti = tables.length
           const filename = `paleo${pi}measurement${ti}.csv`
@@ -529,7 +563,7 @@ export async function noaaStudyToLipd(study: NoaaStudy): Promise<NoaaImportResul
   }
 
   return {
-    lipd: { metadata, filename: `${dataSetName || 'noaa-import'}.lpd`, csvData },
+    lipd: { metadata, filename: `${dataSetName || 'noaa-import'}.lpd`, csvData, ...(noaaFiles.length ? { noaaFiles } : {}) },
     skippedFiles,
     metadataOnly,
   }
@@ -598,7 +632,12 @@ export function noaaFileToLipd(text: string, filename: string): LipdFile {
     }],
   }
 
-  return { metadata, filename: `${dataSetName || base}.lpd`, csvData: {} }
+  return {
+    metadata,
+    filename: `${dataSetName || base}.lpd`,
+    csvData: {},
+    noaaFiles: [{ name: filename, text }],
+  }
 }
 
 // ---- PyleoTUPS service path -------------------------------------------------

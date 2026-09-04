@@ -83,9 +83,22 @@ export interface LipdMetadata {
   [key: string]: unknown
 }
 
+// A raw source text file behind a NOAA import (the original NOAA-template
+// .txt), shown in the editor's NOAA view. `text` is present when captured at
+// import; when only `url` is known (e.g. service imports), the view fetches it.
+export interface NoaaSourceFile {
+  name: string
+  url?: string
+  text?: string
+}
+
 export interface LipdFile {
   metadata: LipdMetadata
   filename: string
   // map from csv filename -> raw text (for display / re-export)
   csvData: Record<string, string>
+  // Original NOAA source text files, when this dataset came from NOAA. Held in
+  // memory for the session only (not persisted to autosave/library/.lpd); a
+  // reloaded NOAA dataset re-fetches by metadata.NOAAStudyId instead.
+  noaaFiles?: NoaaSourceFile[]
 }
