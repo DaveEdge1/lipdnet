@@ -1566,15 +1566,21 @@ router.post("/noaa", function(req, res, next){
         console.log("Received Response");
         console.log(typeof response);
 
-            if (typeof response !== "undefined"){
-                logger.info("Response Status: ", response.statusCode);
-            } else {
-                logger.info("No response");
-                res.writeHead(403, "Bad response from API.", {'content-type' : 'text/plain'});
-                res.end();
+            if (error || typeof response === "undefined"){
+                // Conversion service unreachable/errored. Respond ONCE and stop.
+                // Falling through would call res.writeHead() again after res.end()
+                // below, which throws in this async callback (not caught by the
+                // surrounding try) → app.js uncaughtException → process.exit(1).
+                // That crash + restart is what surfaces to the client as a 502
+                // "Proxy Error" and bounces the web container.
+                logger.info("/noaa: conversion service unavailable: ", error);
+                if (!res.headersSent) {
+                    res.writeHead(502, "NOAA conversion service unavailable", {'content-type' : 'text/plain'});
+                    res.end();
+                }
+                return;
             }
-            logger.info("Response error: ");
-            logger.info(error);
+            logger.info("Response Status: ", response.statusCode);
             logger.info("Response Body: ");
             logger.info(body);
 
