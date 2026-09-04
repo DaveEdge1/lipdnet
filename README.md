@@ -53,12 +53,84 @@ If you are having issues, please report them here on github in the issue tracker
 
 The project is licensed under the [GNU Public License](https://github.com/nickmckay/LiPD-utilities/blob/master/Python/LICENSE).
 
-## dev notes:
-The Dockerfile for the production container is located at /root/Dockerfile
-* note that the web address is hard-coded in 2 places in the file "website/public/js/ngContValidate.js"
-The DigitalOcean (http://64.23.255.172:3001/) and lipd.net version are different only in these two lines.
-The two containers in use are docker.io/davidedge/lipd_webapps:lipdnet44 (lipd.net) and docker.io/davidedge/lipd_webapps:lipdnet43 (DigitalOcean)
+## Playground app (also serves /query and /merge)
 
-The website is launched from a container at port 3000 in both cases
+The `/playground`, `/query`, and `/merge` pages are all served by one React SPA
+(in `/playground-app`); the view is picked from the pathname and a shared nav
+bar links the pages. Query searches the LiPDverse GraphDB SPARQL endpoint
+directly from the browser and can open results in the playground editor (via
+the Express `GET /lpd-proxy` route, since lipdverse.org sends no CORS headers).
+Merge diffs two .lpd files in the browser and downloads the resolved result.
+The editor itself is based on
+[lipd-studio](https://github.com/nickmckay/lipd-studio), with a few lipd.net
+additions: a "Start a new dataset" flow, a controlled vocabulary generated
+from [lipdjs](https://github.com/LinkedEarth/lipdjs) (synced with lipdverse),
+and NOAA study import (`src/lib/noaa.ts`) modeled on
+[PyleoTUPS](https://github.com/LinkedEarth/PyleoTUPS) — it queries the NCEI
+paleo-search API and parses NOAA-templated text files directly in the browser
+(both endpoints send CORS headers), assembling the result as a LiPD dataset.
+The editor can also export the open dataset back to the NOAA WDS-Paleo
+template format (`src/lib/noaaExport.ts`, "NOAA .txt" toolbar button — one
+.txt per measurement table, zipped when there are several).
 
-* The local version of the website does not run correctly (maybe a problem with the node module set)
+The Python Flask backend (`lipdnet_flask/`, formerly proxied at `/flask/*`)
+is no longer used by the site — NOAA conversion now runs in the browser and
+the pages that used its autocomplete/ML endpoints are retired. The proxy has
+been removed from `website/app.js`; the flask container no longer needs to be
+deployed.
+LiPD parsing, editing, validation, plotting (Plotly), mapping (Leaflet/OSM —
+no API token needed), and BagIt-compliant export all run in the browser — no
+server round-trip.
+
+To work on it (requires Node 18+):
+
+```
+cd playground-app
+npm install
+npm run dev      # dev server at http://localhost:3001
+npm run build    # builds into website/public/playground-app (commit the output)
+```
+
+After upgrading the `lipdjs` dev dependency, refresh the validator's
+vocabulary lists with `node scripts/generate-vocabulary.mjs` (writes
+`src/lib/vocabulary.ts`).
+
+The build output in `website/public/playground-app` is committed to git so the
+production Docker image (node 14) can serve it without a build step. The Express
+route `GET /playground` serves the SPA's index.html and records usage stats.
+
+## Deployment
+
+The site is now **two** containers — the Node web app and the Python
+PyleoTUPS import service (`noaa-service/`) — because NOAA and PANGAEA import
+depend on PyleoTUPS. They're built by GitHub Actions and run together with
+docker-compose.
+
+**Build (GitHub Actions).** `.github/workflows/docker-build-push.yml` builds
+and pushes both images to Docker Hub on a push to `develop` or
+`playground-react` (the beta branch), on `v*` tags, or via manual dispatch.
+Images: `<DOCKERHUB_USERNAME>/lipdnet` (web) and
+`<DOCKERHUB_USERNAME>/lipdnet-noaa-service` (service), tagged by branch/semver.
+Requires repo secrets `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`.
+
+**Run (on the VPS).** Pull the CI-built images with `docker-compose.prod.yml`:
+
+```
+export IMAGE_PREFIX=davidedge        # Docker Hub user/org
+export IMAGE_TAG=playground-react    # branch tag the workflow pushed
+export WEB_PORT=3001                 # host port (beta); site served at root
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d
+```
+
+The site is then at `http://<host>:${WEB_PORT}/` (playground at `/playground`).
+The web container reaches the service in-network via
+`NOAA_SERVICE_URL=http://noaa-service:8000` (set in the compose); the service
+port is not published to the host. `docker-compose.yml` (no `.prod`) is the
+same topology but builds the images locally from source instead of pulling.
+
+The web image is `node:14-alpine` and can't run Vite, so the playground SPA
+dist in `website/public/playground-app` is committed to git and baked into the
+image (rebuild it with `cd playground-app && npm run build` after SPA changes).
+The app listens on `PORT` (default 3000); everything is served at the domain
+root, so bind it to a host port rather than a path prefix.

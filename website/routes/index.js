@@ -14,6 +14,13 @@ var stats = require("../node_modules_custom/node_stats.js");
 var port = process.env.PORT || 3000;
 var dev = port === 3000;
 var router = express.Router();
+
+// Base URL of the NOAA-conversion service (the flask app) used by the CLASSIC
+// playground's server-side NOAA export: POST /noaa forwards to <base>/api/noaa.
+// Set CONVERT_API_URL in the environment (docker-compose / run) for production
+// so this no longer has to be hand-edited inside the container — that edit is
+// lost on every image pull. Defaults to the historical value for compatibility.
+var CONVERT_API_URL = (process.env.CONVERT_API_URL || 'http://64.23.255.172:3002').replace(/\/+$/, '');
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
 // Disable console logs in production
@@ -1399,8 +1406,23 @@ router.post('/', function(req, res, next){
 router.get("/playground", function(req, res, next){
   // Track playground page visit
   stats.recordPageVisit('playground', {}, getClientIp(req));
-  // Render the playground page
+  // The classic (AngularJS) playground remains the default. The new React
+  // playground is served alongside it as a beta at /playground-new.
   res.render('playground', {title: 'Playground'});
+});
+
+router.get("/playground-new", function(req, res, next){
+  // Track beta playground page visit
+  stats.recordPageVisit('playground-new', {}, getClientIp(req));
+  // Serve the React playground SPA (built from /playground-app into public/playground-app).
+  // The SPA picks the Playground view from the pathname (see App.tsx).
+  res.sendFile(path.join(process.cwd(), "public", "playground-app", "index.html"), function(err){
+    if(err){ next(err); }
+  });
+});
+
+router.get("/format", function(req, res, next){
+  res.render('format', {title: 'LiPD Format'});
 });
 
 /**
@@ -1530,7 +1552,7 @@ router.post("/noaa", function(req, res, next){
       var request = require('request');
       // Pack up the options that we want to give the request module
       var options = {
-        uri: 'http://64.23.255.172:3002/api/noaa',
+        uri: CONVERT_API_URL + '/api/noaa',
         method: 'POST',
         json: master.dat,
         timeout: 6000
@@ -1675,114 +1697,126 @@ router.get("/noaa/:fileid", function(req, res, next){
   }
 });
 
-router.post("/query", function(req, res, next){
-  // Request: A JSON object of query parameters. Send these parameters to PythonAnywhere script to get query text-blob. Send query text blob to LinkedEarth Wiki to get query results.
-  // Response: Query dataset name results. Parsed and formatted in an array to be useful on client-side
-
-  // Pack up the options that we want to give the Python request
-  var options = {
-    uri: 'http://64.23.255.172:3002/api/wikiquery',
-    method: 'POST',
-    json: req.body,
-    timeout: 5000
-  };
-
-  try{
-
-    process.on("uncaughtException", function(err){
-        console.log("UncaughtException! : " + err.message);
-        console.log(err.stack);
-        process.exit(1);
-
-    });
-    console.log("query: Python: Sending request...");
-    request(options, function (err1, res1, body1) {
-        // Sometimes if the proxy request we send gets an ERRCONREFUSED, the response is undefined. Tell the user
-        // to try one more time, because it often only happens rarely, and almost never in the same session.
-        if(typeof res1 === "undefined"){
-            console.log("query: Python response: There was no response object. Undefined. ERRCONNREFUSED");
-            res.writeHead(500, "The query request didn't send successfully. Please try the same request again.", {'content-type' : 'text/plain'});
-            res.end();
-        } else {
-            console.log("query: Python: Response Status: ", res1.statusCode);
-            if(err1){
-                console.log("query: Python: Error making the request");
-                res.writeHead(res1.statusCode, "Error talking to the PythonAnywhere API", {'content-type' : 'text/plain'});
-                res.end();
-            }
-            // If the Python script has an error, it'll return an empty string.
-            else if(typeof(res1.body) === 'undefined' || res1.body === ""){
-                res.writeHead(500, "Error creating the query string. Cannot query Wiki.", {'content-type' : 'text/plain'});
-                res.end();
-            }
-            // If the Python request came back successfully, then start creating the Wiki request
-            else if (!err1 && res1.statusCode === 200) {
-                console.log("query: Wiki: Preparing to send");
-                options = {
-                    uri: "http://wiki.linked.earth/store/ds/query",
-                    qs: {"query": res1.body}
-                };
-
-                console.log("query: Wiki: Sending request...");
-                request(options, function(err2, res2, body2){
-                    console.log("query: Wiki: Response Status: ", res2.statusCode);
-                    if(err2){
-                        console.log("query: Wiki: Error making the request");
-                        res.writeHead(res2.statusCode, "Error talking to the Wiki API", {'content-type' : 'text/plain'});
-                        res.end();
-                    }
-                    // All good, keep going.
-                    if (!err2 && res2.statusCode === 200) {
-                        // Bring in xml2js to parse the Wiki results into a usable form. XML *sigh*
-                        var parseString = require('xml2js').parseString;
-                        var _xml = res2.body;
-                        parseString(_xml, function (err, result) {
-                            try {
-                                // If there are results, they'll be in this location.
-                                // If there aren't results, this location won't exist and we'll trigger the error catch
-                                var _results = result.sparql.results[0].result;
-                            } catch(err) {
-                                console.log("No Results");
-                                res.status(200).send([]);
-                            }
-                            try{
-                                // Now that we have results(in the form of dataset links), start to compile them in a useful format.
-                                parseWikiQueryResults(_results, function(_organized_results){
-                                    // All done! This is the end of a complete and successful query.
-                                    res.status(200).send(_organized_results);
-                                });
-                            } catch(err){
-                                console.log("query: Wiki: error sorting the results: ", err);
-                                res.writeHead(500, "Error sorting results received from LinkedEarth Wiki", {'content-type' : 'text/plain'});
-                                res.end();
-                            }
-                        });
-                    } else {
-                        console.log("query: Wiki: Error making the request");
-                        res.writeHead(res2.statusCode, "Error talking to the Wiki API", {'content-type' : 'text/plain'});
-                        res.end();
-                    }
-                });
-            } else {
-                console.log("query: Python: Error making the request");
-                res.writeHead(res1.statusCode, "Error talking to the Python API", {'content-type' : 'text/plain'});
-                res.end();
-            }
-        }
-
-    });
-  } catch(err){
-    console.log("query: Overall error, this could be anything: " + err);
-    res.writeHead(500, "Error: " + err);
-    res.end();
-  }
-});
-
 router.get("/query", function(req, res, next){
   // Track query page visit
   stats.recordPageVisit('query', {}, getClientIp(req));
-  // Render the query page
-  res.render('query', {title: 'Query Datasets'});
+  // Serve the React SPA (it picks the Query view from the pathname)
+  res.sendFile(path.join(process.cwd(), "public", "playground-app", "index.html"), function(err){
+    if(err){ next(err); }
+  });
+});
+
+// Proxy to the optional PyleoTUPS NOAA import service. When NOAA_SERVICE_URL
+// is set and reachable, the playground gets PyleoTUPS-quality parsing; when it
+// isn't, this returns 503 and the playground falls back to its browser parser.
+router.get("/api/noaa/:id", function(req, res){
+  var base = process.env.NOAA_SERVICE_URL;
+  if(!base){
+    return res.status(503).json({error: "NOAA service not configured"});
+  }
+  if(!/^\d+$/.test(req.params.id)){
+    return res.status(400).json({error: "Invalid study id"});
+  }
+  var target = base.replace(/\/$/, "") + "/noaa/" + req.params.id;
+  request({ uri: target, timeout: 60000 }, function(err, res1, body){
+    if(err || !res1){
+      return res.status(503).json({error: "NOAA service unavailable"});
+    }
+    res.status(res1.statusCode).set("Content-Type", "application/json").send(body);
+  });
+});
+
+// Import a PANGAEA dataset via the PyleoTUPS service (PANGAEA has no browser
+// path, so these require the service; 503 when it isn't configured).
+router.get("/api/pangaea/:id", function(req, res){
+  var base = process.env.NOAA_SERVICE_URL;
+  if(!base){
+    return res.status(503).json({error: "Import service not configured"});
+  }
+  if(!/^\d+$/.test(req.params.id)){
+    return res.status(400).json({error: "Invalid PANGAEA id"});
+  }
+  // expand=1 merges a collection's member datasets; give it a longer timeout.
+  var expand = req.query.expand === "1" || req.query.expand === "true";
+  request({
+    uri: base.replace(/\/$/, "") + "/pangaea/" + req.params.id,
+    qs: expand ? { expand: "true" } : {},
+    timeout: expand ? 240000 : 90000
+  }, function(err, res1, body){
+    if(err || !res1){
+      return res.status(503).json({error: "Import service unavailable"});
+    }
+    res.status(res1.statusCode).set("Content-Type", "application/json").send(body);
+  });
+});
+
+router.get("/api/pangaea-search", function(req, res){
+  var base = process.env.NOAA_SERVICE_URL;
+  if(!base){
+    return res.status(503).json({error: "Import service not configured"});
+  }
+  // Forward q plus the advanced filters (investigators, variable_name, topic,
+  // geographic bounds) to the PyleoTUPS service; only pass through the ones set.
+  var qs = { limit: 10 };
+  ["q", "investigators", "variable_name", "topic", "min_lat", "max_lat", "min_lon", "max_lon", "skip"].forEach(function(k){
+    if(req.query[k] !== undefined && req.query[k] !== "") qs[k] = req.query[k];
+  });
+  request({
+    uri: base.replace(/\/$/, "") + "/pangaea-search",
+    qs: qs,
+    timeout: 120000
+  }, function(err, res1, body){
+    if(err || !res1){
+      return res.status(503).json({error: "Import service unavailable"});
+    }
+    res.status(res1.statusCode).set("Content-Type", "application/json").send(body);
+  });
+});
+
+// Parse an uploaded NOAA file's text via the PyleoTUPS service. The SPA POSTs
+// the raw file text; 503 when the service isn't configured so the playground
+// falls back to its browser parser.
+router.post("/api/noaa-parse", function(req, res){
+  var base = process.env.NOAA_SERVICE_URL;
+  if(!base){
+    return res.status(503).json({error: "NOAA service not configured"});
+  }
+  var chunks = [];
+  req.on("data", function(c){ chunks.push(c); });
+  req.on("end", function(){
+    var body = Buffer.concat(chunks);
+    if(body.length > 20 * 1024 * 1024){ // 20 MB guard
+      return res.status(413).json({error: "File too large"});
+    }
+    request({
+      uri: base.replace(/\/$/, "") + "/parse",
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: body,
+      timeout: 60000
+    }, function(err, res1, out){
+      if(err || !res1){
+        return res.status(503).json({error: "NOAA service unavailable"});
+      }
+      res.status(res1.statusCode).set("Content-Type", "application/json").send(out);
+    });
+  });
+});
+
+// lipdverse.org doesn't send CORS headers on .lpd downloads, so the SPA's
+// "Open in playground" and "Download" actions go through this restricted proxy.
+router.get("/lpd-proxy", function(req, res, next){
+  var url = req.query.url || "";
+  if(!/^https?:\/\/(www\.)?lipdverse\.org\//.test(url) || url.indexOf("..") !== -1){
+    return res.status(400).send("Only lipdverse.org URLs can be proxied");
+  }
+  request({ uri: url, encoding: null, timeout: 30000 }, function(err, res1, body){
+    if(err || !res1 || res1.statusCode !== 200){
+      return res.status(err ? 502 : res1.statusCode).send("Could not fetch the remote dataset");
+    }
+    res.set("Content-Type", "application/zip");
+    res.send(body);
+  });
 });
 
 router.get("/downloadall/:fileid", function(req, res, next){
@@ -1811,8 +1845,10 @@ router.post("/downloadall", function(req, res, next){
 router.get("/merge", function(req, res, next){
   // Track merge page visit
   stats.recordPageVisit('merge', {}, getClientIp(req));
-  // Render the compare page
-  res.render('merge', {title: 'Merge'});
+  // Serve the React SPA (it picks the Merge view from the pathname)
+  res.sendFile(path.join(process.cwd(), "public", "playground-app", "index.html"), function(err){
+    if(err){ next(err); }
+  });
 });
 
 router.post("/wiki", function(req, res, next){
@@ -1847,38 +1883,6 @@ router.post("/wiki", function(req, res, next){
 // END PAGE ROUTES
 
 // MODALS AND PIECES
-
-router.get("/modal-wiki", function(req, res, next){
-    res.render('modal/modal-wiki', {title: ''});
-});
-
-router.get("/modal-lipdverse", function(req, res, next){
-    res.render('modal/modal-lipdverse', {title: ''});
-});
-
-router.get("/modal-file", function(req, res, next){
-  res.render('modal/modal-file', {title: ''});
-});
-
-router.get("/modal-block", function(req, res, next){
-  res.render('modal/modal-block', {title: ''});
-});
-
-router.get("/modal-alert", function(req, res, next){
-  res.render('modal/modal-alert', {title: ''});
-});
-
-router.get("/modal-ask", function(req, res, next){
-  res.render('modal/modal-ask', {title: ''});
-});
-
-router.get("/modal-jsonfix", function(req, res, next){
-    res.render('modal/modal-jsonfix', {title: ''});
-});
-
-router.get("/modal-validationrules", function(req, res, next){
-    res.render('modal/modal-validationrules', {title: ''});
-});
 
 router.get("/loading", function(req, res, next){
   res.render("loading", {title: ""});

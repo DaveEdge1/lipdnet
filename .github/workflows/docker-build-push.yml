@@ -1,9 +1,10 @@
-name: Build and Push Docker Image
+name: Build and Push Docker Images
 
 on:
   push:
     branches:
       - develop
+      - playground-react   # beta
     tags:
       - 'v*'
   pull_request:
@@ -11,12 +12,20 @@ on:
       - develop
   workflow_dispatch:
 
-env:
-  IMAGE_NAME: lipdnet
-
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        include:
+          # Node web app (root Dockerfile). Serves the site + committed SPA dist.
+          # Uses each context's default ./Dockerfile.
+          - image: lipdnet
+            context: .
+          # PyleoTUPS NOAA/PANGAEA import service (Python).
+          - image: lipdnet-noaa-service
+            context: ./noaa-service
 
     steps:
       - name: Checkout repository
@@ -37,7 +46,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ matrix.image }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -47,18 +56,18 @@ jobs:
             type=sha,prefix=
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Build and push Docker image
+      - name: Build and push ${{ matrix.image }}
         id: build
         uses: docker/build-push-action@v5
         with:
-          context: .
+          context: ${{ matrix.context }}
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
           platforms: linux/amd64
 
       - name: Image digest
         if: github.event_name != 'pull_request'
-        run: echo "Image pushed with digest ${{ steps.build.outputs.digest }}"
+        run: echo "${{ matrix.image }} pushed with digest ${{ steps.build.outputs.digest }}"

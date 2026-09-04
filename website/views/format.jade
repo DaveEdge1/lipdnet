@@ -1,0 +1,657 @@
+extends layout
+
+block css
+  link(rel='stylesheet' href='css/format.css')
+  link(rel='stylesheet' href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css')
+
+block body
+  body
+    #wrapper
+      include ./include/navbar.jade
+
+      .format-hero
+        .container
+          h1 LiPD Format Reference
+          p.lead Technical specification for developers working with LiPD files.
+
+      .container#format-body
+        .row
+          .col-md-3.hidden-xs.hidden-sm
+            nav#format-toc
+              h5 Contents
+              ul.nav.nav-stacked
+                li: a(href='#overview') Overview
+                li: a(href='#file-structure') File Structure
+                li: a(href='#metadata') Metadata Fields
+                li: a(href='#geo') Geo Object
+                li: a(href='#pub') Publications
+                li: a(href='#paleodata') PaleoData / ChronData
+                li: a(href='#columns') Column Object
+                li: a(href='#calibration') Calibration
+                li: a(href='#physical-sample') Physical Sample
+                li: a(href='#csv') CSV Files
+                li: a(href='#ensemble') Ensemble Tables
+                li: a(href='#changelog') Changelog
+                li: a(href='#versions') LiPD Versions
+                li: a(href='#tsid') TSid
+                li: a(href='#ontology') Ontology
+
+          .col-md-9#format-content
+
+            section#overview
+              h2 Overview
+              p.
+                A LiPD file (<code>.lpd</code>) is a ZIP archive that bundles tabular proxy data with rich
+                structured metadata, following the
+                <a href="https://datatracker.ietf.org/doc/html/draft-kunze-bagit">BagIt</a>
+                specification for data integrity. The metadata lives in a JSON-LD file
+                (<code>metadata.jsonld</code>); data values live in one or more headerless CSV files.
+              p.
+                LiPD is supported by <a href="https://github.com/nickmckay/lipdR">lipdR</a> (R),
+                <a href="https://github.com/LinkedEarth/pylipd">pylipd</a> (Python), and the
+                <a href="/playground">LiPD Playground</a> (browser).
+              hr
+
+            section#file-structure
+              h2 File Structure
+              p Inside every <code>.lpd</code> ZIP archive:
+              pre
+                code.language-text.
+                  myfile.lpd  (ZIP archive)
+                  └── bag/
+                      ├── bagit.txt              ← BagIt version declaration
+                      ├── bag-info.txt           ← bagging date, software agent
+                      ├── manifest-md5.txt       ← MD5 checksums of data/ files
+                      ├── tagmanifest-md5.txt    ← MD5 checksums of tag files
+                      └── data/
+                          ├── metadata.jsonld    ← all metadata (JSON-LD)
+                          ├── *.csv              ← one CSV per table
+                          └── ...
+              h4 BagIt files
+              table.table.table-bordered
+                thead
+                  tr
+                    th File
+                    th Purpose
+                tbody
+                  tr
+                    td
+                      code bagit.txt
+                    td Declares BagIt version (0.97) and encoding (UTF-8)
+                  tr
+                    td
+                      code bag-info.txt
+                    td Bagging date and software agent name
+                  tr
+                    td
+                      code manifest-md5.txt
+                    td MD5 checksum for every file under <code>data/</code>
+                  tr
+                    td
+                      code tagmanifest-md5.txt
+                    td MD5 checksums of the three tag files above
+              p.
+                MD5 checksums must be recomputed whenever <code>metadata.jsonld</code> or any CSV is
+                modified. The manifest format is one line per file:
+                <code>&lt;md5hex&gt;  data/filename.csv</code>
+              hr
+
+            section#metadata
+              h2 Metadata Fields
+              p All metadata lives in <code>data/metadata.jsonld</code> as a JSON-LD object.
+              h4 Required fields
+              table.table.table-bordered
+                thead
+                  tr
+                    th Field
+                    th Type
+                    th Notes
+                tbody
+                  tr
+                    td
+                      code archiveType
+                    td string
+                    td.
+                      Archive material type.
+                      See <a href="https://lipdverse.org/vocabulary/archiveType/">controlled vocabulary</a>.
+                  tr
+                    td
+                      code dataSetName
+                    td string
+                    td Dataset name (e.g. <code>"ODP1098B13"</code>)
+                  tr
+                    td
+                      code datasetId
+                    td string
+                    td.
+                      Globally unique identifier for the dataset. Should be assigned once and never
+                      changed after the dataset is published or shared, as other systems may reference
+                      it. No specific format is enforced — any unique string is valid.
+                      Common conventions by tool:
+                      <ul style="margin-top:6px">
+                        <li>lipdR: 16-character alphanumeric string (e.g. <code>"a3f9x2kpq1m7r4wz"</code>)</li>
+                        <li>pylipd: free-form string or UUID fragment</li>
+                        <li>Manual: a UUID or <code>"AuthorYear.SiteName"</code> slug works well</li>
+                      </ul>
+                      If generating programmatically, use a collision-resistant random string of at
+                      least 12 characters.
+                  tr
+                    td
+                      code geo
+                    td object
+                    td Geographic location. See <a href="#geo">Geo Object</a>.
+                  tr
+                    td
+                      code lipdVersion
+                    td number
+                    td LiPD format version (current: <code>1.3</code>)
+                  tr
+                    td
+                      code paleoData
+                      |  and/or
+                      code  chronData
+                    td array
+                    td At least one must be present
+              h4 Recommended fields
+              table.table.table-bordered
+                thead
+                  tr
+                    th Field
+                    th Type
+                    th Notes
+                tbody
+                  tr
+                    td
+                      code pub
+                    td array
+                    td Publications. See <a href="#pub">Publications</a>.
+                  tr
+                    td
+                      code changelog
+                    td array
+                    td Modification history. See <a href="#changelog">Changelog</a>.
+                  tr
+                    td
+                      code createdBy
+                    td string
+                    td Software that created the file (e.g. <code>"lipdR"</code>, <code>"pylipd"</code>)
+                  tr
+                    td
+                      code datasetVersion
+                    td string
+                    td Semantic version string (e.g. <code>"1.0.0"</code>)
+                  tr
+                    td
+                      code funding
+                    td array
+                    td Funding sources (agency, grant, country, investigator)
+                  tr
+                    td
+                      code investigators
+                    td string/array
+                    td Principal investigators
+                  tr
+                    td
+                      code collectionName
+                    td string
+                    td Database collection this dataset belongs to (e.g. <code>"PAGES2k"</code>)
+                  tr
+                    td
+                      code collectionYear
+                    td number
+                    td Year added to a collection
+                  tr
+                    td
+                      code originalDataUrl
+                    td string
+                    td URL to the original data source
+              hr
+
+            section#geo
+              h2 Geo Object
+              p The geo object uses GeoJSON Feature syntax:
+              pre
+                code.language-json.
+                  {
+                    "type": "Feature",
+                    "geometry": {
+                      "type": "Point",
+                      "coordinates": [longitude, latitude, elevation]
+                    },
+                    "properties": {
+                      "siteName": "Palmer Deep",
+                      "country": "Antarctica",
+                      "ocean": "Southern Ocean",
+                      "continent": "Antarctica",
+                      "countryOcean": "Southern Ocean",
+                      "locationType": "marine",
+                      "description": "Continental shelf basin",
+                      "notes": "Core taken at 1011 m water depth"
+                    }
+                  }
+              ul
+                li <strong>coordinates</strong>: <code>[longitude, latitude, elevation]</code> — elevation is optional; negative = below sea level
+                li <strong>latitude</strong>: −90 to 90
+                li <strong>longitude</strong>: −180 to 180
+                li lipdR stores <code>geo.latitude</code> and <code>geo.longitude</code> in memory but writes the GeoJSON form to disk
+                li <code>locationType</code> values: <code>"marine"</code>, <code>"lacustrine"</code>, <code>"terrestrial"</code>, <code>"ice"</code>, etc.
+              hr
+
+            section#pub
+              h2 Publications
+              p <code>pub</code> is an unnamed array at the root level. Each entry:
+              pre
+                code.language-json.
+                  {
+                    "author": [{"name": "Smith, J."}, {"name": "Jones, A."}],
+                    "title": "My paleotemperature record",
+                    "year": 2024,
+                    "journal": "Paleoceanography",
+                    "doi": "10.1029/2024PA000001",
+                    "volume": "39",
+                    "issue": "2",
+                    "pages": "1-22",
+                    "abstract": "We present...",
+                    "citeKey": "smith2024paleo",
+                    "publicationType": "article-journal",
+                    "urls": ["https://doi.org/10.1029/2024PA000001"],
+                    "dataUrls": ["https://pangaea.de/10.1594/PANGAEA.12345"]
+                  }
+              .alert.alert-warning
+                strong Common mistakes:
+                ul
+                  li Use <code>author</code> (array of <code>{"name": "..."}</code> objects), not a plain string, not <code>authors</code>
+                  li Use <code>doi</code> (lowercase), not <code>DOI</code> or <code>Doi</code>
+                  li <code>pub</code> must be an unnamed array, not a named object (<code>pub1</code>, <code>pub2</code>)
+                  li Old files may use <code>identifier[0].id</code> for the DOI — normalize to <code>doi</code>
+              hr
+
+            section#paleodata
+              h2 PaleoData / ChronData
+              p Both use the same nested structure. <code>paleoData</code> holds proxy measurements; <code>chronData</code> holds age and chronological data.
+              pre
+                code.language-json.
+                  "paleoData": [
+                    {
+                      "measurementTable": [
+                        {
+                          "tableName": "paleo0measurement0",
+                          "filename": "MyDataset.paleo0measurement0.csv",
+                          "missingValue": "nan",
+                          "columns": [ ... ]
+                        }
+                      ],
+                      "model": [
+                        {
+                          "summaryTable":      [ ... ],
+                          "ensembleTable":     [ ... ],
+                          "distributionTable": [ ... ]
+                        }
+                      ]
+                    }
+                  ]
+              ul
+                li <code>paleoData</code> and <code>chronData</code> are <strong>unnamed</strong> arrays, not keyed objects
+                li <code>measurementTable</code>, <code>ensembleTable</code>, <code>summaryTable</code>, <code>distributionTable</code> are also arrays
+                li Table name convention (zero-indexed): <code>paleo0measurement0</code>, <code>chron0model0ensemble0</code>
+                li <code>filename</code> references the CSV in the same <code>data/</code> directory
+                li <code>missingValue</code> defaults to <code>"nan"</code> if absent
+                li <code>values</code> is <strong>not</strong> stored in the JSON file — data lives in the CSV
+              hr
+
+            section#columns
+              h2 Column Object
+              p Each item in a <code>columns</code> array:
+              pre
+                code.language-json.
+                  {
+                    "number": 3,
+                    "variableName": "SST",
+                    "TSid": "LPD1028d531",
+                    "units": "degC",
+                    "description": "Sea surface temperature",
+                    "proxy": "TEX86",
+                    "proxyGeneral": "biomarker",
+                    "inferredVariableType": "temperature",
+                    "hasMinValue": 15.3,
+                    "hasMaxValue": 28.5,
+                    "hasMeanValue": 22.1,
+                    "hasMedianValue": 22.0,
+                    "hasResolution": {
+                      "hasMinValue": 20.0,
+                      "hasMeanValue": 100.0,
+                      "hasMedianValue": 80.0,
+                      "hasMaxValue": 500.0
+                    },
+                    "uncertainty": {"analytical": 0.5},
+                    "calibration": { ... },
+                    "physicalSample": { ... },
+                    "interpretation": [
+                      {
+                        "variable": "temperature",
+                        "variableDetail": "surface",
+                        "seasonality": "Annual",
+                        "direction": "positive",
+                        "scope": "climate"
+                      }
+                    ]
+                  }
+              table.table.table-bordered
+                thead
+                  tr
+                    th Field
+                    th Required
+                    th Notes
+                tbody
+                  tr
+                    td
+                      code number
+                    td Yes
+                    td.
+                      1-indexed CSV column position.
+                      May be an <strong>array</strong> in ensemble tables —
+                      see <a href="#ensemble">Ensemble Tables</a>.
+                  tr
+                    td
+                      code variableName
+                    td Yes
+                    td See <a href="https://lipdverse.org/vocabulary/paleoData_variableName/">controlled vocabulary</a>.
+                  tr
+                    td
+                      code TSid
+                    td Yes
+                    td Unique time-series identifier. See <a href="#tsid">TSid</a>.
+                  tr
+                    td
+                      code units
+                    td Recommended
+                    td See <a href="https://lipdverse.org/vocabulary/paleoData_units/">controlled vocabulary</a>.
+                  tr
+                    td
+                      code proxy
+                    td Recommended
+                    td See <a href="https://lipdverse.org/vocabulary/paleoData_proxy/">controlled vocabulary</a>.
+                  tr
+                    td
+                      code proxyGeneral
+                    td Optional
+                    td Broader proxy category. See <a href="https://lipdverse.org/vocabulary/paleoData_proxyGeneral/">controlled vocabulary</a>.
+                  tr
+                    td
+                      code interpretation
+                    td Recommended
+                    td.
+                      Array of interpretation objects. Each has
+                      <code>variable</code>, <code>variableDetail</code>,
+                      <code>seasonality</code>, <code>direction</code>, <code>scope</code>.
+                  tr
+                    td
+                      code calibration
+                    td Optional
+                    td Transfer function details. See <a href="#calibration">Calibration Object</a>.
+                  tr
+                    td
+                      code physicalSample
+                    td Optional
+                    td Physical sample provenance. See <a href="#physical-sample">Physical Sample</a>.
+                  tr
+                    td
+                      code hasMinValue, hasMaxValue, hasMeanValue, hasMedianValue
+                    td Optional
+                    td Precomputed statistics on the column values
+                  tr
+                    td
+                      code hasResolution
+                    td Optional
+                    td Object with min/mean/median/max resolution and optional units
+              hr
+
+            section#calibration
+              h2 Calibration Object
+              p Documents the transfer function used to convert proxy values to climate variables:
+              pre
+                code.language-json.
+                  {
+                    "equation": "SST = (TEX86 - 0.10) / 0.015",
+                    "equationSlope": 0.015,
+                    "equationIntercept": -0.10,
+                    "equationSlopeUncertainty": 0.001,
+                    "equationR2": 0.87,
+                    "method": "linear regression",
+                    "methodDetail": "Calibrated against modern core-top assemblages",
+                    "uncertainty": 1.5,
+                    "proxyDataset": "TEX86",
+                    "targetDataset": "SST",
+                    "doi": "10.1016/j.gca.2002.07.003",
+                    "seasonality": "Annual",
+                    "notes": "Kim et al. (2010) calibration"
+                  }
+              ul
+                li <code>equation</code>: full equation as a string
+                li <code>equationSlope</code> / <code>equationIntercept</code>: numeric regression coefficients, more machine-readable than <code>equation</code> alone
+                li <code>equationR2</code>: goodness of fit
+                li <code>uncertainty</code>: calibration uncertainty in units of the target variable
+                li <code>doi</code>: DOI of the calibration publication
+              hr
+
+            section#physical-sample
+              h2 Physical Sample Object
+              p Links a column measurement to its physical sample, enabling sample-level provenance:
+              pre
+                code.language-json.
+                  {
+                    "hasname": "DSDP-594-1H-1",
+                    "hasidentifier": "IGSN:AU1234567",
+                    "housedat": "IODP Bremen Core Repository"
+                  }
+              table.table.table-bordered
+                thead
+                  tr
+                    th Field
+                    th Notes
+                tbody
+                  tr
+                    td
+                      code hasname
+                    td Sample name or lab code
+                  tr
+                    td
+                      code hasidentifier
+                    td <a href="https://www.igsn.org/">IGSN</a> (International GeoSample Number) for globally unique sample identification
+                  tr
+                    td
+                      code housedat
+                    td Institution or repository where the physical sample is curated
+              hr
+
+            section#csv
+              h2 CSV Files
+              p Each measurement or model table has a corresponding <code>.csv</code> file in <code>data/</code>.
+              ul
+                li <strong>No header row</strong> — column positions are set by each column's <code>number</code> field (1-indexed)
+                li Missing values are written as <code>NaN</code> (case-insensitive on read)
+                li String columns (e.g. <code>labID</code>, <code>materialDated</code>) may be quoted or unquoted
+                li All columns in a table must have the same row count
+                li Filename convention: <code>DatasetName.paleo0measurement0.csv</code>
+              p Example — depth (col 1), age (col 2), SST (col 3):
+              pre
+                code.language-text.
+                  0.11,80.0,18.5
+                  0.21,134.0,19.2
+                  0.31,189.0,NaN
+                  0.41,243.0,17.8
+              hr
+
+            section#ensemble
+              h2 Ensemble Table Format
+              p.
+                Ensemble tables store large numbers of age model ensemble members (often 1000+).
+                Rather than defining one column object per member, a single column uses an
+                <strong>array</strong> for its <code>number</code> field, encoding all member
+                column positions at once:
+              pre
+                code.language-json.
+                  {
+                    "tableName": "chron0model0ensemble0",
+                    "filename": "MyDataset.chron0model0ensemble0.csv",
+                    "columns": [
+                      {
+                        "number": 1,
+                        "variableName": "depth",
+                        "TSid": "LPDabc12345",
+                        "units": "cm"
+                      },
+                      {
+                        "number": [2, 3, 4, 5, ..., 1001],
+                        "variableName": "age",
+                        "TSid": "LPDdef67890",
+                        "units": "yr BP"
+                      }
+                    ]
+                  }
+              p The CSV for this table has 1001 columns: column 1 is depth, columns 2–1001 are the 1000 age ensemble members.
+              ul
+                li On <strong>read</strong>: expand the array-number column into individual column objects (one per index); preserve the original array for exact round-trip reconstruction
+                li On <strong>write</strong>: collapse individual expanded columns back into a single column object with <code>number</code> as the array
+                li This pattern is used by lipdR and pylipd; any parser must handle it
+              hr
+
+            section#changelog
+              h2 Changelog Entry Formats
+              p Two styles appear in real files. Both must be handled on read.
+              h4 lipdR style (structured changes)
+              pre
+                code.language-json.
+                  {
+                    "version": "1.1.0",
+                    "date": "2024-03-15",
+                    "name": "Researcher Name",
+                    "notes": "Added TEX86 calibration",
+                    "changes": {
+                      "addedColumn": [["SST added to paleo0measurement0"]],
+                      "editedMetadata": [["Updated archiveType"], ["Fixed DOI"]]
+                    }
+                  }
+              p.
+                The <code>changes</code> field is an object whose keys are change-type labels.
+                Values are arrays of arrays of strings (matrix format used by lipdR).
+              h4 pylipd / manual style (flat notes)
+              pre
+                code.language-json.
+                  {
+                    "version": "1.1.0",
+                    "timestamp": "2024-03-15T10:30:00Z",
+                    "curator": "Researcher Name",
+                    "notes": "Added TEX86 calibration and fixed DOI",
+                    "lastVersion": "1.0.0"
+                  }
+              p.
+                Here <code>timestamp</code> supplements or replaces <code>date</code>;
+                <code>curator</code> supplements or replaces <code>name</code>;
+                <code>lastVersion</code> records the previous version.
+              hr
+
+            section#versions
+              h2 LiPD Versions
+              table.table.table-bordered
+                thead
+                  tr
+                    th Version
+                    th Notes
+                tbody
+                  tr
+                    td 1.0
+                    td Legacy. Limited table support.
+                  tr
+                    td 1.1
+                    td Multiple measurement/model tables added.
+                  tr
+                    td 1.2
+                    td Structure refinements.
+                  tr
+                    td
+                      strong 1.3
+                    td
+                      strong Current standard.
+                      |  Full BagIt. Adds
+                      code  createdBy
+                      |  and
+                      code  lipdVersion
+                      |  fields.
+              p lipdR and pylipd auto-upgrade older versions to 1.3 on read.
+              hr
+
+            section#tsid
+              h2 Time Series IDs (TSid)
+              p.
+                Every column must have a unique <code>TSid</code>. It serves as a global identifier
+                for the time series across the LiPD ecosystem. TSids must be unique within a dataset
+                and ideally globally unique. No specific format is enforced — any unique string is valid.
+              table.table.table-bordered
+                thead
+                  tr
+                    th Format
+                    th Example
+                    th Source
+                tbody
+                  tr
+                    td
+                      code WEB&lt;hex&gt;
+                    td
+                      code WEB23db2e14
+                    td LiPD web tool (short form)
+                  tr
+                    td
+                      code WEB-&lt;uuid&gt;
+                    td
+                      code WEB-a1b2c3d4-...
+                    td LiPD web tool (long form)
+                  tr
+                    td
+                      code LPD&lt;hex&gt;
+                    td
+                      code LPD02c025e9
+                    td LiPD desktop tool
+                  tr
+                    td
+                      code PYT&lt;alnum&gt;
+                    td
+                      code PYTJJYN30KI
+                    td Geochronology tools
+                  tr
+                    td
+                      code R-&lt;alnum&gt;
+                    td
+                      code R-abc1234567890...
+                    td lipdR
+                  tr
+                    td (free-form)
+                    td any unique string
+                    td pylipd and others
+              hr
+
+            section#ontology
+              h2 JSON-LD Context and Ontology
+              p.
+                LiPD files use JSON-LD. The <code>@context</code> field in
+                <code>metadata.jsonld</code> typically references <code>"context.jsonld"</code>
+                (a relative path inside the ZIP).
+              p The primary semantic framework is the LinkedEarth ontology:
+              ul
+                li Namespace: <code>http://linked.earth/ontology#</code>
+                li Current version: 1.2.0
+              .alert.alert-info
+                p.
+                  <strong>Note:</strong> The LinkedEarth ontology does not cover all LiPD concepts.
+                  Many real-world fields — including <code>collectionName</code>,
+                  <code>investigators</code>, <code>citeKey</code>, <code>housedat</code>,
+                  and custom interpretation fields — are not defined in the ontology.
+                  It is fully acceptable and expected to use keys not present in the ontology;
+                  they are preserved as-is by lipdR and pylipd.
+
+block js
+  script(src='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js')
+  script.
+    document.addEventListener('DOMContentLoaded', function() {
+      hljs.highlightAll();
+    });

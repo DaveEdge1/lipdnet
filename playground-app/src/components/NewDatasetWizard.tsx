@@ -1,0 +1,134 @@
+import { useMemo, useState } from 'react'
+import { ARCHIVE_TYPES_CANONICAL } from '../lib/vocabulary'
+import { createNewLipd } from '../lib/newDataset'
+import type { LipdFile } from '../types/lipd'
+import { InfoTip } from './InfoTip'
+import { tip } from '../lib/tooltips'
+
+interface Props {
+  onCreate: (lipd: LipdFile) => void
+  onCancel: () => void
+}
+
+// Prompt for the key information a valid LiPD file needs before opening the
+// editor. Controlled-vocabulary fields autocomplete from the lipdverse
+// vocabulary (generated into lib/vocabulary.ts from lipdjs).
+export function NewDatasetWizard({ onCreate, onCancel }: Props) {
+  const [dataSetName, setDataSetName] = useState('')
+  const [archiveType, setArchiveType] = useState('')
+  const [siteName, setSiteName] = useState('')
+  const [lat, setLat] = useState('')
+  const [lon, setLon] = useState('')
+  const [elev, setElev] = useState('')
+  const [investigators, setInvestigators] = useState('')
+
+  const latNum = Number(lat)
+  const lonNum = Number(lon)
+  const latOk = lat.trim() !== '' && !isNaN(latNum) && latNum >= -90 && latNum <= 90
+  const lonOk = lon.trim() !== '' && !isNaN(lonNum) && lonNum >= -180 && lonNum <= 180
+
+  // Required for a valid LiPD file (matches the validator's error-level checks)
+  const required: Array<{ label: string; done: boolean }> = useMemo(() => [
+    { label: 'Dataset name', done: dataSetName.trim() !== '' },
+    { label: 'Archive type', done: archiveType.trim() !== '' },
+    { label: 'Site name', done: siteName.trim() !== '' },
+    { label: 'Latitude', done: latOk },
+    { label: 'Longitude', done: lonOk },
+  ], [dataSetName, archiveType, siteName, latOk, lonOk])
+
+  const doneCount = required.filter(r => r.done).length
+  const pct = Math.round((doneCount / required.length) * 100)
+  const complete = doneCount === required.length
+
+  const create = () => {
+    if (!complete) return
+    onCreate(createNewLipd({
+      dataSetName,
+      archiveType,
+      siteName,
+      latitude: latNum,
+      longitude: lonNum,
+      elevation: elev.trim() === '' || isNaN(Number(elev)) ? undefined : Number(elev),
+      investigators,
+    }))
+  }
+
+  return (
+    <div className="wizard-overlay" onClick={e => { if (e.target === e.currentTarget) onCancel() }}>
+      <div className="wizard-card">
+        <h2>Start a new dataset</h2>
+        <p className="query-hint">
+          These fields make a valid LiPD file. Suggestions come from the{' '}
+          <a href="https://lipdverse.org/vocabulary" target="_blank" rel="noreferrer">
+            LiPDverse controlled vocabulary
+          </a>.
+        </p>
+
+        <div className="wizard-progress">
+          <div className="wizard-progress-track">
+            <div className="wizard-progress-fill" style={{ width: `${pct}%` }} />
+          </div>
+          <span className="wizard-progress-label">
+            {doneCount} of {required.length} required
+            {!complete && ` — missing: ${required.filter(r => !r.done).map(r => r.label).join(', ')}`}
+          </span>
+        </div>
+
+        <div className="wizard-grid">
+          <label className="query-field wizard-span2">
+            <span>Dataset name * <em>(convention: Site.Investigator.Year, e.g. CrystalCave.McCabe-Glynn.2013)</em><InfoTip text={tip('dataSetName')} /></span>
+            <input value={dataSetName} onChange={e => setDataSetName(e.target.value)}
+              placeholder="e.g. CrystalCave.McCabe-Glynn.2013" autoFocus />
+          </label>
+
+          <label className="query-field">
+            <span>Archive type *<InfoTip text={tip('archiveType')} /></span>
+            <select value={archiveType} onChange={e => setArchiveType(e.target.value)}>
+              <option value="">Select…</option>
+              {ARCHIVE_TYPES_CANONICAL.map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+          </label>
+
+          <label className="query-field">
+            <span>Site name *<InfoTip text={tip('siteName')} /></span>
+            <input value={siteName} onChange={e => setSiteName(e.target.value)} placeholder="e.g. Crystal Cave" />
+          </label>
+
+          <label className="query-field">
+            <span>Latitude * <em>(-90 to 90)</em><InfoTip text={tip('latitude')} /></span>
+            <input type="number" step="any" value={lat} onChange={e => setLat(e.target.value)}
+              className={lat && !latOk ? 'invalid' : ''} placeholder="e.g. 36.59" />
+          </label>
+
+          <label className="query-field">
+            <span>Longitude * <em>(-180 to 180)</em><InfoTip text={tip('longitude')} /></span>
+            <input type="number" step="any" value={lon} onChange={e => setLon(e.target.value)}
+              className={lon && !lonOk ? 'invalid' : ''} placeholder="e.g. -118.82" />
+          </label>
+
+          <label className="query-field">
+            <span>Elevation (m)<InfoTip text={tip('elevation')} /></span>
+            <input type="number" step="any" value={elev} onChange={e => setElev(e.target.value)} placeholder="optional" />
+          </label>
+
+          <label className="query-field wizard-span2">
+            <span>Investigators <em>(Last, F.; Last, F.)</em><InfoTip text={tip('investigators')} /></span>
+            <input value={investigators} onChange={e => setInvestigators(e.target.value)} placeholder="optional" />
+          </label>
+        </div>
+        <p className="wizard-note">
+          A starter data table (depth, age, value) is created automatically — add
+          or replace its columns in the Data tab once the editor opens.
+        </p>
+
+        <div className="wizard-actions">
+          <button className="btn-close" onClick={onCancel}>Cancel</button>
+          <button className="btn" disabled={!complete} onClick={create}
+            title={complete ? 'Create the dataset and open the editor' : 'Fill the required fields first'}>
+            Create dataset
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}

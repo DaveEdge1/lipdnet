@@ -22,6 +22,18 @@ block body
 			//	p The bug is fixed and you can use the "Upload to Lipdverse" feature again. Thank you for your patience.
 
 			include ./include/navbar.jade
+
+			//- Beta announcement popup: nudge users toward the new React Playground.
+			//- Plain markup + a vanilla script in `block js` (no Angular dependency).
+			#beta-modal-backdrop(style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:2000;")
+				.beta-modal-card(style="max-width:460px; margin:11% auto; background:#fff; border-radius:6px; padding:28px 32px; box-shadow:0 8px 30px rgba(0,0,0,0.3); text-align:center;")
+					h3(style="margin-top:0; color:#577d2a;") Try the new LiPD Playground
+					p(style="color:#444; line-height:1.55;") We are developing an improved LiPD Playground experience and will be phasing out this version soon. Give the new Playground a try!
+					div(style="margin-top:22px;")
+						a.btn.btn-success#beta-modal-go(href="/playground-new" style="background-color:#71a436; border-color:#577d2a;") Open the new Playground
+					div(style="margin-top:14px;")
+						a#beta-modal-dismiss(href="#" style="color:#888; font-size:13px;") Continue with the classic version
+
 			md-toolbar
 				.md-toolbar-tools
 					.md-title Playground
@@ -125,6 +137,25 @@ block js
 	script(src="https://cdnjs.cloudflare.com/ajax/libs/angular-ui-bootstrap/2.5.0/ui-bootstrap-tpls.min.js")
 	script(src="https://cdnjs.cloudflare.com/ajax/libs/angular-sanitize/1.5.8/angular-sanitize.min.js")
 	script(src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.1/js/bootstrap.min.js")
+	//- Beta announcement popup: show once until the user opts to stay on classic.
+	script(type="text/javascript").
+		(function(){
+			try {
+				var KEY = 'lipd-beta-playground-dismissed';
+				var backdrop = document.getElementById('beta-modal-backdrop');
+				if (!backdrop) return;
+				var dismissed = false;
+				try { dismissed = !!localStorage.getItem(KEY); } catch (e) {}
+				if (!dismissed) backdrop.style.display = 'block';
+				function hide(){
+					backdrop.style.display = 'none';
+					try { localStorage.setItem(KEY, '1'); } catch (e) {}
+				}
+				var dismiss = document.getElementById('beta-modal-dismiss');
+				if (dismiss) dismiss.addEventListener('click', function(e){ e.preventDefault(); hide(); });
+				backdrop.addEventListener('click', function(e){ if (e.target === backdrop) hide(); });
+			} catch (e) {}
+		})();
 	// Default Statcounter code for LiPD http://www.lipd.net
 	script(type="text/javascript").
 		var sc_project = 11832646;

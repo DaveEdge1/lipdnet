@@ -1,0 +1,44 @@
+# Production/beta deployment: pulls the images built and pushed by the GitHub
+# Actions workflow (.github/workflows/docker-build-push.yml) instead of building
+# on the host. The node:14 web image can't run Vite, so the SPA dist is baked
+# into the pushed image.
+#
+# On the VPS (e.g. beta on :3001, root-served):
+#   export IMAGE_PREFIX=davidedge        # your Docker Hub username / org
+#   export IMAGE_TAG=playground-react    # branch tag the workflow pushed
+#   export WEB_PORT=3001
+#   docker compose -f docker-compose.prod.yml pull
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# The site is then at http://<host>:${WEB_PORT}/ (playground at /playground).
+version: "3.8"
+
+services:
+  website:
+    image: ${IMAGE_PREFIX:-davidedge}/lipdnet:${IMAGE_TAG:-latest}
+    environment:
+      - NODE_ENV=production
+      # NOAA/PANGAEA *import* (React playground) → the PyleoTUPS service below.
+      - NOAA_SERVICE_URL=http://noaa-service:8000
+      # NOAA *export* (classic playground, POST /noaa) → the flask conversion
+      # service. Point this at wherever flask is reachable from this container
+      # (e.g. http://lipdnet_flask:3002 on a shared network, or the published
+      # host URL). Replaces hand-editing the IP inside the container.
+      - CONVERT_API_URL=${CONVERT_API_URL:-http://64.23.255.172:3002}
+    ports:
+      - "${WEB_PORT:-3001}:3000"
+    volumes:
+      # Persist usage stats (logs/playground_stats.json) across image pulls —
+      # without this the stats reset every deploy.
+      - weblogs:/app/website/logs
+    depends_on:
+      - noaa-service
+    restart: unless-stopped
+
+  noaa-service:
+    image: ${IMAGE_PREFIX:-davidedge}/lipdnet-noaa-service:${IMAGE_TAG:-latest}
+    # Internal only — the website reaches it at http://noaa-service:8000.
+    restart: unless-stopped
+
+volumes:
+  weblogs:

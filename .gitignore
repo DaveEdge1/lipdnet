@@ -95,3 +95,10 @@ website/node_modules/*
 # Separate repo
 lipdnet_flask/
 
+
+# Runtime analytics logs written by the server
+website/logs/
+
+# NSF progress reports (not for public repo)
+TUPS - NSF Report*.pdf
+*NSF Report*.pdf

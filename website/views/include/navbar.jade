@@ -13,14 +13,14 @@ header
                     li
                         a(href='/') Home
                     li
-                        a(href='http://linked.earth/ontology/') Ontology
-                        md-tooltip LinkedEarth concepts and ontologies
+                        //- Native title tooltips: md-tooltip only renders on pages
+                        //- that load Angular Material (it shows as stray text elsewhere)
+                        a(href='/format' title='LiPD file format technical reference') Format
                     li
-                        a(href='/playground') Playground
-                        md-tooltip Create, edit, and visualize data
+                        a(href='/playground' title='Create, edit, and visualize data') Classic Playground
                     li
-                        a(href='/query') Query
-                        md-tooltip Filter datasets hosted on the LinkedEarth Wiki
+                        a(href='/playground-new' title='Try the new LiPD Playground (beta)') Playground v2 (beta)
                     li
-                        a(href='/merge') Merge
-                        md-tooltip Merge, compare, and resolve differences between two datasets
+                        a(href='/query' title='Search datasets on LiPDverse') Query
+                    li
+                        a(href='/merge' title='Merge, compare, and resolve differences between two datasets') Merge

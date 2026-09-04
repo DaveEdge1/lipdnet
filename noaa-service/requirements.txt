@@ -1,0 +1,12 @@
+bibtexparser==1.4.1
+doi2bib==0.4.0
+fastapi==0.139.0
+numpy==2.4.6
+openpyxl==3.1.5
+pandas==3.0.3
+pangaeapy==1.1.0
+pybtex==0.26.1
+pyleotups==1.0.0
+tqdm==4.68.4
+uvicorn==0.51.0
+xlrd==2.0.2
