@@ -1063,18 +1063,12 @@ angular.module("ngValidate").controller('ValidateCtrl', ['$scope','$rootScope', 
           console.log("We have liftoff. Here ya go!");
           // If there is a callback, that means we're doing a wiki upload and need to send the response data in the
           // callback.
-          // Are we on dev or production? Create the url according to the mode.
-          var _url = "";
+          // The file was just POSTed to this same server, so the download has to
+          // come back from this same origin. Hard-coding a host here breaks every
+          // deployment that isn't that host (the file lives in the tmp dir of the
+          // server that built it, so the other server answers 500).
           var _fileID = resp.data;
-          if(dev){
-              // Dev mode download link
-              //_url = "http://64.23.255.172:3001/" + mode + "/" + _fileID;
-              _url = "http://localhost:3000/" + mode + "/" + _fileID;
-          } else {
-              // Production mode download link
-              //_url = "http://64.23.255.172:3001/" + mode + "/" + _fileID;
-              _url = "https://lipd.net/" + mode + "/" + _fileID;
-          }
+          var _url = "/" + mode + "/" + _fileID;
           // Is there a callback?
           if(cb){
               // We're attempting to upload the file to the Wiki, so send the data through the callback.
