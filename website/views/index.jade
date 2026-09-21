@@ -17,7 +17,7 @@ block body
 						h1.md-display-3 { Linked Paleo Data }
 						img(ng-src="img/logo_trans.png" width="180px" style="margin: 10px 0 14px;")
 						p.md-subhead LiPD (Linked PaleoData) is an open data standard for sharing, reusing, and analyzing paleoclimate datasets. Each LiPD file packages tabular proxy data alongside rich structured metadata in a portable, validated archive — letting scientists spend less time managing data and more time doing science.
-						p.md-subhead LiPD is supported by libraries for R (lipdR) and Python (pylipd), a browser-based editor (LiPD Studio), and a growing community archive at LiPDverse.
+						p.md-subhead LiPD is supported by libraries for R (lipdR) and Python (pylipd), a browser-based editor (LiPD Studio), an editor extension for VS Code, and a growing community archive at LiPDverse that is also published as a queryable knowledge graph.
 						p.md-subhead.
 							A technical description of the format for developers is available on the
 							#[a(href='/format') Format page.]
@@ -49,7 +49,7 @@ block body
 							.gs-subsection-header
 								i.fa.fa-code.gs-icon
 								h3 Software
-							p.gs-subsection-intro LiPD is supported by libraries for R and Python, and a browser-based editor. Choose what fits your workflow.
+							p.gs-subsection-intro LiPD is supported by libraries for R and Python, a browser-based editor, and an editor extension for VS Code. Choose what fits your workflow.
 							.row
 								.col-md-4
 									md-card.gs-tool-card
@@ -88,6 +88,20 @@ block body
 											p Create, upload, and edit LiPD files directly in your browser. No installation required.
 									md-card-actions(layout="row")
 										a.md-button.md-raised.md-primary(href="/playground") Open Playground
+							.row
+								.col-md-4
+									md-card.gs-tool-card
+										md-card-title
+											md-card-title-text
+												span.md-headline LiPD File Support
+												span.md-subhead VS Code extension
+										md-card-content
+											p Open and edit LiPD files in VS Code or Cursor, with form-based editing, a site map, and CSV export. Its GraphDB explorer browses the LiPD Graph and opens remote datasets straight from the editor.
+									md-card-actions(layout="row")
+										a.md-button.md-raised.md-primary(href="https://marketplace.visualstudio.com/items?itemName=karyalimited.lipd-vscode" target="_blank") Install
+										a.md-button(href="https://github.com/LinkedEarth/lipd-vscode" target="_blank")
+											i.fa.fa-github
+											|  GitHub
 						.gs-subsection
 							.gs-subsection-header
 								i.fa.fa-database.gs-icon
@@ -100,6 +114,15 @@ block body
 									a.md-button.md-raised(href="https://lipdverse.org/" target="_blank")
 										i.fa.fa-external-link
 										|  Visit LiPDverse
+							.gs-feature-block
+								.gs-feature-body
+									h4 LiPD Graph
+									p Every dataset in LiPDverse is also published as linked data in a knowledge graph, so you can ask questions across the whole archive at once rather than opening files one at a time — every marine sediment record between two latitudes with a Mg/Ca column, say. The graph is a SPARQL endpoint, and the Query page runs against it directly in your browser.
+									p To browse it interactively, the LiPD File Support extension for VS Code includes a GraphDB explorer that searches the graph by name, location, or time period and opens a remote dataset straight in the editor.
+									a.md-button.md-raised.md-primary(href="/query") Query the Graph
+									a.md-button(href="https://marketplace.visualstudio.com/items?itemName=karyalimited.lipd-vscode" target="_blank")
+										i.fa.fa-external-link
+										|  Browse it in VS Code
 						.gs-subsection
 							.gs-subsection-header
 								i.fa.fa-pencil.gs-icon

@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useMemo, useEffect, useTransition } from 'react'
 import type { LipdMetadata } from '../types/lipd'
 import { getTables, updateCellValue, deleteTableRow, addTableRow, replaceTableData, addTableColumn, deleteTableColumn, addMeasurementTable, duplicateTable, deleteTable, moveTableToSection } from '../lib/lipd'
-import { parseTabular } from '../lib/tabular'
+import { parseTabular, toValue } from '../lib/tabular'
 
 interface Props {
   metadata: LipdMetadata
@@ -70,10 +70,10 @@ export function DataEditor({ metadata, onChange, selectedPath }: Props) {
     return String(val)
   }
 
+  // Shared with the paste/upload paths so a typed cell is normalized the same
+  // way — notably, commas are stripped (see stripCommas in lib/tabular).
   function parseValue(raw: string): number | string | null {
-    if (raw.trim() === '' || raw.trim().toLowerCase() === 'nan') return null
-    const n = Number(raw)
-    return isNaN(n) ? raw : n
+    return toValue(raw)
   }
 
   function startEdit(row: number, colIdx: number) {

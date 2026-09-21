@@ -1,8 +1,8 @@
 import JSZip from 'jszip'
 import SparkMD5 from 'spark-md5'
-import type { LipdFile, LipdMetadata, LipdColumn, LipdTable } from '../types/lipd'
+import type { LipdFile, LipdMetadata, LipdColumn, LipdTable, LipdGeo, LipdPosition } from '../types/lipd'
 import { makeTSid } from './newDataset'
-import type { ParsedTabular } from './tabular'
+import { stripCommas, type ParsedTabular } from './tabular'
 
 // ---- Parse ----------------------------------------------------------------
 
@@ -217,7 +217,12 @@ function buildCsvFiles(metadata: LipdMetadata): Record<string, string> {
       for (let i = 0; i < rowCount; i++) {
         lines.push(cols.map(c => {
           const v = c.values?.[i]
-          return v === null || v === undefined ? 'NaN' : String(v)
+          if (v === null || v === undefined) return 'NaN'
+          // Backstop for issue #2. Entry paths already strip commas, but the
+          // JSON editor and merge can reintroduce one, and a LiPD CSV is
+          // unquoted — lipdR/pylipd would read the extra comma as a column
+          // break and shift every later column on that row.
+          return typeof v === 'number' ? String(v) : stripCommas(String(v))
         }).join(','))
       }
       out[fname] = lines.join('\n') + '\n'
@@ -658,11 +663,63 @@ export function applyJsonEdit(edited: LipdMetadata, original: LipdMetadata): Lip
   return edited
 }
 
+// A representative [lon, lat, elev?] for any geometry. A Point is itself; a
+// multi-site Polygon footprint (#14) collapses to the centroid of its outer
+// ring, so map pins, validation and the NOAA exporter keep working on a
+// collapsed multi-site dataset instead of reading a ring as a coordinate pair.
+export function geoPosition(geo: LipdGeo | undefined): LipdPosition | undefined {
+  const coords = geo?.geometry?.coordinates
+  if (!coords) {
+    return (geo?.latitude != null && geo?.longitude != null)
+      ? [geo.longitude, geo.latitude, geo.elevation]
+      : undefined
+  }
+  if (typeof coords[0] === 'number') return coords as LipdPosition
+  const ring = (coords as LipdPosition[][])[0]
+  if (!ring?.length) return undefined
+  // Drop the repeated closing position before averaging.
+  const pts = (ring.length > 1 && ring[0][0] === ring[ring.length - 1][0] && ring[0][1] === ring[ring.length - 1][1])
+    ? ring.slice(0, -1)
+    : ring
+  if (!pts.length) return undefined
+  const mean = (i: 0 | 1 | 2) => {
+    const vals = pts.map(pt => pt[i]).filter((v): v is number => typeof v === 'number')
+    return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : undefined
+  }
+  const lon = mean(0); const lat = mean(1)
+  if (lon === undefined || lat === undefined) return undefined
+  return [lon, lat, mean(2)]
+}
+
+// North/south/east/west extent of a geometry. A Point's bounds are the point
+// itself; a footprint's are the true envelope of its ring, which is what the
+// NOAA template's Northernmost/Southernmost fields are asking for.
+export function geoBounds(geo: LipdGeo | undefined): { north: number; south: number; east: number; west: number; elev?: number } | undefined {
+  const coords = geo?.geometry?.coordinates
+  if (coords && typeof coords[0] !== 'number') {
+    const ring = (coords as LipdPosition[][])[0] ?? []
+    if (!ring.length) return undefined
+    const lons = ring.map(pt => pt[0]); const lats = ring.map(pt => pt[1])
+    const elevs = ring.map(pt => pt[2]).filter((v): v is number => typeof v === 'number')
+    return {
+      north: Math.max(...lats), south: Math.min(...lats),
+      east: Math.max(...lons), west: Math.min(...lons),
+      elev: elevs.length ? elevs[0] : undefined,
+    }
+  }
+  const pos = geoPosition(geo)
+  if (!pos) return undefined
+  return { north: pos[1], south: pos[1], east: pos[0], west: pos[0], elev: pos[2] }
+}
+
+/** True when this dataset's geo is a multi-site footprint rather than a point. */
+export function isFootprint(geo: LipdGeo | undefined): boolean {
+  const coords = geo?.geometry?.coordinates
+  return !!coords && typeof coords[0] !== 'number'
+}
+
 export function getCoordinates(metadata: LipdMetadata): [number, number] | null {
-  const geo = metadata.geo
-  if (!geo) return null
-  const coords = geo.geometry?.coordinates
-  if (coords) return [coords[1], coords[0]] // [lat, lng]
-  if (geo.latitude != null && geo.longitude != null) return [geo.latitude, geo.longitude]
+  const pos = geoPosition(metadata.geo)
+  if (pos) return [pos[1], pos[0]] // [lat, lng]
   return null
 }

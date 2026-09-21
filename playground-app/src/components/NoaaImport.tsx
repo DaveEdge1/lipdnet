@@ -1,13 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  searchNoaaStudies, noaaStudyToLipd, noaaStudyViaService, noaaFileToLipd, noaaFileViaService,
+  searchNoaaStudiesBoolean, buildBooleanTerms, describeBooleanQuery,
+  noaaStudyToLipd, noaaPayloadViaService, buildCollapsed, buildPerSite, payloadSites,
+  noaaFileToLipd, noaaFileViaService,
   NOAA_DATA_TYPES, NOAA_SEARCH_LIMIT, type NoaaStudy, type NoaaSearchFilters, type NoaaMultiKey, type AndOr,
+  type ServicePayload, type ServiceSite,
 } from '../lib/noaa'
 import {
   NOAA_CV_WHATS, NOAA_CV_MATERIALS, NOAA_CV_SEASONALITIES, NOAA_LOCATIONS, NOAA_KEYWORDS, NOAA_SPECIES,
 } from '../lib/noaaVocab.generated'
 import { NoaaResultsMap } from './NoaaResultsMap'
 import { NoaaReviewDialog, reviewTables } from './NoaaReviewDialog'
+import { SiteChoiceDialog } from './SiteChoiceDialog'
+import { saveToLibrary, libraryKey } from '../lib/browserLibrary'
 import { InfoTip } from './InfoTip'
 import { tip } from '../lib/tooltips'
 import type { LipdFile } from '../types/lipd'
@@ -23,6 +28,8 @@ export interface NoaaSearchSession {
   showAdvanced: boolean
   multi: Record<NoaaMultiKey, string[]>
   andOr: Partial<Record<NoaaMultiKey, AndOr>>
+  // How each populated field joins the one before it (issue #17). Default 'and'.
+  fieldJoin: Partial<Record<NoaaMultiKey, AndOr>>
   minLat: string; maxLat: string; minLon: string; maxLon: string
   minElevation: string; maxElevation: string
   earliestYear: string; latestYear: string
@@ -31,7 +38,9 @@ export interface NoaaSearchSession {
 }
 
 interface Props {
-  onLoad: (lipd: LipdFile) => void
+  // The optional note explains a non-obvious import decision to the user; the
+  // workspace shows it, because this panel unmounts as soon as a dataset loads.
+  onLoad: (lipd: LipdFile, note?: string) => void
   // When set, seed the search state from a prior session (restore-on-remount).
   initialSession?: NoaaSearchSession | null
   // Called with the current snapshot whenever it changes, so the parent can
@@ -50,6 +59,10 @@ const MVF_CONFIG: Array<{ key: NoaaMultiKey; label: string; tipKey: string; list
   { key: 'locations',       label: 'Location',     tipKey: 'search.location',      listId: 'noaa-locations',        placeholder: 'e.g. Continent>North America>Greenland' },
   { key: 'keywords',        label: 'Keyword category', tipKey: 'search.keywords',  listId: 'noaa-keywords',         placeholder: 'e.g. climate forcing' },
 ]
+
+// Display label for a categorical filter key, used by the combiner's chips and
+// its plain-English summary. Module scope so memo dependencies stay stable.
+const mvfLabel = (k: NoaaMultiKey): string => MVF_CONFIG.find(c => c.key === k)?.label ?? k
 
 // A chip-style filter: several values, each removable, with an AND/OR toggle
 // shown once there are two or more. Optional datalist for autocomplete.
@@ -183,6 +196,9 @@ export function NoaaImport({ onLoad, initialSession, onSession }: Props) {
   const [selectedId, setSelectedId] = useState<string | null>(() => s0?.selectedId ?? null)
   const [review, setReview] = useState<LipdFile | null>(null)  // human-in-the-loop for heuristic tables
   const [importingId, setImportingId] = useState<string | null>(null)  // study currently importing (spinner)
+  // A fetched multi-site payload waiting on the user's split choice (#14). The
+  // service call is slow, so it's held rather than re-fetched after the answer.
+  const [siteChoice, setSiteChoice] = useState<{ payload: ServicePayload; sites: ServiceSite[]; studyName: string } | null>(null)
 
   // Advanced filters
   const [showAdvanced, setShowAdvanced] = useState(() => s0?.showAdvanced ?? false)
@@ -190,8 +206,10 @@ export function NoaaImport({ onLoad, initialSession, onSession }: Props) {
     investigators: [], variableName: [], cvMaterials: [], cvSeasonalities: [], species: [], locations: [], keywords: [],
   })
   const [andOr, setAndOr] = useState<Partial<Record<NoaaMultiKey, AndOr>>>(() => s0?.andOr ?? {})
+  const [fieldJoin, setFieldJoin] = useState<Partial<Record<NoaaMultiKey, AndOr>>>(() => s0?.fieldJoin ?? {})
   const setValues = (key: NoaaMultiKey, v: string[]) => setMulti(m => ({ ...m, [key]: v }))
   const setFieldAndOr = (key: NoaaMultiKey, v: AndOr) => setAndOr(a => ({ ...a, [key]: v }))
+  const setJoin = (key: NoaaMultiKey, v: AndOr) => setFieldJoin(j => ({ ...j, [key]: v }))
   const [minLat, setMinLat] = useState(() => s0?.minLat ?? ''); const [maxLat, setMaxLat] = useState(() => s0?.maxLat ?? '')
   const [minLon, setMinLon] = useState(() => s0?.minLon ?? ''); const [maxLon, setMaxLon] = useState(() => s0?.maxLon ?? '')
   const [minElevation, setMinElevation] = useState(() => s0?.minElevation ?? ''); const [maxElevation, setMaxElevation] = useState(() => s0?.maxElevation ?? '')
@@ -206,12 +224,12 @@ export function NoaaImport({ onLoad, initialSession, onSession }: Props) {
   useEffect(() => {
     onSession?.({
       studyId, studyUrl, keywords, archiveName, results, selectedId, showAdvanced,
-      multi, andOr, minLat, maxLat, minLon, maxLon, minElevation, maxElevation,
+      multi, andOr, fieldJoin, minLat, maxLat, minLon, maxLon, minElevation, maxElevation,
       earliestYear, latestYear, timeFormat, timeMethod, recent, reconstructionOnly,
     })
   }, [
     onSession, studyId, studyUrl, keywords, archiveName, results, selectedId, showAdvanced,
-    multi, andOr, minLat, maxLat, minLon, maxLon, minElevation, maxElevation,
+    multi, andOr, fieldJoin, minLat, maxLat, minLon, maxLon, minElevation, maxElevation,
     earliestYear, latestYear, timeFormat, timeMethod, recent, reconstructionOnly,
   ])
 
@@ -248,8 +266,19 @@ export function NoaaImport({ onLoad, initialSession, onSession }: Props) {
     try {
       // Prefer the PyleoTUPS service (better parsing); fall back to the
       // browser parser when it isn't deployed.
-      const viaService = await noaaStudyViaService(study.NOAAStudyId)
-      const { lipd, skippedFiles, metadataOnly } = viaService ?? await noaaStudyToLipd(study)
+      const payload = await noaaPayloadViaService(study.NOAAStudyId)
+      // A study spanning several sites has two sensible LiPD shapes, so ask
+      // before choosing one (#14). The answer is handled in finishImport.
+      if (payload) {
+        const sites = payloadSites(payload)
+        if (sites.length > 1) {
+          setSiteChoice({ payload, sites, studyName: study.studyName || `NOAA ${study.NOAAStudyId}` })
+          setBusy(null)
+          setImportingId(null)
+          return
+        }
+      }
+      const { lipd, skippedFiles, metadataOnly } = payload ? buildCollapsed(payload) : await noaaStudyToLipd(study)
       if (skippedFiles.length) {
         console.warn('NOAA import skipped files:', skippedFiles)
       }
@@ -270,6 +299,62 @@ export function NoaaImport({ onLoad, initialSession, onSession }: Props) {
         return
       }
       onLoad(lipd)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Import failed')
+    } finally {
+      setBusy(null)
+      setImportingId(null)
+    }
+  }
+
+  // Apply the user's multi-site answer to the payload already in hand (#14).
+  // "collapse" opens one dataset as usual. "per-site" builds N, saves them all
+  // to the browser library so none is lost, and opens the first for editing.
+  const applySiteChoice = async (mode: 'collapse' | 'per-site') => {
+    if (!siteChoice) return
+    const { payload, sites } = siteChoice
+    setSiteChoice(null)
+    setBusy(mode === 'collapse' ? 'Building dataset…' : `Building ${sites.length} datasets…`)
+    setError(null)
+    try {
+      if (mode === 'collapse') {
+        const { lipd } = buildCollapsed(payload)
+        if (reviewTables(lipd).length) { setReview(lipd); return }
+        onLoad(
+          lipd,
+          `Imported as one dataset with ${sites.length} PaleoData objects, one per site. ` +
+          `Its location is the area the sites cover, and every table carries latitude, ` +
+          `longitude, and elevation columns identifying its site.`
+        )
+        return
+      }
+      const built = buildPerSite(payload)
+      if (!built.length) { setError('No sites could be imported from this study'); return }
+      const savedAt = new Date().toISOString()
+      let saved = 0
+      for (const { lipd } of built) {
+        try {
+          await saveToLibrary({
+            id: libraryKey(lipd.metadata, lipd.filename),
+            name: lipd.metadata.dataSetName ?? lipd.filename,
+            filename: lipd.filename,
+            metadata: lipd.metadata,
+            savedAt,
+          })
+          saved++
+        } catch {
+          // A library write failing shouldn't lose the import — the first
+          // dataset still opens, and the notice reports the real count.
+        }
+      }
+      onLoad(
+        built[0].lipd,
+        saved === built.length
+          ? `Imported ${built.length} datasets, one per site, and saved them all to this browser. ` +
+            `This is the first; reach the rest from "Saved in this browser" at the bottom of the landing page.`
+          : `Imported ${built.length} datasets, one per site, but only ${saved} could be saved to ` +
+            `this browser. This is the first — download the others as you go.`
+      )
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Import failed')
     } finally {
@@ -305,24 +390,26 @@ export function NoaaImport({ onLoad, initialSession, onSession }: Props) {
     }
   }
 
+  // The populated categorical fields as an ordered boolean expression. Shared by
+  // the Combine-filters bar and the search itself so they can never disagree.
+  const boolTerms = useMemo(
+    () => buildBooleanTerms(multi, andOr, fieldJoin),
+    [multi, andOr, fieldJoin]
+  )
+  const boolSummary = useMemo(() => describeBooleanQuery(boolTerms, mvfLabel), [boolTerms])
+
   const search = async () => {
     if (busy) return
     const numOr = (s: string) => (s.trim() === '' ? undefined : Number(s))
     const hasYear = earliestYear.trim() !== '' || latestYear.trim() !== ''
-    const arr = (v: string[]) => (v.length ? v : undefined)
     // A study id or URL is an exact lookup; otherwise search by keywords.
     const q = studyId.trim() || studyUrl.trim() || keywords.trim()
     // Archive type is entered as a name; map it to the NCEI numeric dataTypeId.
     const dataTypeId = NOAA_DATA_TYPES.find(d => d.name.toLowerCase() === archiveName.trim().toLowerCase())?.id
     const filters: NoaaSearchFilters = {
-      investigators: arr(multi.investigators),
-      variableName: arr(multi.variableName),
-      cvMaterials: arr(multi.cvMaterials),
-      cvSeasonalities: arr(multi.cvSeasonalities),
-      species: arr(multi.species),
-      locations: arr(multi.locations),
-      keywords: arr(multi.keywords),
-      andOr,
+      // The categorical fields travel as boolean terms instead (see boolTerms),
+      // so they're deliberately absent here; everything below is a global
+      // constraint applied to every branch of the expression.
       dataTypeId: dataTypeId || undefined,
       minLat: numOr(minLat), maxLat: numOr(maxLat),
       minLon: numOr(minLon), maxLon: numOr(maxLon),
@@ -344,11 +431,19 @@ export function NoaaImport({ onLoad, initialSession, onSession }: Props) {
     setResults(null)
     setSelectedId(null)
     try {
-      const studies = await searchNoaaStudies(q, filters)
+      const { studies, branches } = await searchNoaaStudiesBoolean(q, filters, boolTerms)
       if (!studies.length) {
         setNotice('No NOAA studies matched. Try broadening your search terms or clearing a filter.')
       } else {
         setResults(studies)
+        // An OR splits the query into several NCEI requests, each capped
+        // separately — say so, since the totals won't look like one search.
+        if (branches > 1) {
+          setNotice(
+            `Your OR query ran as ${branches} searches and these are the combined matches. ` +
+            `NOAA caps each search at ${NOAA_SEARCH_LIMIT} results, so a broad branch may be truncated.`
+          )
+        }
         // A single hit is shown expanded for review — never auto-imported.
         if (studies.length === 1) setSelectedId(studies[0].NOAAStudyId)
       }
@@ -371,8 +466,26 @@ export function NoaaImport({ onLoad, initialSession, onSession }: Props) {
     )
   }
 
+  const siteTableCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const t of siteChoice?.payload.tables ?? []) {
+      const k = t.siteKey ?? ''
+      counts[k] = (counts[k] ?? 0) + 1
+    }
+    return counts
+  }, [siteChoice])
+
   return (
     <div className="noaa-import">
+      {siteChoice && (
+        <SiteChoiceDialog
+          studyName={siteChoice.studyName}
+          sites={siteChoice.sites}
+          tableCounts={siteTableCounts}
+          onChoose={applySiteChoice}
+          onCancel={() => { setSiteChoice(null); setBusy(null); setImportingId(null) }}
+        />
+      )}
       <div className="noaa-base-grid">
         <label className="query-field">
           <span>NOAA study ID<InfoTip text={tip('search.studyId')} /></span>
@@ -434,6 +547,44 @@ export function NoaaImport({ onLoad, initialSession, onSession }: Props) {
 
       {showAdvanced && (
         <div className="noaa-advanced">
+          {/* Cross-field boolean logic (issue #17). NCEI ANDs its params, so an
+              OR between two fields is composed client-side as separate searches
+              whose results are unioned. Only shown once there's something to
+              combine — with one filled field there is no join to choose. */}
+          {boolTerms.length >= 2 && (
+            <fieldset className="noaa-group noaa-combine">
+              <legend>Combine filters<InfoTip text={tip('search.combine')} /></legend>
+              <div className="noaa-combine-chain">
+                {boolTerms.map((term, i) => (
+                  <span key={term.key} className="noaa-combine-item">
+                    {i > 0 && (
+                      <select
+                        className={`noaa-join ${term.joinToPrevious === 'or' ? 'is-or' : 'is-and'}`}
+                        value={term.joinToPrevious}
+                        onChange={e => setJoin(term.key, e.target.value as AndOr)}
+                        aria-label={`How ${mvfLabel(term.key)} combines with the filters before it`}
+                      >
+                        <option value="and">AND</option>
+                        <option value="or">OR</option>
+                      </select>
+                    )}
+                    <span className="noaa-combine-term">
+                      <span className="noaa-combine-field">{mvfLabel(term.key)}</span>
+                      <span className="noaa-combine-vals">
+                        {term.values.length === 1
+                          ? term.values[0]
+                          : `${term.within === 'and' ? 'all' : 'any'} of ${term.values.length}`}
+                      </span>
+                    </span>
+                  </span>
+                ))}
+              </div>
+              <p className="noaa-combine-summary">
+                Matches studies where {boolSummary}.
+              </p>
+            </fieldset>
+          )}
+
           <fieldset className="noaa-group">
             <legend>Proxy &amp; material</legend>
             <div className="noaa-group-grid">

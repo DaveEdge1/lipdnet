@@ -52,13 +52,29 @@ f.factory("ExportService", ["$q", function ($q) {
     return $q.all(promises);
   }; // end prepForDownload
 
+  // A LiPD CSV is plain comma-delimited with no quoting, and lipdR/pylipd read
+  // it that way -- so a comma inside a cell shifts every later column on that
+  // row. Strip commas on the way out (issue #2). A pasted thousands-separated
+  // number ("1,234") keeps its value; any other comma separates words and
+  // becomes a space, so "Vostok, Antarctica" does not run together.
+  var stripCommas = function(val){
+    if (val === null || val === undefined) return val;
+    if (typeof val === "number") return val;
+    var str = String(val);
+    if (str.indexOf(",") === -1) return str;
+    if (/^[+-]?\d{1,3}(,\d{3})+(\.\d+)?$/.test(str.trim())) {
+      return str.trim().replace(/,/g, "");
+    }
+    return str.replace(/,/g, " ").replace(/\s+/g, " ").trim();
+  };
+
   // concat all the csv arrays into a flat data string that can be written to file
   var prepCsvEntry = function(csvArrs){
     // header for the csv file
     var csvContent = "";
     angular.forEach(csvArrs, function(entry, idx){
       // turn the array into a joined string by commas.
-       dataString = entry.join(",");
+       dataString = entry.map(stripCommas).join(",");
        // add this new string onto the growing master string. if it's the end of the data string, then add newline char
       //  csvContent += idx < entry.length ? dataString + "\n" : dataString;
       csvContent += dataString + "\n";

@@ -1,4 +1,5 @@
 import type { LipdMetadata } from '../types/lipd'
+import { geoPosition } from './lipd'
 import { ARCHIVE_TYPES, INTERP_VARIABLES, SEASONALITY, PROXY_TYPES, PROXY_GENERAL, UNITS, VARIABLE_NAMES } from './vocabulary'
 
 export type IssueSeverity = 'error' | 'warning'
@@ -29,9 +30,10 @@ export function validateLipd(metadata: LipdMetadata): Issue[] {
 
   // geo
   if (metadata.geo) {
-    const coords = metadata.geo.geometry?.coordinates
-    const lat = coords ? coords[1] : metadata.geo.latitude
-    const lon = coords ? coords[0] : metadata.geo.longitude
+    // A multi-site footprint validates on its centroid (see geoPosition).
+    const pos = geoPosition(metadata.geo)
+    const lat = pos ? pos[1] : metadata.geo.latitude
+    const lon = pos ? pos[0] : metadata.geo.longitude
     if (lat == null) issues.push({ severity: 'error', path: 'geo.latitude', message: 'Latitude is missing' })
     if (lon == null) issues.push({ severity: 'error', path: 'geo.longitude', message: 'Longitude is missing' })
     if (lat != null && (lat < -90 || lat > 90)) issues.push({ severity: 'error', path: 'geo.latitude', message: `Latitude ${lat} is out of range [-90, 90]` })
@@ -102,12 +104,12 @@ export function validateNoaa(metadata: LipdMetadata): Issue[] {
   req(metadata.mostRecentYear != null && metadata.mostRecentYear !== '', 'mostRecentYear', 'NOAA: most recent year is required')
 
   const geo = metadata.geo
-  const coords = geo?.geometry?.coordinates
+  const pos = geoPosition(geo)
   req(geo?.properties?.siteName ?? geo?.siteName, 'geo.siteName', 'NOAA: site name is required')
   rec(geo?.properties?.location, 'geo.location', 'NOAA: location (e.g. "Continent>Europe") is recommended')
-  req(coords?.[1] != null || geo?.latitude != null, 'geo.latitude', 'NOAA: latitude is required')
-  req(coords?.[0] != null || geo?.longitude != null, 'geo.longitude', 'NOAA: longitude is required')
-  rec((coords?.[2] ?? geo?.elevation) != null, 'geo.elevation', 'NOAA: elevation is recommended')
+  req(pos?.[1] != null || geo?.latitude != null, 'geo.latitude', 'NOAA: latitude is required')
+  req(pos?.[0] != null || geo?.longitude != null, 'geo.longitude', 'NOAA: longitude is required')
+  rec((pos?.[2] ?? geo?.elevation) != null, 'geo.elevation', 'NOAA: elevation is recommended')
 
   rec(metadata.datasetDOI, 'datasetDOI', 'NOAA: dataset DOI is recommended')
   rec(metadata.originalDataUrl, 'originalDataUrl', 'NOAA: original source URL is recommended')

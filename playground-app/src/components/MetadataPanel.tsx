@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { LipdMetadata, LipdPub } from '../types/lipd'
-import { getSiteName } from '../lib/lipd'
+import { getSiteName, geoPosition, isFootprint } from '../lib/lipd'
 import { fetchDoiMetadata } from '../lib/crossref'
 import { ARCHIVE_TYPES_CANONICAL } from '../lib/vocabulary'
 import { InfoTip } from './InfoTip'
@@ -90,7 +90,10 @@ export function MetadataPanel({ metadata, onChange }: Props) {
 
   // -- geo ---------------------------------------------------------------------
   const geo = metadata.geo ?? {}
-  const coords = geo.geometry?.coordinates ?? [geo.longitude ?? 0, geo.latitude ?? 0, geo.elevation ?? 0]
+  // A collapsed multi-site import carries a Polygon footprint (#14); show its
+  // centroid here, and warn before an edit flattens it back to a single point.
+  const footprint = isFootprint(geo)
+  const coords = geoPosition(geo) ?? [geo.longitude ?? 0, geo.latitude ?? 0, geo.elevation ?? 0]
   const setCoord = (idx: number, value: number) => {
     const newCoords = [...coords] as [number, number, number]
     newCoords[idx] = value
@@ -210,6 +213,13 @@ export function MetadataPanel({ metadata, onChange }: Props) {
           </button>
         </div>
         <Field label="Site name" value={getSiteName(metadata)} onEdit={v => setGeoProp('siteName', v)} tipKey="siteName" />
+        {footprint && (
+          <p className="geo-footprint-note">
+            This dataset covers several sites, so its location is stored as an area. The
+            coordinates below are the centre of that area — editing one replaces the area
+            with a single point.
+          </p>
+        )}
         {dmsMode ? (
           <>
             <DmsInput key={`lat${coords[1]}`} label="Latitude" value={Number(coords[1]) || 0} hemis={['N', 'S']} onCommit={v => setCoord(1, v)} />

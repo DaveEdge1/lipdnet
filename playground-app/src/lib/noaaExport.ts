@@ -5,6 +5,7 @@
 // the 9-component descriptor, tab-delimited data).
 import JSZip from 'jszip'
 import type { LipdFile, LipdMetadata, LipdTable, LipdColumn, LipdPub } from '../types/lipd'
+import { geoBounds } from './lipd'
 
 const line = (s = '') => `# ${s}`.trimEnd()
 const section = (title: string, rows: string[]) =>
@@ -28,17 +29,18 @@ function pubLines(pub: LipdPub, i: number): string[] {
 
 function geoLines(metadata: LipdMetadata): string[] {
   const geo = metadata.geo
-  const coords = geo?.geometry?.coordinates
-  const lat = coords ? coords[1] : geo?.latitude
-  const lon = coords ? coords[0] : geo?.longitude
-  const elev = coords ? coords[2] : geo?.elevation
+  // Bounds, not a single point: a multi-site footprint (#14) exports its real
+  // envelope, which is exactly what these NOAA fields ask for. A point site
+  // yields north === south and east === west, unchanged from before.
+  const b = geoBounds(geo)
+  const elev = b?.elev ?? geo?.elevation
   return section('Site Information', [
     `Site_Name: ${geo?.properties?.siteName ?? geo?.siteName ?? ''}`,
     `Location: ${geo?.properties?.location ?? ''}`,
-    `Northernmost_Latitude: ${lat ?? ''}`,
-    `Southernmost_Latitude: ${lat ?? ''}`,
-    `Easternmost_Longitude: ${lon ?? ''}`,
-    `Westernmost_Longitude: ${lon ?? ''}`,
+    `Northernmost_Latitude: ${b?.north ?? geo?.latitude ?? ''}`,
+    `Southernmost_Latitude: ${b?.south ?? geo?.latitude ?? ''}`,
+    `Easternmost_Longitude: ${b?.east ?? geo?.longitude ?? ''}`,
+    `Westernmost_Longitude: ${b?.west ?? geo?.longitude ?? ''}`,
     `Elevation: ${elev ?? ''}`,
   ])
 }

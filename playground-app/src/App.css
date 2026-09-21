@@ -107,6 +107,23 @@ body { background: var(--bg); height: 100vh; overflow: hidden; }
 .landing-choice-title { font-weight: 600; font-size: .9rem; color: #333; }
 .landing-choice-sub { font-size: .78rem; color: var(--text-muted); }
 .landing-card-wide { grid-column: 1 / -1; }
+
+/* Note shown when a dataset's location is an area, not a point (#14). */
+.geo-footprint-note {
+  margin: .2rem 0 .1rem; font-size: .76rem; line-height: 1.45;
+  color: var(--text-muted); background: var(--surface2);
+  border-left: 3px solid var(--accent); border-radius: 0 4px 4px 0; padding: .4rem .55rem;
+}
+
+/* Placeholder card for an archive that isn't wired up yet (PANGAEA). Muted and
+   non-interactive so it reads as an announcement, not a broken control. */
+.landing-card-soon { background: var(--surface2); border-style: dashed; }
+.landing-card-soon h2 { display: flex; align-items: center; gap: .5rem; color: var(--text-muted); }
+.landing-soon-badge {
+  text-transform: none; letter-spacing: normal; font-size: .7rem; font-weight: 600;
+  background: rgba(113,164,54,.18); color: var(--accent);
+  padding: .1rem .45rem; border-radius: 999px;
+}
 .landing-footer { color: var(--text-muted); font-size: .82rem; }
 
 @media (max-width: 680px) {
@@ -156,6 +173,33 @@ body { background: var(--bg); height: 100vh; overflow: hidden; }
 .noaa-range-title { grid-column: 1 / -1; font-size: .76rem; color: var(--text-muted); }
 .noaa-advanced .noaa-time-basis {
   width: auto; margin-left: .4rem; padding: .05rem .2rem; font-size: .72rem; vertical-align: baseline;
+}
+
+/* ---- cross-field boolean combiner (issue #17) ---- */
+.noaa-combine > legend { display: flex; align-items: center; gap: .3rem; }
+.noaa-combine-chain {
+  display: flex; flex-wrap: wrap; align-items: center; gap: .35rem;
+  padding: .45rem .5rem;
+  background: var(--surface2); border: 1px solid var(--border); border-radius: 6px;
+}
+.noaa-combine-item { display: inline-flex; align-items: center; gap: .35rem; }
+.noaa-combine-term {
+  display: inline-flex; align-items: baseline; gap: .3rem;
+  padding: .15rem .45rem; border-radius: 5px;
+  background: var(--surface); border: 1px solid var(--border);
+}
+.noaa-combine-field { font-size: .7rem; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); }
+.noaa-combine-vals { font-size: .8rem; color: var(--text); }
+/* The join is the one control here, so it sizes to its text rather than
+   stretching like the other selects in .noaa-advanced. */
+.noaa-advanced .noaa-join {
+  width: auto; padding: .1rem 1.1rem .1rem .35rem;
+  font-size: .68rem; font-weight: 700; letter-spacing: .05em; cursor: pointer;
+}
+.noaa-advanced .noaa-join.is-and { color: var(--text-muted); }
+.noaa-advanced .noaa-join.is-or { color: var(--accent); border-color: var(--accent); }
+.noaa-combine-summary {
+  margin: .4rem 0 0; font-size: .76rem; color: var(--text-muted); line-height: 1.45;
 }
 
 /* ---- multi-value chip filter (investigator, variable, material, …) ---- */
@@ -326,6 +370,30 @@ body { background: var(--bg); height: 100vh; overflow: hidden; }
 .btn-spinner { width: 14px; height: 14px; animation: spin 0.9s linear infinite; flex-shrink: 0; }
 .noaa-import-hint { color: var(--text-muted); font-size: .8rem; }
 .error { color: var(--danger); font-size: .85rem; }
+
+/* ---- Multi-site import choice (#14) ---- */
+.site-choice { width: min(620px, 96vw); }
+.site-choice-list {
+  list-style: none; margin: .9rem 0 1.1rem; padding: .5rem .6rem;
+  max-height: 11rem; overflow-y: auto;
+  background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+  display: flex; flex-direction: column; gap: .3rem;
+}
+.site-choice-list li { display: flex; justify-content: space-between; align-items: baseline; gap: .8rem; }
+.site-choice-name { font-size: .85rem; font-weight: 600; color: #333; }
+.site-choice-meta { font-size: .75rem; color: var(--text-muted); white-space: nowrap; }
+.site-choice-actions { display: flex; flex-direction: column; gap: .6rem; }
+.site-choice-option {
+  display: flex; flex-direction: column; align-items: flex-start; gap: .25rem;
+  text-align: left; padding: .7rem .9rem; width: 100%; line-height: 1.45;
+}
+.site-choice-option-title { font-size: .95rem; font-weight: 700; }
+.site-choice-option-sub { font-size: .8rem; font-weight: 400; opacity: .9; }
+/* The second option is a peer, not a lesser action — outlined rather than filled. */
+.btn.btn-secondary {
+  background: var(--surface); color: var(--text); border: 1px solid var(--border);
+}
+.btn.btn-secondary:hover { background: var(--surface2); border-color: var(--accent); }
 
 /* ---- Welcome / what's new brief ---- */
 .welcome-overlay {
@@ -950,6 +1018,13 @@ body { background: var(--bg); height: 100vh; overflow: hidden; }
 /* Unsaved-session restore banner */
 .restore-banner { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; max-width: 900px; margin: 0 auto 1.2rem; padding: .7rem 1rem; border: 1px solid var(--accent); border-radius: 8px; background: rgba(113,164,54,.07); font-size: .88rem; color: var(--text); }
 .restore-actions { display: flex; gap: .5rem; }
+/* Explains a non-obvious import decision once the workspace opens (#14). */
+.import-note {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  flex-wrap: wrap; padding: .6rem 1rem; margin: 0;
+  border-bottom: 1px solid var(--border); background: rgba(113,164,54,.09);
+  font-size: .84rem; color: var(--text); line-height: 1.5;
+}
 .btn-restore { background: var(--accent); color: #fff; border: none; border-radius: 6px; padding: .35rem .9rem; font-size: .82rem; cursor: pointer; }
 .btn-restore:hover { background: #577d2a; }
 .btn-discard { background: none; border: 1px solid var(--border); color: var(--text-muted); border-radius: 6px; padding: .35rem .9rem; font-size: .82rem; cursor: pointer; }
@@ -981,7 +1056,11 @@ body { background: var(--bg); height: 100vh; overflow: hidden; }
   background: none; border: none; cursor: pointer;
   padding: .25rem .7rem; font-size: .8rem; color: var(--text);
   max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  display: flex; align-items: baseline; min-width: 0;
 }
+/* Only the study name gives; the trailing site stays readable (#14). */
+.saved-chip-head { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.saved-chip-tail { flex-shrink: 0; font-weight: 600; }
 .saved-chip-open:hover { color: var(--accent-hover); }
 .saved-chip.active .saved-chip-open { font-weight: 600; color: var(--accent-hover); }
 .saved-chip-del {

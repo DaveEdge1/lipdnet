@@ -145,6 +145,33 @@ def _column_dict(name: str, values: list, meta: dict) -> dict:
     }
 
 
+def _site_of(t) -> dict:
+    """The site a NOAA data table belongs to, from the get_tables row.
+
+    A NOAA study can span many sites (a compilation, a transect, a drilling
+    campaign). The payload used to keep only the first one, which is fine for
+    the single-site common case but throws away the structure a multi-site
+    study actually has. Min/Max are equal for a point site, so the midpoint is
+    the site itself; a site declared as a box collapses to its centre.
+    """
+    return {
+        "siteName": _clean(t.get("SiteName")),
+        "latitude": _midpoint(t.get("MinLatitude"), t.get("MaxLatitude")),
+        "longitude": _midpoint(t.get("MinLongitude"), t.get("MaxLongitude")),
+        "elevation": _num(_clean(t.get("MinElevation"))),
+    }
+
+
+def _site_key(site: dict) -> str:
+    """Identity for grouping tables by site. Name first (NOAA is consistent
+    about it within a study); coordinates disambiguate same-named sites and
+    cover the case where the name is missing."""
+    name = (site.get("siteName") or "").strip().lower()
+    lat, lon = site.get("latitude"), site.get("longitude")
+    coord = f"{lat},{lon}" if lat is not None and lon is not None else ""
+    return name or coord or "unnamed"
+
+
 def _publications(pubs: list[dict]) -> list[dict]:
     out = []
     for p in pubs or []:
@@ -439,11 +466,18 @@ def build_payload(study_id: int) -> dict:
     elevation = None
     tables: list[dict] = []
     skipped: list[str] = []
+    # Every distinct site in the study, in first-seen order, keyed for grouping.
+    sites_by_key: dict[str, dict] = {}
 
     if tables_df is not None:
         for _, t in tables_df.iterrows():
             tid = str(t["DataTableID"])
             file_url = _clean(t.get("FileURL"))
+            # Per-table site, so a multi-site study keeps its structure (#14).
+            site = _site_of(t)
+            skey = _site_key(site)
+            if skey not in sites_by_key:
+                sites_by_key[skey] = site
             site_name = site_name or _clean(t.get("SiteName"))
             elevation = elevation if elevation is not None else _clean(t.get("MinElevation"))
             if site_lat is None:
@@ -467,6 +501,8 @@ def build_payload(study_id: int) -> dict:
                         "tableName": fb_name,
                         "fileUrl": file_url,
                         "columns": fb_cols,
+                        "site": site,
+                        "siteKey": skey,
                         "parser": "fallback",
                         # Heuristic naming → ask the user to confirm/edit the columns.
                         "review": fb_review,
@@ -500,6 +536,8 @@ def build_payload(study_id: int) -> dict:
                         "tableName": name,
                         "fileUrl": file_url,
                         "columns": columns,
+                        "site": site,
+                        "siteKey": skey,
                         "kind": _classify_table(name, columns),
                     })
 
@@ -519,6 +557,9 @@ def build_payload(study_id: int) -> dict:
             "siteName": site_name,
         },
         "pub": _publications(row.get("Publications")),
+        # Every distinct site, so the client can offer per-site import or a
+        # collapsed dataset with a real footprint instead of one site's point.
+        "sites": [{"key": k, **v} for k, v in sites_by_key.items()],
         "tables": tables,
         "skippedFiles": skipped,
         "metadataOnly": len(tables) == 0,

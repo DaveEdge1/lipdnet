@@ -2,9 +2,10 @@
 // browser. Modeled on PyleoTUPS (https://github.com/LinkedEarth/PyleoTUPS):
 // same study-search endpoint and the same "standard parser" strategy for
 // NOAA-templated text files (# metadata, ## variable lines, delimited data).
-import type { LipdFile, LipdMetadata, LipdPub, LipdTable, LipdPaleoData, NoaaSourceFile } from '../types/lipd'
+import type { LipdFile, LipdMetadata, LipdPub, LipdTable, LipdColumn, LipdPaleoData, NoaaSourceFile } from '../types/lipd'
 import { makeTSid } from './newDataset'
 import { normalizeArchiveType, normalizeUnits, normalizeVariableName, normalizeProxy, proxyGeneralFor, normalizeSeasonality } from './synonyms'
+import { stripCommas } from './tabular'
 
 const SEARCH_URL = 'https://www.ncei.noaa.gov/access/paleo-search/study/search.json'
 
@@ -173,6 +174,141 @@ export async function searchNoaaStudies(query: string, filters: NoaaSearchFilter
   if (!text.trim()) return []
   const json = JSON.parse(text)
   return (json.study ?? []) as NoaaStudy[]
+}
+
+// ---- Cross-field boolean search --------------------------------------------
+//
+// NCEI combines its query params with AND and offers no way to OR two different
+// fields, so "Variable=d18O OR Location=Greenland" cannot be expressed in one
+// request. `fieldJoin` says how each populated categorical field joins the one
+// before it; the expression is compiled to disjunctive normal form (OR binds
+// loosest), and each AND-segment becomes one NCEI request whose results are
+// unioned. A single segment is exactly one request, identical to a plain
+// search, so the common case is unchanged. See issue #17.
+//
+// Only the 7 categorical fields take part in the boolean expression. Everything
+// else — free text, archive type, the lat/lon/elevation box, the year range,
+// the recent/reconstruction flags — is a global constraint applied to every
+// segment, which is both the useful reading and what keeps the UI legible.
+
+export interface NoaaBooleanTerm {
+  key: NoaaMultiKey
+  values: string[]
+  within: AndOr          // how this field's own values combine
+  joinToPrevious: AndOr  // ignored on the first term
+}
+
+// The populated categorical fields, in canonical order, as boolean terms.
+export function buildBooleanTerms(
+  multi: Partial<Record<NoaaMultiKey, string[]>>,
+  within: Partial<Record<NoaaMultiKey, AndOr>> = {},
+  joins: Partial<Record<NoaaMultiKey, AndOr>> = {},
+): NoaaBooleanTerm[] {
+  const terms: NoaaBooleanTerm[] = []
+  for (const { key } of NOAA_MULTI_FIELDS) {
+    const values = (multi[key] ?? []).map(v => v.trim()).filter(Boolean)
+    if (!values.length) continue
+    terms.push({
+      key,
+      values,
+      within: within[key] ?? 'or',
+      joinToPrevious: joins[key] ?? 'and',
+    })
+  }
+  return terms
+}
+
+// Split the term chain into AND-segments at every OR join (the first term always
+// starts a segment). [] when there are no categorical terms at all.
+export function toAndSegments(terms: NoaaBooleanTerm[]): NoaaBooleanTerm[][] {
+  const segments: NoaaBooleanTerm[][] = []
+  terms.forEach((term, i) => {
+    if (i === 0 || term.joinToPrevious === 'or') segments.push([term])
+    else segments[segments.length - 1].push(term)
+  })
+  return segments
+}
+
+// Plain-English rendering of the expression, for the UI summary line.
+export function describeBooleanQuery(terms: NoaaBooleanTerm[], label: (k: NoaaMultiKey) => string): string {
+  if (!terms.length) return ''
+  const part = (t: NoaaBooleanTerm) => {
+    const joined = t.values.length === 1
+      ? t.values[0]
+      : `${t.within === 'and' ? 'all' : 'any'} of (${t.values.join(', ')})`
+    return `${label(t.key)} ${joined}`
+  }
+  return toAndSegments(terms)
+    .map(seg => seg.map(part).join(' AND '))
+    .join('  OR  ')
+}
+
+export interface NoaaBooleanSearchResult {
+  studies: NoaaStudy[]
+  // How many NCEI requests the expression compiled to. >1 means the result is a
+  // union, and each branch was independently capped at NOAA_SEARCH_LIMIT.
+  branches: number
+}
+
+// Run a boolean categorical expression against NCEI, unioning the branches.
+// `filters` supplies the global (non-categorical) constraints; any categorical
+// keys on it are ignored in favour of `terms`.
+export async function searchNoaaStudiesBoolean(
+  query: string,
+  filters: NoaaSearchFilters,
+  terms: NoaaBooleanTerm[],
+): Promise<NoaaBooleanSearchResult> {
+  // A bare study id or URL is an exact lookup that ignores filters anyway —
+  // fanning it out into one request per branch would just fetch the same study
+  // several times.
+  const q = query.trim()
+  if (/^\d+$/.test(q) || /paleo-search\/study\/(\d+)/.test(q)) {
+    return { studies: await searchNoaaStudies(q, {}), branches: 1 }
+  }
+
+  const segments = toAndSegments(terms)
+
+  // No categorical terms: a plain search with the global filters only.
+  if (!segments.length) {
+    return { studies: await searchNoaaStudies(query, stripCategorical(filters)), branches: 1 }
+  }
+
+  const perSegment = segments.map(seg => {
+    const f: NoaaSearchFilters = { ...stripCategorical(filters), andOr: {} }
+    for (const term of seg) {
+      f[term.key] = term.values
+      ;(f.andOr as Record<string, AndOr>)[term.key] = term.within
+    }
+    return f
+  })
+
+  const settled = await Promise.allSettled(perSegment.map(f => searchNoaaStudies(query, f)))
+  // One failing branch shouldn't lose the others; only an all-failure rethrows.
+  const ok = settled.filter(r => r.status === 'fulfilled') as PromiseFulfilledResult<NoaaStudy[]>[]
+  if (!ok.length) {
+    const first = settled[0]
+    throw first.status === 'rejected' ? first.reason : new Error('NOAA search failed')
+  }
+
+  // Union, keeping first-seen order so the earliest branch ranks first.
+  const seen = new Set<string>()
+  const studies: NoaaStudy[] = []
+  for (const r of ok) {
+    for (const study of r.value) {
+      if (seen.has(study.NOAAStudyId)) continue
+      seen.add(study.NOAAStudyId)
+      studies.push(study)
+    }
+  }
+  return { studies, branches: segments.length }
+}
+
+// Drop the categorical keys so a segment's own terms are the only ones sent.
+function stripCategorical(filters: NoaaSearchFilters): NoaaSearchFilters {
+  const out: NoaaSearchFilters = { ...filters }
+  for (const { key } of NOAA_MULTI_FIELDS) delete out[key]
+  delete out.andOr
+  return out
 }
 
 // List the data files attached to a NOAA study, by id — used by the editor's
@@ -415,7 +551,10 @@ function toValues(raw: string[], missingValue?: string): (number | string | null
   const declared = missingValue?.toLowerCase()
   const declaredNum = missingValue !== undefined ? Number(missingValue) : NaN
   return raw.map(v => {
-    const t = v.trim()
+    // Strip commas before anything else: LiPD CSVs are unquoted, so a comma in
+    // an imported value would shift every later column (issue #2). This also
+    // recovers thousands-separated numbers as real numbers.
+    const t = stripCommas(v)
     const lower = t.toLowerCase()
     if (MISSING_TOKENS.has(lower) || (declared && lower === declared)) return null
     const n = Number(t)
@@ -656,8 +795,23 @@ interface ServiceColumn {
   description?: string | null  // from cvDetail
   values: Array<number | string | null>
 }
-interface ServiceTable { tableName?: string | null; fileUrl?: string | null; review?: boolean; kind?: 'chron' | 'paleo'; columns: ServiceColumn[] }
-interface ServicePayload {
+// One NOAA site within a study. A study can span many (a compilation, a
+// transect, a drilling campaign); the service reports the site each data table
+// belongs to so the structure survives import. See issue #14.
+export interface ServiceSite {
+  key: string
+  siteName?: string | null
+  latitude?: number | null
+  longitude?: number | null
+  elevation?: number | null
+}
+interface ServiceTable {
+  tableName?: string | null; fileUrl?: string | null; review?: boolean
+  kind?: 'chron' | 'paleo'; columns: ServiceColumn[]
+  site?: Omit<ServiceSite, 'key'> | null
+  siteKey?: string | null
+}
+export interface ServicePayload {
   studyId: string
   dataSetName?: string | null
   archiveType?: string | null
@@ -668,6 +822,8 @@ interface ServicePayload {
   originalDataUrl?: string | null
   geo?: { latitude?: number | null; longitude?: number | null; elevation?: number | null; siteName?: string | null }
   pub?: Array<{ author?: string | null; title?: string | null; journal?: string | null; year?: number | string | null; volume?: string | null; pages?: string | null; doi?: string | null }>
+  // Every distinct site in the study, first-seen order (NOAA path only).
+  sites?: ServiceSite[]
   tables: ServiceTable[]
   skippedFiles: string[]
   metadataOnly: boolean
@@ -676,9 +832,130 @@ interface ServicePayload {
   members?: Array<{ id: string; name?: string }>
 }
 
-function serviceToLipd(p: ServicePayload, source: 'NOAA' | 'PANGAEA' = 'NOAA'): NoaaImportResult {
+// The sites a payload actually has data for, in the order the service reports
+// them. A single-site study (the common case) yields one entry.
+export function payloadSites(p: ServicePayload): ServiceSite[] {
+  return (p.sites ?? []).filter(site => p.tables.some(t => t.siteKey === site.key))
+}
+
+// ---- Multi-site geometry ----------------------------------------------------
+
+// Convex hull (monotone chain) of the site points, in GeoJSON [lon, lat] order.
+function convexHull(pts: Array<[number, number]>): Array<[number, number]> {
+  const uniq = Array.from(new Map(pts.map(pt => [`${pt[0]},${pt[1]}`, pt])).values())
+  if (uniq.length < 3) return uniq
+  uniq.sort((a, b) => (a[0] - b[0]) || (a[1] - b[1]))
+  const cross = (o: [number, number], a: [number, number], b: [number, number]) =>
+    (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+  const half = (src: Array<[number, number]>) => {
+    const out: Array<[number, number]> = []
+    for (const pt of src) {
+      while (out.length >= 2 && cross(out[out.length - 2], out[out.length - 1], pt) <= 0) out.pop()
+      out.push(pt)
+    }
+    out.pop()
+    return out
+  }
+  return [...half(uniq), ...half([...uniq].reverse())]
+}
+
+// The geographic footprint of a set of sites.
+//   one site (or all sites coincident) → Point, exactly as a single-site import
+//   sites that enclose an area        → Polygon (convex hull of the points)
+//   collinear sites                   → Polygon (their bounding box), since a
+//                                       GeoJSON ring needs real extent
+// A degenerate bounding box falls back to a Point rather than emitting an
+// invalid ring.
+export function geoForSites(sites: ServiceSite[], siteName?: string | null): LipdMetadata['geo'] {
+  const located = sites.filter(s => s.latitude != null && s.longitude != null)
+  if (!located.length) return undefined
+
+  const pts = located.map(s => [Number(s.longitude), Number(s.latitude)] as [number, number])
+  const elevs = located.map(s => s.elevation).filter((e): e is number => e != null)
+  // Rounded: a mean of integer site elevations otherwise surfaces as
+  // -617.2857142857143 in the metadata editor.
+  const meanElev = elevs.length ? Math.round((elevs.reduce((a, b) => a + b, 0) / elevs.length) * 10) / 10 : 0
+  const names = located.map(s => s.siteName).filter(Boolean)
+  const label = siteName ?? (names.length === 1 ? names[0] : `${located.length} sites`)
+
+  const point = (lon: number, lat: number, elev: number): LipdMetadata['geo'] => ({
+    type: 'Feature',
+    geometry: { type: 'Point', coordinates: [lon, lat, elev] },
+    properties: { siteName: label ?? '' },
+  })
+
+  const distinct = new Set(pts.map(pt => `${pt[0]},${pt[1]}`))
+  if (distinct.size === 1) return point(pts[0][0], pts[0][1], located[0].elevation ?? 0)
+
+  let ring = convexHull(pts)
+  if (ring.length < 3) {
+    // Collinear (or two) sites: use the bounding box so the ring has area.
+    const lons = pts.map(pt => pt[0]); const lats = pts.map(pt => pt[1])
+    const [w, e] = [Math.min(...lons), Math.max(...lons)]
+    const [s2, n] = [Math.min(...lats), Math.max(...lats)]
+    if (w === e || s2 === n) {
+      // A true line has no area — a centroid point is more honest than a
+      // zero-width polygon that downstream tools would reject.
+      return point((w + e) / 2, (s2 + n) / 2, meanElev)
+    }
+    ring = [[w, s2], [e, s2], [e, n], [w, n]]
+  }
+  return {
+    type: 'Feature',
+    geometry: {
+      // GeoJSON polygon rings are closed: repeat the first position last.
+      type: 'Polygon',
+      coordinates: [[...ring, ring[0]].map(([lon, lat]) => [lon, lat, meanElev])],
+    },
+    properties: { siteName: label ?? '' },
+  }
+}
+
+// How a study's sites become LiPD datasets (issue #14).
+//   'collapse' - one dataset; each site becomes its own PaleoData object, the
+//                geo is the footprint of all of them, and every table gains
+//                constant latitude/longitude/elevation columns so a row can
+//                still be traced back to its site.
+//   'single'   - one dataset for the site named by `siteKey`, shaped exactly
+//                like an ordinary single-site import.
+export type SiteMode = 'collapse' | 'single'
+export interface BuildOpts { mode?: SiteMode; siteKey?: string }
+
+// A constant column carrying one of a site's coordinates, repeated down the
+// table. This is how per-site location survives collapsing: without it, a row
+// in a merged multi-site dataset has no way back to the place it came from.
+function siteColumn(name: string, units: string, value: number, rows: number, number: number): LipdColumn {
+  return {
+    number,
+    variableName: name,
+    TSid: makeTSid(),
+    units,
+    description: `Site ${name}, constant for this table`,
+    values: Array(rows).fill(value),
+  }
+}
+
+function addSiteColumns(table: LipdTable, site: ServiceSite): void {
+  const rows = Math.max(0, ...(table.columns ?? []).map(c => c.values?.length ?? 0))
+  if (!rows) return
+  const present = new Set((table.columns ?? []).map(c => c.variableName.toLowerCase()))
+  let next = Math.max(0, ...(table.columns ?? []).map(c => c.number ?? 0))
+  const add = (name: string, units: string, value: number | null | undefined) => {
+    if (value == null || present.has(name.toLowerCase())) return
+    table.columns.push(siteColumn(name, units, value, rows, ++next))
+  }
+  add('latitude', 'degrees north', site.latitude)
+  add('longitude', 'degrees east', site.longitude)
+  add('elevation', 'm', site.elevation)
+}
+
+function serviceToLipd(p: ServicePayload, source: 'NOAA' | 'PANGAEA' = 'NOAA', opts: BuildOpts = {}): NoaaImportResult {
+  const mode: SiteMode = opts.mode ?? 'collapse'
+  const sourceTables = opts.siteKey
+    ? p.tables.filter(t => t.siteKey === opts.siteKey)
+    : p.tables
   const paleoData: LipdPaleoData[] = []
-  const built = p.tables.map((t, ti) => {
+  const built = sourceTables.map((t, ti) => {
     // Track variableNames already used in this table so normalization never
     // collapses two distinct columns onto the same name (e.g. "age" + "ageMedian").
     const usedNames = new Set(t.columns.map(c => c.variableName))
@@ -726,37 +1003,85 @@ function serviceToLipd(p: ServicePayload, source: 'NOAA' | 'PANGAEA' = 'NOAA'): 
       }),
     }
     // Chronology/age-model tables (kind === 'chron') go to chronData, not paleoData.
-    return { table, chron: t.kind === 'chron' }
+    return { table, chron: t.kind === 'chron', siteKey: t.siteKey ?? '' }
   })
 
-  const paleoTables = built.filter(b => !b.chron).map((b, i) => ({ ...b.table, filename: `paleo0measurement${i}.csv` }))
-  const chronTables = built.filter(b => b.chron).map((b, i) => ({ ...b.table, filename: `chron0measurement${i}.csv` }))
+  // The sites actually represented by the tables being built, in the order the
+  // service reported them. Empty for a PANGAEA payload or an older service
+  // with no per-table site, which then follows the original single-geo path.
+  const keysPresent = new Set(built.map(b => b.siteKey))
+  const sites: ServiceSite[] = payloadSites(p).filter(site => keysPresent.has(site.key))
+  const grouped = mode === 'collapse' && sites.length > 1
+
+  // Only a genuinely multi-site dataset needs location columns; on a single
+  // site they would be three constant columns of noise.
+  if (grouped) {
+    for (const b of built) {
+      const site = sites.find(x => x.key === b.siteKey)
+      if (site) addSiteColumns(b.table, site)
+    }
+  }
+
+  // Order the site groups, then number filenames by each group's index so they
+  // stay contiguous per section (paleo0..., paleo1...) as LiPD readers expect.
+  const groups = grouped ? sites.map(site => site.key) : ['']
+  const tablesFor = (key: string, chron: boolean) =>
+    built.filter(b => b.chron === chron && (!grouped || b.siteKey === key)).map(b => b.table)
+
   const metadataOnly = built.length === 0
-  paleoData.push({
-    measurementTable: metadataOnly
-      ? [{
-          tableName: 'measurementTable0',
-          filename: 'paleo0measurement0.csv',
-          missingValue: 'NaN',
-          columns: ['depth', 'age', 'value'].map((name, i) => ({
-            number: i + 1, variableName: name, TSid: makeTSid(), values: Array(5).fill(null),
-          })),
-        }]
-      : paleoTables,
-  })
-  const chronData: LipdPaleoData[] = chronTables.length ? [{ measurementTable: chronTables }] : []
+  if (metadataOnly) {
+    paleoData.push({
+      measurementTable: [{
+        tableName: 'measurementTable0',
+        filename: 'paleo0measurement0.csv',
+        missingValue: 'NaN',
+        columns: ['depth', 'age', 'value'].map((name, i) => ({
+          number: i + 1, variableName: name, TSid: makeTSid(), values: Array(5).fill(null),
+        })),
+      }],
+    })
+  } else {
+    for (const key of groups) {
+      const tables = tablesFor(key, false)
+      if (!tables.length) continue
+      const si = paleoData.length
+      paleoData.push({
+        measurementTable: tables.map((t, i) => ({ ...t, filename: `paleo${si}measurement${i}.csv` })),
+      })
+    }
+    // A study whose only tables are chronologies still needs a paleoData slot.
+    if (!paleoData.length) paleoData.push({ measurementTable: [] })
+  }
 
-  const lat = p.geo?.latitude
-  const lon = p.geo?.longitude
-  const geo: LipdMetadata['geo'] = (lat != null && lon != null)
-    ? {
-        type: 'Feature',
-        geometry: { type: 'Point', coordinates: [lon, lat, p.geo?.elevation ?? 0] },
-        properties: { siteName: p.geo?.siteName ?? '' },
-      }
-    : undefined
+  const chronData: LipdPaleoData[] = []
+  for (const key of groups) {
+    const tables = tablesFor(key, true)
+    if (!tables.length) continue
+    const si = chronData.length
+    chronData.push({
+      measurementTable: tables.map((t, i) => ({ ...t, filename: `chron${si}measurement${i}.csv` })),
+    })
+  }
 
-  const dataSetName = (p.dataSetName || `${source}-${p.studyId}`).replace(/[^\w.\- ]+/g, '').trim()
+  // Geo: the footprint of the sites in this dataset. One site, or 'single'
+  // mode, yields the same Point as before; several yield a Polygon hull.
+  const single = mode === 'single' ? sites[0] : undefined
+  const geo: LipdMetadata['geo'] = sites.length
+    ? geoForSites(single ? [single] : sites, single?.siteName ?? (sites.length === 1 ? sites[0].siteName : undefined))
+    : (p.geo?.latitude != null && p.geo?.longitude != null
+        ? {
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: [p.geo.longitude, p.geo.latitude, p.geo.elevation ?? 0] },
+            properties: { siteName: p.geo?.siteName ?? '' },
+          }
+        : undefined)
+
+  // A per-site dataset is named for its site, so N datasets from one study stay
+  // distinguishable in the library and on disk.
+  const clean = (v: string) => v.replace(/[^\w.\- ]+/g, '').trim()
+  const studyName = clean(p.dataSetName || `${source}-${p.studyId}`)
+  const siteSuffix = single?.siteName ? ` - ${clean(single.siteName)}` : ''
+  const dataSetName = `${studyName}${siteSuffix}`
   const metadata: LipdMetadata = {
     lipdVersion: 1.3,
     createdBy: `lipd.net playground (${source} import via PyleoTUPS)`,
@@ -797,8 +1122,11 @@ function serviceToLipd(p: ServicePayload, source: 'NOAA' | 'PANGAEA' = 'NOAA'): 
   }
 }
 
-// Try the PyleoTUPS service for a study id; null if it's not configured/down.
-export async function noaaStudyViaService(studyId: string): Promise<NoaaImportResult | null> {
+// Fetch a study's parsed payload from the PyleoTUPS service. Null when the
+// service isn't configured or is down, so the caller can fall back to the
+// browser parser. Kept separate from the build step because a multi-site study
+// asks the user how to split it, and the fetch is far too slow to repeat.
+export async function noaaPayloadViaService(studyId: string): Promise<ServicePayload | null> {
   if (!/^\d+$/.test(studyId)) return null
   let res: Response
   try {
@@ -809,7 +1137,30 @@ export async function noaaStudyViaService(studyId: string): Promise<NoaaImportRe
   if (res.status === 503 || res.status === 404) return null // not configured / unavailable
   if (!res.ok) return null
   try {
-    return serviceToLipd(await res.json() as ServicePayload)
+    return await res.json() as ServicePayload
+  } catch {
+    return null
+  }
+}
+
+/** Build one dataset from a payload, collapsing every site into it. */
+export function buildCollapsed(p: ServicePayload, source: 'NOAA' | 'PANGAEA' = 'NOAA'): NoaaImportResult {
+  return serviceToLipd(p, source, { mode: 'collapse' })
+}
+
+/** Build one dataset per site, in the order the service reported them. */
+export function buildPerSite(p: ServicePayload, source: 'NOAA' | 'PANGAEA' = 'NOAA'): NoaaImportResult[] {
+  return payloadSites(p).map(site => serviceToLipd(p, source, { mode: 'single', siteKey: site.key }))
+}
+
+// Try the PyleoTUPS service for a study id; null if it's not configured/down.
+// Collapses a multi-site study into one dataset -- callers that want to offer
+// the per-site choice use noaaPayloadViaService + buildPerSite instead.
+export async function noaaStudyViaService(studyId: string): Promise<NoaaImportResult | null> {
+  const p = await noaaPayloadViaService(studyId)
+  if (!p) return null
+  try {
+    return buildCollapsed(p)
   } catch {
     return null
   }

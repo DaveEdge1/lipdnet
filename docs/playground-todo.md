@@ -69,6 +69,28 @@ D. Edge is named as lead on Playground/PyleoTUPS integration.
   is obvious. "Time match" reworded as a sentence ("Studies must **span the
   whole Year range** / overlap / fall within") and its default changed to
   **span the whole range** (`entireOver`; was overlap). Verified headless 37/37.
+- [x] **Cross-field boolean logic (issue #17).** The per-field any/all toggle only
+  ever combined values *within* one field; there was no way to say "variable X
+  AND material Y **OR** location Z". NCEI ANDs its params and offers no
+  cross-field OR, so the expression is compiled client-side: a **Combine
+  filters** bar appears once two categorical filters are filled, showing one
+  chip per filled field with an AND/OR select between them plus a plain-English
+  summary of what will be matched. `buildBooleanTerms` / `toAndSegments`
+  (lib/noaa.ts) compile the chain to disjunctive normal form — OR binds loosest,
+  so "A AND B OR C" is "(A AND B) OR C" — and each AND-segment becomes one NCEI
+  request whose results are unioned by study id, first-branch-first. A single
+  segment is still exactly one request, so nothing regresses. Joins are keyed to
+  the field, not the position, so adding a filter doesn't reshuffle the operators
+  already chosen. A bare study id/URL short-circuits to a single lookup rather
+  than fanning out. Non-categorical filters (free text, archive type, lat/lon
+  box, year range, recent/reconstruction) are global and apply to every branch.
+  One failing branch doesn't lose the others. Because NCEI caps each request at
+  25 with no paging, a multi-branch result carries a notice saying how many
+  searches ran and that a broad branch may be truncated. Verified: 9/9 on
+  segmentation + summary phrasing; live NCEI confirms cross-param AND (a branch
+  of 14 ∧ a saturated branch → 9, all inside the 14); 18/18 headless on the UI;
+  end-to-end through the built app, Investigator Petit AND Location Africa → 1,
+  same two filters with OR → 39 plus the multi-branch notice.
 - [ ] Remaining: numeric-range validation; server-side search proxy fallback
   (CORS resilience). Optionally archive-type-scoped CV suggestions (params.json
   is scoped by dataTypeId).
@@ -141,6 +163,33 @@ D. Edge is named as lead on Playground/PyleoTUPS integration.
   leaves match exactly, 8 differ only in case), keeping the leaf verbatim when
   there's no vocab entry. Verified: 5466 (Baffin summer temp) → Temp_degC with
   interpretation.seasonality "Summer"; service 18/18, headless 48/48.
+
+- [x] **Multi-site studies keep their structure (issue #14).** The service kept
+  only the first site, so a 7-site study imported as one flat dataset pinned to
+  one core. `build_payload` now reports the site behind every table plus a
+  study-level `sites` list, and the client offers the two shapes that actually
+  make sense:
+  - **One dataset per site** - N LiPD datasets, each a clean single-site file
+    with its own Point geo and a name suffixed by the site. All are written to
+    the browser library so none is lost; the first opens for editing.
+  - **Collapse into one dataset** - one dataset, one PaleoData object per site,
+    located by the convex hull of the site points (a Polygon `geo`), with
+    constant `latitude`/`longitude`/`elevation` columns appended to every table
+    so a row still traces back to its site.
+
+  A study with one site is untouched on both paths - same Point geo, same
+  filenames, no extra columns - so nothing regresses for the common case. A
+  `SiteChoiceDialog` lists every site with coordinates and table count and asks
+  before importing; the answer is applied to the payload already fetched, since
+  the service call is far too slow to repeat. Because a Polygon footprint would
+  otherwise be misread as a coordinate pair, `geoPosition`/`geoBounds`
+  (lib/lipd.ts) now back the site map, validation and the NOAA exporter: a
+  footprint validates and maps on its centroid, and exports its true
+  Northernmost/Southernmost/Easternmost/Westernmost envelope instead of one
+  point repeated four times. The metadata panel says when a location is an area
+  and warns that editing a coordinate flattens it. Verified: 23/23 on the build
+  logic against live study 10420 (7 sites, 13 tables) and 2429 (single site),
+  plus an end-to-end run of both answers through the built UI.
 
 **Objective 2 is complete** — load fidelity now matches or beats PyleoTUPS:
 per-variable proxy/material/method/description, chron/paleo separation with user

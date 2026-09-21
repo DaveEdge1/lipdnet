@@ -34,11 +34,16 @@ export interface LipdPaleoData {
   }>
 }
 
+// A GeoJSON position: [lon, lat] with optional elevation.
+export type LipdPosition = [number, number, number?]
+
 export interface LipdGeo {
   type?: string
   geometry?: {
+    // "Point" for a single site; "Polygon" for the footprint of a multi-site
+    // study, whose coordinates are an array of closed linear rings (#14).
     type: string
-    coordinates: [number, number, number?]
+    coordinates: LipdPosition | LipdPosition[][]
   }
   properties?: {
     siteName?: string

@@ -47,8 +47,28 @@ await noaa(27490, b => {
     `archive=${b.archiveType}; cols ${names.join(', ')}`)
 })
 
-await noaa(10420, b => rec('NOAA 10420 imports (multi-site geometry)', (b.tables?.length ?? 0) >= 1 || b.metadataOnly != null,
-  `${b.tables?.length ?? 0} tables; geo=${b.geo?.latitude},${b.geo?.longitude}`))
+// Multi-site study (issue #14): the payload must report every site and tag each
+// table with the one it belongs to, so the client can split or collapse it.
+await noaa(10420, b => {
+  const sites = b.sites ?? []
+  const tables = b.tables ?? []
+  const keys = new Set(sites.map(s => s.key))
+  const tagged = tables.every(t => t.siteKey && keys.has(t.siteKey))
+  const located = sites.every(s => s.latitude != null && s.longitude != null)
+  const spread = new Set(tables.map(t => t.siteKey)).size
+  rec('NOAA 10420 → 7 sites, every table tagged with its own',
+    sites.length === 7 && tables.length === 13 && tagged && located && spread === 7,
+    `sites=${sites.length} tables=${tables.length} tagged=${tagged} located=${located} distinct=${spread}`)
+})
+
+// A single-site study still reports exactly one site, so the client never
+// prompts for a split it doesn't need.
+await noaa(2429, b => {
+  const sites = b.sites ?? []
+  rec('NOAA 2429 → exactly one site (no split prompt)',
+    sites.length === 1 && sites[0]?.siteName != null && (b.tables ?? []).every(t => t.siteKey === sites[0].key),
+    `sites=${sites.length} name=${sites[0]?.siteName}`)
+})
 
 await noaa(36778, b => rec('NOAA 36778 imports', b.studyId != null, `${b.tables?.length ?? 0} tables`))
 

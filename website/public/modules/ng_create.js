@@ -1484,7 +1484,7 @@ var create = (function(){
         "root": {
           "createdBy": {"tooltip": "Where did this file originate from? How was the LiPD file created?", "label": "Created By", "model": "files.json.createdBy", "disabled": false, "fieldType": "text", "size": 50},
           "lipdVersion": {"tooltip": "Ontology and data structure change by version. We'll handle this for you, but it's important to know the current version.", "label": "LiPD Version *", "model": "files.json.lipdVersion", "disabled": true, "fieldType": "number", "size": 50},
-          "dataSetName": {"tooltip": "Please use the format 'Name.Location.Year' for your dataset name", "label": "Dataset Name *", "model": "files.json.dataSetName", "disabled": false, "fieldType": "text", "size": 50},
+          "dataSetName": {"tooltip": "Please use the format 'Location.FirstAuthor.PublicationYear' for your dataset name (e.g. 'Vostok.Petit.1999')", "label": "Dataset Name *", "model": "files.json.dataSetName", "disabled": false, "fieldType": "text", "size": 50},
           "collectionName": {"tooltip": "NA", "label": "Collection Name", "model": "files.json.collectionName", "disabled": false, "fieldType": "text", "size": 33, },
           "investigators": {"tooltip": "Use the format: LastName, FirstName; LastName, FirstName; ...", "label": "Investigators", "model": "files.json.investigators", "disabled": false, "fieldType": "text", "size": 66, },
           "notes": {"tooltip": "Anything that you would like the user to know about this dataset, including\n" +

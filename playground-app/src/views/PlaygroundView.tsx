@@ -293,9 +293,14 @@ export function PlaygroundView() {
     </button>
   )
 
-  const handleLoad = useCallback((f: LipdFile) => {
+  // An importer can pass a note explaining something non-obvious it did, e.g.
+  // how a multi-site NOAA study was split (#14). The landing page unmounts on
+  // load, so the note has to be shown here, in the workspace.
+  const [importNote, setImportNote] = useState<string | null>(null)
+  const handleLoad = useCallback((f: LipdFile, note?: string) => {
     setLipd(f)
     setSelectedTSid(null)
+    setImportNote(note ?? null)
     savedHashRef.current = contentHash(f.metadata)
   }, [])
 
@@ -471,7 +476,21 @@ export function PlaygroundView() {
                 onClick={() => openSaved(entry)}
                 title={`Open “${entry.name}” — saved ${new Date(entry.savedAt).toLocaleString()}`}
               >
-                {entry.name}
+                {(() => {
+                  // Per-site imports of one study (#14) share a long prefix and
+                  // differ only in the trailing site name, so a plain
+                  // truncate-the-end chip would render seven identical labels.
+                  // Keep the site pinned and let the study name be the part
+                  // that gives.
+                  const cut = entry.name.lastIndexOf(' - ')
+                  if (cut <= 0) return entry.name
+                  return (
+                    <>
+                      <span className="saved-chip-head">{entry.name.slice(0, cut)}</span>
+                      <span className="saved-chip-tail">{entry.name.slice(cut)}</span>
+                    </>
+                  )
+                })()}
               </button>
               <button
                 type="button"
@@ -571,6 +590,20 @@ export function PlaygroundView() {
               initialSession={noaaSessionRef.current}
               onSession={handleNoaaSession}
             />
+          </section>
+
+          {/* PANGAEA import is built (PangaeaImport.tsx) but not yet exposed.
+              Deborah asked for a visible placeholder so users know it's planned
+              rather than assuming the archive is unsupported. */}
+          <section className="landing-card landing-card-wide landing-card-soon" aria-label="PANGAEA to LiPD, coming soon">
+            <h2>
+              PANGAEA to LiPD
+              <span className="landing-soon-badge">Coming soon</span>
+            </h2>
+            <p className="landing-card-hint">
+              Import from the <a href="https://www.pangaea.de" target="_blank" rel="noreferrer">PANGAEA</a> archive
+              by dataset ID, DOI, or URL. This is in development and will arrive in a future release.
+            </p>
           </section>
         </div>
         </div>
@@ -685,6 +718,13 @@ export function PlaygroundView() {
     </div>
   )
 
+  const importBanner = importNote && (
+    <div className="import-note" role="status">
+      <span>{importNote}</span>
+      <button className="btn-discard" onClick={() => setImportNote(null)}>Dismiss</button>
+    </div>
+  )
+
   const toolbar = (
     <header className="toolbar">
       <span className="toolbar-title">{lipd.metadata.dataSetName ?? lipd.filename}</span>
@@ -740,6 +780,7 @@ export function PlaygroundView() {
     return (
       <div className="app workspace">
         {toolbar}
+        {importBanner}
         <div className="workspace-single">
           <nav className="workspace-nav" aria-label="Views">
             {navViews.map(v => (
@@ -767,6 +808,7 @@ export function PlaygroundView() {
   return (
     <div className="app workspace">
       {toolbar}
+      {importBanner}
 
       <div className="workspace-grid" ref={gridRef}>
 

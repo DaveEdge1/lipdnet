@@ -5,7 +5,8 @@ interface Props {
 // First-run "what's new" overlay for the Playground, shown in-page (not a
 // window.open popup, which ad/popup blockers suppress). Content mirrors the
 // beta release brief, weighted toward NOAA conversion. (PANGAEA import is
-// built but not yet exposed — keep it out of the splash until it ships.)
+// built but not yet exposed; the splash announces it as coming soon rather
+// than describing a feature users can't reach.)
 export function WelcomeDialog({ onClose }: Props) {
   return (
     <div className="welcome-overlay" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
@@ -41,6 +42,10 @@ export function WelcomeDialog({ onClose }: Props) {
             can&rsquo;t become a data table by any general tool, so the study&rsquo;s metadata imports with an empty
             starter table you fill in. You can also open a local NOAA <code>.txt</code> file, and export any
             open dataset back to the NOAA template.
+          </p>
+          <p>
+            <strong>PANGAEA import is coming soon.</strong> The same one-click conversion for records from the
+            PANGAEA archive is in development and will arrive in a future release.
           </p>
 
           <h3>Also new</h3>
