@@ -91,6 +91,26 @@ D. Edge is named as lead on Playground/PyleoTUPS integration.
   of 14 ∧ a saturated branch → 9, all inside the 14); 18/18 headless on the UI;
   end-to-end through the built app, Investigator Petit AND Location Africa → 1,
   same two filters with OR → 39 plus the multi-branch notice.
+- [x] **Every filter joins the combiner, and the summary tells the truth.** The
+  first cut of the cross-field logic only admitted the seven vocabulary fields;
+  everything else was hard-ANDed and, worse, left out of the summary sentence
+  entirely, so a latitude bound silently narrowed the query with nothing on
+  screen to say so (reported from the beta, 2026-09-22). Now every filled-in
+  filter becomes a term — free text, archive type, the lat/lon/elevation bounds,
+  the year range with its basis and match mode, and the two flags — each with a
+  readable detail string ("at least 20°", "1800 to 2000 CE, spanning the whole
+  range"). Because a linear chain cannot express "(A OR B) AND C", terms carry a
+  **scope**: the Combine bar has an **Every result** zone whose terms are merged
+  into every branch, and a **Match** zone holding the AND/OR chain, with an arrow
+  on each chip to move it between them. Defaults reproduce the previous
+  behaviour exactly — vocabulary fields in the chain, everything else
+  constraining all branches — so no existing query changes meaning. The summary
+  brackets each AND-group once an OR is present and appends ", and in every case
+  …", so precedence never has to be inferred. Verified 20/20 on the term model
+  (coverage, detail strings, segmentation, per-branch params, free text as its
+  own branch, exact-lookup bypass) and 9/9 through the built UI on the reported
+  case, including that moving latitude between zones flips it between one branch
+  and all of them.
 - [ ] Remaining: numeric-range validation; server-side search proxy fallback
   (CORS resilience). Optionally archive-type-scoped CV suggestions (params.json
   is scoped by dataTypeId).

@@ -80,7 +80,7 @@ export const TOOLTIPS: Record<string, string> = {
   'search.recent': 'Show only recently-added studies (about the last two years), newest first.',
   'search.reconstruction': 'Show only climate reconstructions (derived climate series), not raw proxy measurements.',
   'search.andOr': 'When a field has more than one value: match studies with ANY of them, or only those with ALL of them.',
-  'search.combine': 'How the filled-in filters combine with each other. AND narrows the search to studies matching both sides; OR widens it to studies matching either. OR is evaluated last, so "A AND B OR C" means "(A and B) or C". An OR runs as separate NOAA searches whose results are merged, and NOAA caps each one separately.',
+  'search.combine': 'How every filled-in filter combines with the others — keywords, archive type, the coordinate and elevation bounds and the year range included, not just the vocabulary fields. AND narrows the search to studies matching both sides; OR widens it to studies matching either. OR is evaluated last, so "A AND B OR C" means "(A and B) or C". An OR runs as separate NOAA searches whose results are merged, and NOAA caps each one at 25 with no paging, so a broad OR branch may be truncated.',
 }
 
 export function tip(key: string): string | undefined {

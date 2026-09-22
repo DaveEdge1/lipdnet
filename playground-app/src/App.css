@@ -177,6 +177,19 @@ body { background: var(--bg); height: 100vh; overflow: hidden; }
 
 /* ---- cross-field boolean combiner (issue #17) ---- */
 .noaa-combine > legend { display: flex; align-items: center; gap: .3rem; }
+.noaa-combine-zone { display: flex; align-items: flex-start; gap: .5rem; margin-bottom: .4rem; }
+.noaa-combine-zone-label {
+  flex-shrink: 0; width: 5.6rem; padding-top: .5rem;
+  font-size: .68rem; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--text-muted); font-weight: 700;
+}
+.noaa-combine-zone .noaa-combine-chain { flex: 1; min-width: 0; }
+/* The arrow moves a filter between the two zones. */
+.noaa-combine-move {
+  border: none; background: none; cursor: pointer; padding: 0 0 0 .1rem;
+  font-size: .8rem; line-height: 1; color: var(--text-muted);
+}
+.noaa-combine-move:hover { color: var(--accent); }
 .noaa-combine-chain {
   display: flex; flex-wrap: wrap; align-items: center; gap: .35rem;
   padding: .45rem .5rem;

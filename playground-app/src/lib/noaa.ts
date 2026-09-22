@@ -179,68 +179,215 @@ export async function searchNoaaStudies(query: string, filters: NoaaSearchFilter
 // ---- Cross-field boolean search --------------------------------------------
 //
 // NCEI combines its query params with AND and offers no way to OR two different
-// fields, so "Variable=d18O OR Location=Greenland" cannot be expressed in one
-// request. `fieldJoin` says how each populated categorical field joins the one
-// before it; the expression is compiled to disjunctive normal form (OR binds
-// loosest), and each AND-segment becomes one NCEI request whose results are
-// unioned. A single segment is exactly one request, identical to a plain
-// search, so the common case is unchanged. See issue #17.
-//
-// Only the 7 categorical fields take part in the boolean expression. Everything
-// else — free text, archive type, the lat/lon/elevation box, the year range,
-// the recent/reconstruction flags — is a global constraint applied to every
-// segment, which is both the useful reading and what keeps the UI legible.
+// filters, so "Variable=d18O OR Location=Greenland" cannot be expressed in one
+// request. Every filled-in filter therefore becomes a *term*; `joins` says how
+// each term combines with the one before it; the chain is compiled to
+// disjunctive normal form (OR binds loosest) and each AND-segment becomes one
+// NCEI request whose results are unioned. A single segment is exactly one
+// request, identical to a plain search. See issue #17.
 
-export interface NoaaBooleanTerm {
-  key: NoaaMultiKey
-  values: string[]
-  within: AndOr          // how this field's own values combine
-  joinToPrevious: AndOr  // ignored on the first term
+export type NoaaTermId =
+  | NoaaMultiKey
+  | 'searchText' | 'archiveType'
+  | 'latitude' | 'longitude' | 'elevation'
+  | 'years' | 'recent' | 'reconstructionOnly'
+
+// Every filter that can take part in the expression, in the order the search
+// form presents them, so the combiner reads like the form does.
+export const NOAA_TERM_ORDER: NoaaTermId[] = [
+  'searchText', 'archiveType',
+  'variableName', 'cvMaterials', 'cvSeasonalities', 'species',
+  'locations', 'latitude', 'longitude', 'elevation',
+  'years',
+  'investigators', 'keywords', 'recent', 'reconstructionOnly',
+]
+
+// Where a term sits in the expression.
+//   'chain'  - part of the AND/OR chain, so it belongs to one branch
+//   'always' - merged into EVERY branch, which is the only way to say
+//              "(A OR B) AND C"; a linear chain alone cannot express it
+export type NoaaTermScope = 'chain' | 'always'
+
+export interface NoaaTerm {
+  id: NoaaTermId
+  label: string            // e.g. "Latitude"
+  detail: string           // e.g. "at least 20", "all of (a, b)"; '' for a flag
+  scope: NoaaTermScope
+  joinToPrevious: AndOr    // ignored on the first chain term and when scope is 'always'
+  patch: NoaaSearchFilters // what this term contributes to a branch's request
+  query?: string           // free text travels as searchNoaaStudies' `query`
 }
 
-// The populated categorical fields, in canonical order, as boolean terms.
-export function buildBooleanTerms(
-  multi: Partial<Record<NoaaMultiKey, string[]>>,
-  within: Partial<Record<NoaaMultiKey, AndOr>> = {},
-  joins: Partial<Record<NoaaMultiKey, AndOr>> = {},
-): NoaaBooleanTerm[] {
-  const terms: NoaaBooleanTerm[] = []
-  for (const { key } of NOAA_MULTI_FIELDS) {
-    const values = (multi[key] ?? []).map(v => v.trim()).filter(Boolean)
-    if (!values.length) continue
+// The seven controlled-vocabulary fields are what people actually want to OR,
+// so they default into the chain. Everything else defaults to constraining
+// every branch, which is how these filters behaved before they were selectable
+// — so the default query is unchanged and only an explicit move alters it.
+export function defaultScope(id: NoaaTermId): NoaaTermScope {
+  return (NOAA_MULTI_FIELDS as readonly { key: string }[]).some(f => f.key === id) ? 'chain' : 'always'
+}
+
+// A snapshot of the search form. Only the fields that are set become terms.
+export interface NoaaFilterInput {
+  searchText?: string
+  archiveTypeName?: string     // what the user typed / picked
+  dataTypeId?: string          // resolved NCEI numeric id
+  multi?: Partial<Record<NoaaMultiKey, string[]>>
+  within?: Partial<Record<NoaaMultiKey, AndOr>>   // per-field any/all
+  minLat?: number; maxLat?: number
+  minLon?: number; maxLon?: number
+  minElevation?: number; maxElevation?: number
+  earliestYear?: number; latestYear?: number
+  timeFormat?: 'CE' | 'BP'
+  timeMethod?: string
+  recent?: boolean
+  reconstructionOnly?: boolean
+}
+
+const MULTI_LABEL: Record<NoaaMultiKey, string> = {
+  investigators: 'Investigator',
+  variableName: 'Variable',
+  cvMaterials: 'Material',
+  cvSeasonalities: 'Seasonality',
+  species: 'Species',
+  locations: 'Location',
+  keywords: 'Keyword category',
+}
+
+const num = (v?: number): boolean => v !== undefined && !Number.isNaN(v)
+
+// "at least 20" / "at most 40" / "20 to 40". `suffix` is appended verbatim, so
+// callers control spacing: degrees attach to the number, metres take a space.
+function rangeDetail(min?: number, max?: number, suffix = ''): string {
+  if (num(min) && num(max)) return `${min} to ${max}${suffix}`
+  if (num(min)) return `at least ${min}${suffix}`
+  return `at most ${max}${suffix}`
+}
+
+const TIME_MATCH_DETAIL: Record<string, string> = {
+  entireOver: 'spanning the whole range',
+  overAny: 'overlapping the range',
+  overEntire: 'falling within the range',
+}
+
+// The filled-in filters as an ordered boolean expression.
+export function buildTerms(
+  input: NoaaFilterInput,
+  joins: Partial<Record<NoaaTermId, AndOr>> = {},
+  scopes: Partial<Record<NoaaTermId, NoaaTermScope>> = {},
+): NoaaTerm[] {
+  const terms: NoaaTerm[] = []
+  const add = (id: NoaaTermId, label: string, detail: string, patch: NoaaSearchFilters, query?: string) => {
     terms.push({
-      key,
-      values,
-      within: within[key] ?? 'or',
-      joinToPrevious: joins[key] ?? 'and',
+      id, label, detail,
+      scope: scopes[id] ?? defaultScope(id),
+      joinToPrevious: joins[id] ?? 'and',
+      patch, ...(query ? { query } : {}),
     })
+  }
+
+  for (const id of NOAA_TERM_ORDER) {
+    switch (id) {
+      case 'searchText': {
+        const t = input.searchText?.trim()
+        if (t) add(id, 'Keywords', t, {}, t)
+        break
+      }
+      case 'archiveType': {
+        if (input.dataTypeId) {
+          add(id, 'Archive type', input.archiveTypeName?.trim() || input.dataTypeId, { dataTypeId: input.dataTypeId })
+        }
+        break
+      }
+      case 'latitude': {
+        if (num(input.minLat) || num(input.maxLat)) {
+          add(id, 'Latitude', rangeDetail(input.minLat, input.maxLat, '\u00b0'), { minLat: input.minLat, maxLat: input.maxLat })
+        }
+        break
+      }
+      case 'longitude': {
+        if (num(input.minLon) || num(input.maxLon)) {
+          add(id, 'Longitude', rangeDetail(input.minLon, input.maxLon, '\u00b0'), { minLon: input.minLon, maxLon: input.maxLon })
+        }
+        break
+      }
+      case 'elevation': {
+        if (num(input.minElevation) || num(input.maxElevation)) {
+          add(id, 'Elevation', rangeDetail(input.minElevation, input.maxElevation, ' m'), { minElevation: input.minElevation, maxElevation: input.maxElevation })
+        }
+        break
+      }
+      case 'years': {
+        if (num(input.earliestYear) || num(input.latestYear)) {
+          const basis = input.timeFormat ?? 'CE'
+          const match = TIME_MATCH_DETAIL[input.timeMethod ?? ''] ?? ''
+          const detail = `${rangeDetail(input.earliestYear, input.latestYear)} ${basis}${match ? `, ${match}` : ''}`
+          add(id, 'Year', detail, {
+            earliestYear: input.earliestYear, latestYear: input.latestYear,
+            timeFormat: basis, ...(input.timeMethod ? { timeMethod: input.timeMethod } : {}),
+          })
+        }
+        break
+      }
+      case 'recent': {
+        if (input.recent) add(id, 'Recently added', '', { recent: true })
+        break
+      }
+      case 'reconstructionOnly': {
+        if (input.reconstructionOnly) add(id, 'Reconstructions only', '', { reconstructionOnly: true })
+        break
+      }
+      default: {
+        // One of the seven controlled-vocabulary chip fields.
+        const key = id as NoaaMultiKey
+        const values = (input.multi?.[key] ?? []).map(v => v.trim()).filter(Boolean)
+        if (!values.length) break
+        const within = input.within?.[key] ?? 'or'
+        const detail = values.length === 1
+          ? values[0]
+          : `${within === 'and' ? 'all' : 'any'} of (${values.join(', ')})`
+        add(id, MULTI_LABEL[key], detail, { [key]: values, andOr: { [key]: within } } as NoaaSearchFilters)
+      }
+    }
   }
   return terms
 }
 
-// Split the term chain into AND-segments at every OR join (the first term always
-// starts a segment). [] when there are no categorical terms at all.
-export function toAndSegments(terms: NoaaBooleanTerm[]): NoaaBooleanTerm[][] {
-  const segments: NoaaBooleanTerm[][] = []
-  terms.forEach((term, i) => {
+export const chainTerms = (terms: NoaaTerm[]) => terms.filter(t => t.scope === 'chain')
+export const alwaysTerms = (terms: NoaaTerm[]) => terms.filter(t => t.scope === 'always')
+
+// Split the chain into AND-segments at every OR join (the first term always
+// starts a segment). Terms scoped 'always' take no part; they are merged into
+// every segment later. [] when the chain is empty.
+export function toAndSegments(terms: NoaaTerm[]): NoaaTerm[][] {
+  const segments: NoaaTerm[][] = []
+  chainTerms(terms).forEach((term, i) => {
     if (i === 0 || term.joinToPrevious === 'or') segments.push([term])
     else segments[segments.length - 1].push(term)
   })
   return segments
 }
 
-// Plain-English rendering of the expression, for the UI summary line.
-export function describeBooleanQuery(terms: NoaaBooleanTerm[], label: (k: NoaaMultiKey) => string): string {
+// Plain-English rendering of the whole expression, for the UI summary line.
+// Every term appears, in both zones, so the sentence accounts for every filter
+// in play — the omission that made the old summary misleading.
+export function describeBooleanQuery(terms: NoaaTerm[]): string {
   if (!terms.length) return ''
-  const part = (t: NoaaBooleanTerm) => {
-    const joined = t.values.length === 1
-      ? t.values[0]
-      : `${t.within === 'and' ? 'all' : 'any'} of (${t.values.join(', ')})`
-    return `${label(t.key)} ${joined}`
-  }
-  return toAndSegments(terms)
-    .map(seg => seg.map(part).join(' AND '))
+  const part = (t: NoaaTerm) => (t.detail ? `${t.label} ${t.detail}` : t.label)
+  const segs = toAndSegments(terms)
+  // Bracket each AND-group once an OR is present, so the reader never has to
+  // know that OR binds loosest to understand what will be matched.
+  const bracket = segs.length > 1 && segs.some(seg => seg.length > 1)
+  const chain = segs
+    .map(seg => {
+      const text = seg.map(part).join(' AND ')
+      return bracket && seg.length > 1 ? `(${text})` : text
+    })
     .join('  OR  ')
+  const always = alwaysTerms(terms).map(part).join(' AND ')
+  if (!chain) return always
+  if (!always) return chain
+  // Group the whole chain so it reads apart from the shared constraint.
+  return `${segs.length > 1 ? `(${chain})` : chain}, and in every case ${always}`
 }
 
 export interface NoaaBooleanSearchResult {
@@ -250,39 +397,45 @@ export interface NoaaBooleanSearchResult {
   branches: number
 }
 
-// Run a boolean categorical expression against NCEI, unioning the branches.
-// `filters` supplies the global (non-categorical) constraints; any categorical
-// keys on it are ignored in favour of `terms`.
+// Merge one AND-segment's terms into the request it becomes.
+function segmentRequest(seg: NoaaTerm[]): { query: string; filters: NoaaSearchFilters } {
+  const filters: NoaaSearchFilters = {}
+  let query = ''
+  for (const term of seg) {
+    const { andOr, ...rest } = term.patch
+    Object.assign(filters, rest)
+    if (andOr) filters.andOr = { ...filters.andOr, ...andOr }
+    if (term.query) query = term.query
+  }
+  return { query, filters }
+}
+
+// Run a boolean expression against NCEI, unioning the branches. `exactLookup`
+// is the study id / study URL box, which bypasses the expression entirely.
 export async function searchNoaaStudiesBoolean(
-  query: string,
-  filters: NoaaSearchFilters,
-  terms: NoaaBooleanTerm[],
+  exactLookup: string,
+  terms: NoaaTerm[],
 ): Promise<NoaaBooleanSearchResult> {
-  // A bare study id or URL is an exact lookup that ignores filters anyway —
-  // fanning it out into one request per branch would just fetch the same study
-  // several times.
-  const q = query.trim()
+  // A bare study id or URL is an exact lookup that ignores filters anyway --
+  // fanning it out would just fetch the same study several times.
+  const q = exactLookup.trim()
   if (/^\d+$/.test(q) || /paleo-search\/study\/(\d+)/.test(q)) {
     return { studies: await searchNoaaStudies(q, {}), branches: 1 }
   }
 
+  // Terms scoped 'always' constrain every branch, so they are prepended to each
+  // segment. With no chain at all they are the whole query, as one request.
+  const always = alwaysTerms(terms)
   const segments = toAndSegments(terms)
+  const branches = segments.length ? segments.map(seg => [...always, ...seg]) : (always.length ? [always] : [])
+  if (!branches.length) return { studies: [], branches: 0 }
 
-  // No categorical terms: a plain search with the global filters only.
-  if (!segments.length) {
-    return { studies: await searchNoaaStudies(query, stripCategorical(filters)), branches: 1 }
-  }
-
-  const perSegment = segments.map(seg => {
-    const f: NoaaSearchFilters = { ...stripCategorical(filters), andOr: {} }
-    for (const term of seg) {
-      f[term.key] = term.values
-      ;(f.andOr as Record<string, AndOr>)[term.key] = term.within
-    }
-    return f
-  })
-
-  const settled = await Promise.allSettled(perSegment.map(f => searchNoaaStudies(query, f)))
+  const settled = await Promise.allSettled(
+    branches.map(seg => {
+      const { query, filters } = segmentRequest(seg)
+      return searchNoaaStudies(query, filters)
+    })
+  )
   // One failing branch shouldn't lose the others; only an all-failure rethrows.
   const ok = settled.filter(r => r.status === 'fulfilled') as PromiseFulfilledResult<NoaaStudy[]>[]
   if (!ok.length) {
@@ -300,16 +453,9 @@ export async function searchNoaaStudiesBoolean(
       studies.push(study)
     }
   }
-  return { studies, branches: segments.length }
+  return { studies, branches: branches.length }
 }
 
-// Drop the categorical keys so a segment's own terms are the only ones sent.
-function stripCategorical(filters: NoaaSearchFilters): NoaaSearchFilters {
-  const out: NoaaSearchFilters = { ...filters }
-  for (const { key } of NOAA_MULTI_FIELDS) delete out[key]
-  delete out.andOr
-  return out
-}
 
 // List the data files attached to a NOAA study, by id — used by the editor's
 // NOAA view to show a dataset's original source text after a reload (when the

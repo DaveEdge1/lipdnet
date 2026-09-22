@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  searchNoaaStudiesBoolean, buildBooleanTerms, describeBooleanQuery,
+  searchNoaaStudiesBoolean, buildTerms, describeBooleanQuery,
   noaaStudyToLipd, noaaPayloadViaService, buildCollapsed, buildPerSite, payloadSites,
   noaaFileToLipd, noaaFileViaService,
-  NOAA_DATA_TYPES, NOAA_SEARCH_LIMIT, type NoaaStudy, type NoaaSearchFilters, type NoaaMultiKey, type AndOr,
-  type ServicePayload, type ServiceSite,
+  chainTerms, alwaysTerms,
+  NOAA_DATA_TYPES, NOAA_SEARCH_LIMIT, type NoaaStudy, type NoaaMultiKey, type NoaaTermId, type AndOr,
+  type NoaaTerm, type NoaaTermScope, type ServicePayload, type ServiceSite,
 } from '../lib/noaa'
 import {
   NOAA_CV_WHATS, NOAA_CV_MATERIALS, NOAA_CV_SEASONALITIES, NOAA_LOCATIONS, NOAA_KEYWORDS, NOAA_SPECIES,
@@ -28,8 +29,11 @@ export interface NoaaSearchSession {
   showAdvanced: boolean
   multi: Record<NoaaMultiKey, string[]>
   andOr: Partial<Record<NoaaMultiKey, AndOr>>
-  // How each populated field joins the one before it (issue #17). Default 'and'.
-  fieldJoin: Partial<Record<NoaaMultiKey, AndOr>>
+  // How each filled-in filter joins the one before it (issue #17). Keyed by
+  // term id, so ranges and flags participate too, not just the chip fields.
+  fieldJoin: Partial<Record<NoaaTermId, AndOr>>
+  // Whether a filter is part of the AND/OR chain or constrains every branch.
+  termScope: Partial<Record<NoaaTermId, NoaaTermScope>>
   minLat: string; maxLat: string; minLon: string; maxLon: string
   minElevation: string; maxElevation: string
   earliestYear: string; latestYear: string
@@ -60,9 +64,19 @@ const MVF_CONFIG: Array<{ key: NoaaMultiKey; label: string; tipKey: string; list
   { key: 'keywords',        label: 'Keyword category', tipKey: 'search.keywords',  listId: 'noaa-keywords',         placeholder: 'e.g. climate forcing' },
 ]
 
-// Display label for a categorical filter key, used by the combiner's chips and
-// its plain-English summary. Module scope so memo dependencies stay stable.
-const mvfLabel = (k: NoaaMultiKey): string => MVF_CONFIG.find(c => c.key === k)?.label ?? k
+// One filter in the Combine bar. The arrow moves it between the two zones.
+function TermChip({ term, onMove, moveHint }: { term: NoaaTerm; onMove: () => void; moveHint: string }) {
+  return (
+    <span className="noaa-combine-term" title={term.detail ? `${term.label} ${term.detail}` : term.label}>
+      <span className="noaa-combine-field">{term.label}</span>
+      {term.detail && <span className="noaa-combine-vals">{term.detail}</span>}
+      <button type="button" className="noaa-combine-move" onClick={onMove} title={moveHint}
+        aria-label={`${term.label}: ${moveHint}`}>
+        {term.scope === 'always' ? '\u2193' : '\u2191'}
+      </button>
+    </span>
+  )
+}
 
 // A chip-style filter: several values, each removable, with an AND/OR toggle
 // shown once there are two or more. Optional datalist for autocomplete.
@@ -206,10 +220,12 @@ export function NoaaImport({ onLoad, initialSession, onSession }: Props) {
     investigators: [], variableName: [], cvMaterials: [], cvSeasonalities: [], species: [], locations: [], keywords: [],
   })
   const [andOr, setAndOr] = useState<Partial<Record<NoaaMultiKey, AndOr>>>(() => s0?.andOr ?? {})
-  const [fieldJoin, setFieldJoin] = useState<Partial<Record<NoaaMultiKey, AndOr>>>(() => s0?.fieldJoin ?? {})
+  const [fieldJoin, setFieldJoin] = useState<Partial<Record<NoaaTermId, AndOr>>>(() => s0?.fieldJoin ?? {})
   const setValues = (key: NoaaMultiKey, v: string[]) => setMulti(m => ({ ...m, [key]: v }))
   const setFieldAndOr = (key: NoaaMultiKey, v: AndOr) => setAndOr(a => ({ ...a, [key]: v }))
-  const setJoin = (key: NoaaMultiKey, v: AndOr) => setFieldJoin(j => ({ ...j, [key]: v }))
+  const setJoin = (id: NoaaTermId, v: AndOr) => setFieldJoin(j => ({ ...j, [id]: v }))
+  const [termScope, setTermScope] = useState<Partial<Record<NoaaTermId, NoaaTermScope>>>(() => s0?.termScope ?? {})
+  const moveTerm = (id: NoaaTermId, to: NoaaTermScope) => setTermScope(m => ({ ...m, [id]: to }))
   const [minLat, setMinLat] = useState(() => s0?.minLat ?? ''); const [maxLat, setMaxLat] = useState(() => s0?.maxLat ?? '')
   const [minLon, setMinLon] = useState(() => s0?.minLon ?? ''); const [maxLon, setMaxLon] = useState(() => s0?.maxLon ?? '')
   const [minElevation, setMinElevation] = useState(() => s0?.minElevation ?? ''); const [maxElevation, setMaxElevation] = useState(() => s0?.maxElevation ?? '')
@@ -224,12 +240,12 @@ export function NoaaImport({ onLoad, initialSession, onSession }: Props) {
   useEffect(() => {
     onSession?.({
       studyId, studyUrl, keywords, archiveName, results, selectedId, showAdvanced,
-      multi, andOr, fieldJoin, minLat, maxLat, minLon, maxLon, minElevation, maxElevation,
+      multi, andOr, fieldJoin, termScope, minLat, maxLat, minLon, maxLon, minElevation, maxElevation,
       earliestYear, latestYear, timeFormat, timeMethod, recent, reconstructionOnly,
     })
   }, [
     onSession, studyId, studyUrl, keywords, archiveName, results, selectedId, showAdvanced,
-    multi, andOr, fieldJoin, minLat, maxLat, minLon, maxLon, minElevation, maxElevation,
+    multi, andOr, fieldJoin, termScope, minLat, maxLat, minLon, maxLon, minElevation, maxElevation,
     earliestYear, latestYear, timeFormat, timeMethod, recent, reconstructionOnly,
   ])
 
@@ -390,48 +406,49 @@ export function NoaaImport({ onLoad, initialSession, onSession }: Props) {
     }
   }
 
-  // The populated categorical fields as an ordered boolean expression. Shared by
-  // the Combine-filters bar and the search itself so they can never disagree.
-  const boolTerms = useMemo(
-    () => buildBooleanTerms(multi, andOr, fieldJoin),
-    [multi, andOr, fieldJoin]
+  // Archive type is entered as a name; NCEI wants its numeric id.
+  const dataTypeId = useMemo(
+    () => NOAA_DATA_TYPES.find(d => d.name.toLowerCase() === archiveName.trim().toLowerCase())?.id,
+    [archiveName]
   )
-  const boolSummary = useMemo(() => describeBooleanQuery(boolTerms, mvfLabel), [boolTerms])
 
-  const search = async () => {
-    if (busy) return
-    const numOr = (s: string) => (s.trim() === '' ? undefined : Number(s))
-    const hasYear = earliestYear.trim() !== '' || latestYear.trim() !== ''
-    // A study id or URL is an exact lookup; otherwise search by keywords.
-    const q = studyId.trim() || studyUrl.trim() || keywords.trim()
-    // Archive type is entered as a name; map it to the NCEI numeric dataTypeId.
-    const dataTypeId = NOAA_DATA_TYPES.find(d => d.name.toLowerCase() === archiveName.trim().toLowerCase())?.id
-    const filters: NoaaSearchFilters = {
-      // The categorical fields travel as boolean terms instead (see boolTerms),
-      // so they're deliberately absent here; everything below is a global
-      // constraint applied to every branch of the expression.
-      dataTypeId: dataTypeId || undefined,
+  // Every filled-in filter as an ordered boolean expression. Shared by the
+  // Combine-filters bar and the search itself so they can never disagree.
+  const numOr = (v: string) => (v.trim() === '' ? undefined : Number(v))
+  const boolTerms = useMemo(
+    () => buildTerms({
+      searchText: keywords,
+      archiveTypeName: archiveName,
+      dataTypeId,
+      multi, within: andOr,
       minLat: numOr(minLat), maxLat: numOr(maxLat),
       minLon: numOr(minLon), maxLon: numOr(maxLon),
       minElevation: numOr(minElevation), maxElevation: numOr(maxElevation),
       earliestYear: numOr(earliestYear), latestYear: numOr(latestYear),
-      // timeFormat/timeMethod only apply to a year bound — omit them otherwise.
-      timeFormat: hasYear ? timeFormat : undefined,
-      timeMethod: hasYear && timeMethod ? timeMethod : undefined,
-      recent: recent || undefined,
-      reconstructionOnly: reconstructionOnly || undefined,
-    }
-    const anyFilter =
-      Object.values(multi).some(v => v.length > 0) || !!dataTypeId || recent || reconstructionOnly ||
-      [minLat, maxLat, minLon, maxLon, minElevation, maxElevation, earliestYear, latestYear].some(s => s.trim() !== '')
-    if (!q && !anyFilter) return
+      timeFormat, timeMethod,
+      recent, reconstructionOnly,
+    }, fieldJoin, termScope),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [keywords, archiveName, dataTypeId, multi, andOr, fieldJoin, termScope,
+     minLat, maxLat, minLon, maxLon, minElevation, maxElevation,
+     earliestYear, latestYear, timeFormat, timeMethod, recent, reconstructionOnly]
+  )
+  const boolSummary = useMemo(() => describeBooleanQuery(boolTerms), [boolTerms])
+  const chain = useMemo(() => chainTerms(boolTerms), [boolTerms])
+  const always = useMemo(() => alwaysTerms(boolTerms), [boolTerms])
+
+  const search = async () => {
+    if (busy) return
+    // A study id or URL is an exact lookup that bypasses the expression.
+    const exact = studyId.trim() || studyUrl.trim()
+    if (!exact && !boolTerms.length) return
     setBusy('Searching NOAA…')
     setError(null)
     setNotice(null)
     setResults(null)
     setSelectedId(null)
     try {
-      const { studies, branches } = await searchNoaaStudiesBoolean(q, filters, boolTerms)
+      const { studies, branches } = await searchNoaaStudiesBoolean(exact, boolTerms)
       if (!studies.length) {
         setNotice('No NOAA studies matched. Try broadening your search terms or clearing a filter.')
       } else {
@@ -554,31 +571,48 @@ export function NoaaImport({ onLoad, initialSession, onSession }: Props) {
           {boolTerms.length >= 2 && (
             <fieldset className="noaa-group noaa-combine">
               <legend>Combine filters<InfoTip text={tip('search.combine')} /></legend>
-              <div className="noaa-combine-chain">
-                {boolTerms.map((term, i) => (
-                  <span key={term.key} className="noaa-combine-item">
-                    {i > 0 && (
-                      <select
-                        className={`noaa-join ${term.joinToPrevious === 'or' ? 'is-or' : 'is-and'}`}
-                        value={term.joinToPrevious}
-                        onChange={e => setJoin(term.key, e.target.value as AndOr)}
-                        aria-label={`How ${mvfLabel(term.key)} combines with the filters before it`}
-                      >
-                        <option value="and">AND</option>
-                        <option value="or">OR</option>
-                      </select>
-                    )}
-                    <span className="noaa-combine-term">
-                      <span className="noaa-combine-field">{mvfLabel(term.key)}</span>
-                      <span className="noaa-combine-vals">
-                        {term.values.length === 1
-                          ? term.values[0]
-                          : `${term.within === 'and' ? 'all' : 'any'} of ${term.values.length}`}
+
+              {/* Two zones. "Every result" holds filters that constrain all
+                  branches — the only way to say "(A OR B) AND C", since a
+                  linear chain can't express it. "Match" is the AND/OR chain.
+                  Chips move between them, so either reading is reachable. */}
+              {always.length > 0 && (
+                <div className="noaa-combine-zone">
+                  <span className="noaa-combine-zone-label">Every result</span>
+                  <div className="noaa-combine-chain">
+                    {always.map(term => (
+                      <TermChip key={term.id} term={term} onMove={() => moveTerm(term.id, 'chain')}
+                        moveHint="Move into the match expression, so it can be combined with OR" />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {chain.length > 0 && (
+                <div className="noaa-combine-zone">
+                  <span className="noaa-combine-zone-label">Match</span>
+                  <div className="noaa-combine-chain">
+                    {chain.map((term, i) => (
+                      <span key={term.id} className="noaa-combine-item">
+                        {i > 0 && (
+                          <select
+                            className={`noaa-join ${term.joinToPrevious === 'or' ? 'is-or' : 'is-and'}`}
+                            value={term.joinToPrevious}
+                            onChange={e => setJoin(term.id, e.target.value as AndOr)}
+                            aria-label={`How ${term.label} combines with the filters before it`}
+                          >
+                            <option value="and">AND</option>
+                            <option value="or">OR</option>
+                          </select>
+                        )}
+                        <TermChip term={term} onMove={() => moveTerm(term.id, 'always')}
+                          moveHint="Apply to every result instead, so an OR elsewhere doesn't drop it" />
                       </span>
-                    </span>
-                  </span>
-                ))}
-              </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <p className="noaa-combine-summary">
                 Matches studies where {boolSummary}.
               </p>
