@@ -106,6 +106,34 @@ await noaa(5982, b => {
     `date=${typeof dates[0]}, place=${typeof places[0]}, coords=${JSON.stringify(coords[0])}`)
 })
 
+// 11179 (Baffin Island 14C): a column-aligned table with a real header whose
+// labels contain spaces ("Field ID", "Bulk/Filament"). Whitespace splitting
+// gives the header one more field than the data, so it has to be parsed by
+// character position. Also the regression guard for duplicate tables: NOAA
+// lists the .txt and .xls under ONE DataTableID, and PyleoTUPS returns the same
+// frame for both, which used to be emitted twice.
+await noaa(11179, b => {
+  const names = ((b.tables ?? [])[0]?.columns ?? []).map(c => c.variableName)
+  rec('NOAA 11179 \u2192 fixed-width table, header read by column position, no duplicate',
+    (b.tables ?? []).length === 1 && names.length === 8
+      && names[0] === 'Field ID' && names.includes('Bulk/Filament'),
+    `tables=${(b.tables ?? []).length}, cols=${JSON.stringify(names)}`)
+})
+
+// 11921 (Alaska Palaeo-Glacier Atlas): column-aligned with no header line, and
+// cells that contain spaces ("22.4 \u00b1 0.6", "Northeast Alaska Range"). Splitting
+// on whitespace would shred both; the columns come out generic and flagged for
+// review, which is the honest outcome.
+await noaa(11921, b => {
+  const t = (b.tables ?? [])[0]
+  const vals = (t?.columns ?? []).map(c => (c.values ?? [])[0])
+  rec('NOAA 11921 \u2192 fixed-width keeps cells that contain spaces',
+    !b.metadataOnly && (t?.columns ?? []).length === 7 && t?.review === true
+      && vals.some(v => typeof v === 'string' && v.includes('\u00b1'))
+      && vals.some(v => typeof v === 'string' && v.split(' ').length >= 3),
+    `cols=${(t?.columns ?? []).length}, review=${t?.review}, row0=${JSON.stringify(vals)}`)
+})
+
 // 2429 (Camp Century, our example study): fallback names its 2-column d18O
 // tables from PyleoTUPS' variable metadata (not Var1/Var2), with units.
 await noaa(2429, b => {

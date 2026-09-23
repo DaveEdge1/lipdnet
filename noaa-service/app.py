@@ -19,6 +19,7 @@ from __future__ import annotations
 import math
 import os
 import re
+import statistics
 import tempfile
 from collections import Counter
 from typing import Any
@@ -361,6 +362,144 @@ def _delimited_table(lines: list[str]) -> tuple[list[str], list[list[str]]] | No
     return names, [list(r) for r in data]
 
 
+# ---- fixed-width recovery ---------------------------------------------------
+# Many legacy NOAA files are column-aligned rather than delimited. Splitting
+# those on whitespace breaks any cell that contains a space -- a site name, a
+# "22.4 +/- 0.6" value, a two-word header like "Field ID". Instead, find the
+# character columns that are blank in every data row and cut there.
+
+_FW_MIN_ROWS = 10
+_FW_MIN_GAP = 2      # a column break is >= 2 consecutive blank character columns
+_FW_MAX_FIELD = 60   # a field wider than this smells like prose
+
+
+def _fw_blocks(lines: list[str]) -> list[tuple[int, int]]:
+    """Runs of consecutive non-blank lines, longest first."""
+    out: list[tuple[int, int]] = []
+    start = None
+    for i, ln in enumerate(list(lines) + [""]):
+        if ln.strip():
+            if start is None:
+                start = i
+        else:
+            if start is not None and i - start >= _FW_MIN_ROWS:
+                out.append((start, i))
+            start = None
+    return sorted(out, key=lambda be: be[0] - be[1])
+
+
+def _fw_trim(rows: list[str]) -> tuple[list[str], int]:
+    """Drop stray short lines at the edges: a "DATA:" label or a footnote sits
+    flush against the table and would otherwise wreck the width check."""
+    if not rows:
+        return rows, 0
+    med = statistics.median(len(r.rstrip()) for r in rows)
+    lo, hi = 0, len(rows)
+    while lo < hi and len(rows[lo].rstrip()) < 0.5 * med:
+        lo += 1
+    while hi > lo and len(rows[hi - 1].rstrip()) < 0.5 * med:
+        hi -= 1
+    return rows[lo:hi], lo
+
+
+def _fw_slices(rows: list[str]) -> list[tuple[int, int]]:
+    width = max(len(r) for r in rows)
+    padded = [r.ljust(width) for r in rows]
+    blank = [all(p[c] == " " for p in padded) for c in range(width)]
+    out: list[tuple[int, int]] = []
+    start, c = None, 0
+    while c < width:
+        if blank[c]:
+            run = c
+            while run < width and blank[run]:
+                run += 1
+            if run - c >= _FW_MIN_GAP and start is not None:
+                out.append((start, c))
+                start = None
+            c = run
+        else:
+            if start is None:
+                start = c
+            c += 1
+    if start is not None:
+        out.append((start, width))
+    return out
+
+
+def _fw_header_names(head: str, slices: list[tuple[int, int]]) -> list[str]:
+    """Assign each header word to the column it overlaps most. Header labels are
+    rarely aligned exactly with their data, so slicing the header at the data's
+    own column edges chops words in half ("Latitude" becomes "atitude")."""
+    names = ["" for _ in slices]
+    for m in re.finditer(r"\S+", head):
+        best_i, best_ov = None, 0
+        for i, (a, b) in enumerate(slices):
+            ov = min(m.end(), b) - max(m.start(), a)
+            if ov > best_ov:
+                best_ov, best_i = ov, i
+        if best_i is None:  # sits wholly in a gap: attach to the nearest column
+            best_i = min(
+                range(len(slices)),
+                key=lambda i: min(abs(slices[i][0] - m.end()), abs(m.start() - slices[i][1])),
+            )
+        names[best_i] = (names[best_i] + " " + m.group()).strip()
+    return names
+
+
+def _fw_looks_like_data(row: str, slices, cols, width: int) -> bool:
+    """True when a candidate header carries a number in every column that is
+    otherwise numeric -- it is really the first data row."""
+    cells = [row.ljust(width)[a:b].strip() for a, b in slices]
+    numeric_cols = [i for i, c in enumerate(cols) if _mostly_numeric(list(c))]
+    if not numeric_cols:
+        return False
+    return all(_is_strict_num(cells[i]) for i in numeric_cols)
+
+
+def _fw_under_split(cells: list[list[str]]) -> bool:
+    """A cell holding a run of two or more spaces means we failed to split there:
+    several columns are jammed into one, so this is not really a table."""
+    bad = sum(1 for row in cells for c in row if re.search(r"\s{2,}", c))
+    return bad > max(2, 0.02 * sum(len(r) for r in cells))
+
+
+def _fixed_width_table(lines: list[str]) -> tuple[list[str], list[list[str]]] | None:
+    for s, e in _fw_blocks(lines):
+        rows, _ = _fw_trim(lines[s:e])
+        if len(rows) < _FW_MIN_ROWS:
+            continue
+        lens = [len(r.rstrip()) for r in rows]
+        if max(lens) - min(lens) > max(20, 0.5 * max(lens)):
+            continue  # prose: line lengths vary too much
+
+        # Columns come from the body. Try with the first row held back as a
+        # possible header, then fall back to treating every row as data.
+        for head_row, body in ((rows[0], rows[1:]), (None, rows)):
+            if len(body) < _FW_MIN_ROWS - 1:
+                continue
+            sl = _fw_slices(body)
+            if len(sl) < 2 or any(b - a > _FW_MAX_FIELD for a, b in sl):
+                continue
+            width = max(len(r) for r in body)
+            cells = [[r.ljust(width)[a:b].strip() for a, b in sl] for r in body]
+            cols = list(zip(*cells))
+            if not any(_mostly_numeric(list(c)) for c in cols):
+                continue
+            if _fw_under_split(cells):
+                continue
+            if head_row is not None and _fw_looks_like_data(head_row, sl, cols, width):
+                continue  # that was data: retry with it included as a row
+            names = None
+            if head_row is not None:
+                cand = _fw_header_names(head_row, sl)
+                if any(cand) and sum(1 for t in cand if _is_strict_num(t)) <= len(cand) // 2:
+                    names = [t or f"Var{i+1}" for i, t in enumerate(cand)]
+            if names is None:
+                names = [f"Var{i+1}" for i in range(len(sl))]
+            return names, cells
+    return None
+
+
 def _name_unit(desc: str) -> tuple[str, str | None]:
     desc = desc.strip()
     m = re.match(r"^(.*?)\s*\(([^)]*)\)", desc)
@@ -493,9 +632,10 @@ def _fallback_parse(file_url: str, variables: list[dict] | None = None,
             names, units, source = _column_names(lines, start_idx, ncol)
             col_vars = [{"name": names[i], "unit": units[i]} for i in range(ncol)]
     else:
-        # No numeric block, but the file may still be a plain delimited table
-        # whose columns are mostly text.
-        tabular = _delimited_table(lines)
+        # No numeric block. Two more shapes worth trying, cheapest first: a
+        # plain delimited table whose columns are mostly text, then a
+        # column-aligned (fixed-width) table.
+        tabular = _delimited_table(lines) or _fixed_width_table(lines)
         if tabular is None:
             return None
         names, block = tabular
@@ -580,6 +720,13 @@ def build_payload(study_id: int) -> dict:
     skipped: list[str] = []
     # Every distinct site in the study, in first-seen order, keyed for grouping.
     sites_by_key: dict[str, dict] = {}
+    # NOAA sometimes lists several files under ONE DataTableID -- a .txt and the
+    # same data as .xls, say. PyleoTUPS keys on the id, so asking about either
+    # row returns the same frame, and we used to emit it once per row. Track
+    # which ids have already produced tables and skip the repeats. (The fallback
+    # path is keyed by URL instead, so distinct files there are still parsed
+    # separately -- that is how study 5982 skips its readme and keeps its data.)
+    emitted_tids: set[str] = set()
 
     if tables_df is not None:
         for _, t in tables_df.iterrows():
@@ -643,6 +790,8 @@ def build_payload(study_id: int) -> dict:
                         meta = var_list[ci]
                     columns.append(_column_dict(str(col), [_clean(x) for x in df[col].tolist()], meta or {}))
                 if columns:
+                    if tid in emitted_tids:
+                        continue
                     name = _clean(t.get("DataTableName")) or (file_url.split("/")[-1] if file_url else None)
                     tables.append({
                         "tableName": name,
@@ -652,6 +801,7 @@ def build_payload(study_id: int) -> dict:
                         "siteKey": skey,
                         "kind": _classify_table(name, columns),
                     })
+                    emitted_tids.add(tid)
 
     return {
         "studyId": str(study_id),
