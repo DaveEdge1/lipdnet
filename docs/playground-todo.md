@@ -145,6 +145,23 @@ D. Edge is named as lead on Playground/PyleoTUPS integration.
   added it for would never appear at all. NCEI's own ranking still holds within
   a branch. Verified 10/10 through the built UI, including the case that proves
   it: two alternatives returning 25 rows each, 50 available, 25 shown.
+- [x] **Budget the load an OR puts on NCEI.** Capping the union at 25 fixed what
+  was *shown* but not what was *sent*: every group was still a request for 25
+  rows, all fired at once, so a four-group OR meant four simultaneous requests
+  for 100 rows to display 25. Two budgets now, both about being a good citizen
+  of someone else's API. **Requests:** at most `NOAA_MAX_BRANCHES` (6) per
+  search, at most 3 in flight; groups beyond the sixth are not searched and the
+  notice says so plainly, since silently dropping an alternative would return a
+  wrong answer with a confident face. **Rows:** each branch asks only for its
+  share of the 25 — `ceil(25 / branches)` — so bytes pulled stay flat at ~25–30
+  however many groups are added, instead of growing by 25 a group. A single
+  group is untouched: one request for 25, exactly as before. The trade is that
+  heavily overlapping groups can return slightly fewer than 25 after dedupe;
+  that is the honest cost of not over-fetching, and a second round of requests
+  to top up would defeat the point. Verified 18/18 against the library with a
+  stubbed fetch (exact request counts, per-request limits, peak concurrency)
+  plus the live UI suites: nine OR groups used to mean 9 requests for 225 rows,
+  now 6 requests for 30.
 - [ ] Remaining: numeric-range validation; server-side search proxy fallback
   (CORS resilience). Optionally archive-type-scoped CV suggestions (params.json
   is scoped by dataTypeId).

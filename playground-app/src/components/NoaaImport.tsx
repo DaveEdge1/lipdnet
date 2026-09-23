@@ -448,14 +448,21 @@ export function NoaaImport({ onLoad, initialSession, onSession }: Props) {
     setResults(null)
     setSelectedId(null)
     try {
-      const { studies, branches } = await searchNoaaStudiesBoolean(exact, boolTerms)
+      const { studies, branches, skippedGroups } = await searchNoaaStudiesBoolean(exact, boolTerms)
       if (!studies.length) {
         setNotice('No NOAA studies matched. Try broadening your search terms or clearing a filter.')
       } else {
         setResults(studies)
         // An OR splits the query into several NCEI requests — say so, since
-        // the ordering won't look like one search.
-        if (branches > 1) {
+        // the ordering won't look like one search. Skipped groups make the
+        // result incomplete, so that is stated first and plainly.
+        if (skippedGroups > 0) {
+          setNotice(
+            `Only the first ${branches} groups were searched; ${skippedGroups} more ` +
+            `${skippedGroups === 1 ? 'was' : 'were'} skipped to limit the load on NOAA. ` +
+            `Combine some groups with AND, or search the rest separately.`
+          )
+        } else if (branches > 1) {
           setNotice(
             `Your OR query ran as ${branches} searches. These are the combined matches, ` +
             `taken from each group in turn and capped at ${NOAA_SEARCH_LIMIT} in total.`

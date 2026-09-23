@@ -129,7 +129,11 @@ const hasFilters = (f: NoaaSearchFilters): boolean => {
 
 // Accepts a NOAA study ID, a study URL (…/paleo-search/study/12345), or
 // free-text search terms, optionally combined with structured filters.
-export async function searchNoaaStudies(query: string, filters: NoaaSearchFilters = {}): Promise<NoaaStudy[]> {
+export async function searchNoaaStudies(
+  query: string,
+  filters: NoaaSearchFilters = {},
+  limit: number = NOAA_SEARCH_LIMIT,
+): Promise<NoaaStudy[]> {
   const q = query.trim()
   if (!q && !hasFilters(filters)) return []
   const params = new URLSearchParams()
@@ -164,7 +168,7 @@ export async function searchNoaaStudies(query: string, filters: NoaaSearchFilter
     }
     if (filters.recent) params.set('recent', 'true')
     if (filters.reconstructionOnly) params.set('reconstructionsOnly', 'Y')
-    params.set('limit', String(NOAA_SEARCH_LIMIT))
+    params.set('limit', String(Math.max(1, Math.min(NOAA_SEARCH_LIMIT, limit))))
   }
 
   const res = await fetch(`${SEARCH_URL}?${params.toString()}`)
@@ -178,6 +182,33 @@ export async function searchNoaaStudies(query: string, filters: NoaaSearchFilter
 
 // ---- Cross-field boolean search --------------------------------------------
 //
+// At most this many NCEI requests per search. An OR costs one request per
+// group, and with fifteen filters an expression could compile to fifteen --
+// more load than a search box should ever put on someone else's server for one
+// click. Groups past this are not searched, and the UI says so rather than
+// quietly returning a wrong answer.
+export const NOAA_MAX_BRANCHES = 6
+// How many of those requests may be in flight at once.
+const NOAA_BRANCH_CONCURRENCY = 3
+
+// Run `fn` over `items` with at most `limit` in flight, settling rather than
+// rejecting so one bad branch can't lose the others.
+async function mapLimit<T, R>(
+  items: T[], limit: number, fn: (item: T) => Promise<R>,
+): Promise<PromiseSettledResult<R>[]> {
+  const out = new Array<PromiseSettledResult<R>>(items.length)
+  let next = 0
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++
+      try { out[i] = { status: 'fulfilled', value: await fn(items[i]) } }
+      catch (reason) { out[i] = { status: 'rejected', reason } }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker))
+  return out
+}
+
 // NCEI combines its query params with AND and offers no way to OR two different
 // filters, so "Variable=d18O OR Location=Greenland" cannot be expressed in one
 // request. Every filled-in filter therefore becomes a *term*; `joins` says how
@@ -369,10 +400,13 @@ export function toAndSegments(terms: NoaaTerm[]): NoaaTerm[][] {
 
 export interface NoaaBooleanSearchResult {
   studies: NoaaStudy[]
-  // How many NCEI requests the expression compiled to. >1 means the result is a
-  // union, drawn from the branches in turn and capped at NOAA_SEARCH_LIMIT in
-  // total -- the cap is on what you get back, not on each branch.
+  // How many NCEI requests were actually sent. >1 means the result is a union,
+  // drawn from the branches in turn and capped at NOAA_SEARCH_LIMIT in total --
+  // the cap is on what you get back, not on each branch.
   branches: number
+  // Groups the expression asked for beyond NOAA_MAX_BRANCHES, which were not
+  // searched. Non-zero means the results are incomplete and must say so.
+  skippedGroups: number
 }
 
 // Merge one AND-segment's terms into the request it becomes.
@@ -398,22 +432,29 @@ export async function searchNoaaStudiesBoolean(
   // fanning it out would just fetch the same study several times.
   const q = exactLookup.trim()
   if (/^\d+$/.test(q) || /paleo-search\/study\/(\d+)/.test(q)) {
-    return { studies: await searchNoaaStudies(q, {}), branches: 1 }
+    return { studies: await searchNoaaStudies(q, {}), branches: 1, skippedGroups: 0 }
   }
 
   // Terms scoped 'always' constrain every branch, so they are prepended to each
   // segment. With no chain at all they are the whole query, as one request.
   const always = alwaysTerms(terms)
   const segments = toAndSegments(terms)
-  const branches = segments.length ? segments.map(seg => [...always, ...seg]) : (always.length ? [always] : [])
-  if (!branches.length) return { studies: [], branches: 0 }
+  const wanted = segments.length ? segments.map(seg => [...always, ...seg]) : (always.length ? [always] : [])
+  if (!wanted.length) return { studies: [], branches: 0, skippedGroups: 0 }
 
-  const settled = await Promise.allSettled(
-    branches.map(seg => {
-      const { query, filters } = segmentRequest(seg)
-      return searchNoaaStudies(query, filters)
-    })
-  )
+  // Two budgets, both about being a good citizen of someone else's API.
+  // Requests: never more than NOAA_MAX_BRANCHES, a few at a time.
+  const branches = wanted.slice(0, NOAA_MAX_BRANCHES)
+  const skippedGroups = wanted.length - branches.length
+  // Rows: ask each branch only for its share of the 25 we can show, so the
+  // bytes pulled stay flat as groups are added instead of growing 25 per
+  // group. One branch is unchanged -- it still asks for the full 25.
+  const perBranch = Math.ceil(NOAA_SEARCH_LIMIT / branches.length)
+
+  const settled = await mapLimit(branches, NOAA_BRANCH_CONCURRENCY, seg => {
+    const { query, filters } = segmentRequest(seg)
+    return searchNoaaStudies(query, filters, perBranch)
+  })
   // One failing branch shouldn't lose the others; only an all-failure rethrows.
   const ok = settled.filter(r => r.status === 'fulfilled') as PromiseFulfilledResult<NoaaStudy[]>[]
   if (!ok.length) {
@@ -440,7 +481,7 @@ export async function searchNoaaStudiesBoolean(
       if (studies.length >= NOAA_SEARCH_LIMIT) break outer
     }
   }
-  return { studies, branches: branches.length }
+  return { studies, branches: branches.length, skippedGroups }
 }
 
 
