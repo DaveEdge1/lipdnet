@@ -169,8 +169,8 @@ D. Edge is named as lead on Playground/PyleoTUPS integration.
   many". The union now reports `duplicatesDropped` and `moreAvailable`, and the
   notice fires only when all four conditions hold (more than one group, page
   under the cap, duplicates actually dropped, and some branch came back full):
-  *"Showing 13 of 25: 13 studies match more than one group and are listed once.
-  NOAA has more — narrow a group, or join two with AND, to fill the page."*
+  *"25 result cap reached, fewer results shown due to overlapping results
+  (duplicates)"*
   Overlap is counted **before** the cap is applied, or a page that filled up
   would report duplicates it never reached. `moreAvailable` is what keeps the
   message honest: without it, a genuinely small result would be blamed on

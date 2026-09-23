@@ -468,10 +468,8 @@ export function NoaaImport({ onLoad, initialSession, onSession }: Props) {
           // The page stopped short of the cap because groups overlap. Say it,
           // or the short list reads as "NOAA only has this many".
           setNotice(
-            `Showing ${studies.length} of ${NOAA_SEARCH_LIMIT}: ` +
-            `${duplicatesDropped} ${duplicatesDropped === 1 ? 'study matches' : 'studies match'} ` +
-            `more than one group and ${duplicatesDropped === 1 ? 'is' : 'are'} listed once. ` +
-            `NOAA has more — narrow a group, or join two with AND, to fill the page.`
+            `${NOAA_SEARCH_LIMIT} result cap reached, fewer results shown due to ` +
+            `overlapping results (duplicates)`
           )
         } else if (branches > 1) {
           setNotice(
