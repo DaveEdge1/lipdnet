@@ -370,7 +370,8 @@ export function toAndSegments(terms: NoaaTerm[]): NoaaTerm[][] {
 export interface NoaaBooleanSearchResult {
   studies: NoaaStudy[]
   // How many NCEI requests the expression compiled to. >1 means the result is a
-  // union, and each branch was independently capped at NOAA_SEARCH_LIMIT.
+  // union, drawn from the branches in turn and capped at NOAA_SEARCH_LIMIT in
+  // total -- the cap is on what you get back, not on each branch.
   branches: number
 }
 
@@ -420,14 +421,23 @@ export async function searchNoaaStudiesBoolean(
     throw first.status === 'rejected' ? first.reason : new Error('NOAA search failed')
   }
 
-  // Union, keeping first-seen order so the earliest branch ranks first.
+  // Union under ONE cap of NOAA_SEARCH_LIMIT, not one cap per branch -- an OR
+  // shouldn't quietly return four times as many rows as a plain search. Taking
+  // from the branches in turn rather than draining each in order is what makes
+  // that cap fair: a broad alternative would otherwise fill the whole budget
+  // and the alternative you added it for would never appear. Within a branch
+  // NCEI's own ranking is preserved.
+  const lists = ok.map(r => r.value)
+  const deepest = lists.reduce((m, l) => Math.max(m, l.length), 0)
   const seen = new Set<string>()
   const studies: NoaaStudy[] = []
-  for (const r of ok) {
-    for (const study of r.value) {
-      if (seen.has(study.NOAAStudyId)) continue
+  outer: for (let i = 0; i < deepest; i++) {
+    for (const list of lists) {
+      const study = list[i]
+      if (!study || seen.has(study.NOAAStudyId)) continue
       seen.add(study.NOAAStudyId)
       studies.push(study)
+      if (studies.length >= NOAA_SEARCH_LIMIT) break outer
     }
   }
   return { studies, branches: branches.length }

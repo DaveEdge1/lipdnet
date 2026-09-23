@@ -194,6 +194,16 @@ body { background: var(--bg); height: 100vh; overflow: hidden; }
    layout rather than only in the joins. */
 .noaa-combine-groups { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .3rem; }
 .noaa-combine-group { flex: none; }
+/* Required AND the groups. Fixed, so it is black text rather than a dropdown --
+   the OR between groups is a select and carries that control's colour. Indented
+   past the label column so it lines up over the boxes it joins. */
+.noaa-combine-and {
+  display: flex; align-items: center; gap: .5rem;
+  margin: 0 0 .4rem 8.7rem;
+  font-size: .72rem; font-weight: 700; letter-spacing: .06em; color: #111;
+}
+.noaa-combine-and::before,
+.noaa-combine-and::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 /* The OR sits between two boxes and belongs to neither; the rule either side
    reads as a separator rather than as part of a group. */
 .noaa-combine-or { display: flex; align-items: center; gap: .5rem; }

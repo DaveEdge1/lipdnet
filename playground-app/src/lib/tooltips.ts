@@ -80,7 +80,7 @@ export const TOOLTIPS: Record<string, string> = {
   'search.recent': 'Show only recently-added studies (about the last two years), newest first.',
   'search.reconstruction': 'Show only climate reconstructions (derived climate series), not raw proxy measurements.',
   'search.andOr': 'When a field has more than one value: match studies with ANY of them, or only those with ALL of them.',
-  'search.combine': 'Required: every result must match these. Subfilter groups: a result need only match one group. Use a filter’s arrow to move it between the two. Each group is a separate NOAA search, capped at 25 results.',
+  'search.combine': 'Required: every result must match these. Subfilter groups: a result need only match one group. Use a filter’s arrow to move it between the two. Each group is searched separately, and the combined results are capped at 25.',
 }
 
 export function tip(key: string): string | undefined {

@@ -131,6 +131,20 @@ D. Edge is named as lead on Playground/PyleoTUPS integration.
   14/14 through the built UI: the names, one box per group, the white
   background, split and merge in both directions, and the regression that
   Required terms still reach every branch (both branches carried `minLat=20`).
+- [x] **Show the AND between the zones, and cap the union at 25 in total.** Two
+  follow-ups. The join between Required and the groups was implied but never
+  drawn, so the expression read as two unrelated lists: there is now a black
+  **AND** on a rule between them, plain text rather than a select because it is
+  the one join that cannot be anything else (the OR between groups is a
+  dropdown and keeps that control's colour). Second, each branch was capped at
+  25 independently, so a two-group OR could return 50 rows and a four-group one
+  100 — the cap belongs on what comes back, not on each request. The union now
+  takes from the branches **in turn** and stops at 25. Round-robin rather than
+  draining each branch in order is what makes the shared cap fair: a broad
+  alternative would otherwise spend the whole budget and the alternative you
+  added it for would never appear at all. NCEI's own ranking still holds within
+  a branch. Verified 10/10 through the built UI, including the case that proves
+  it: two alternatives returning 25 rows each, 50 available, 25 shown.
 - [ ] Remaining: numeric-range validation; server-side search proxy fallback
   (CORS resilience). Optionally archive-type-scoped CV suggestions (params.json
   is scoped by dataTypeId).

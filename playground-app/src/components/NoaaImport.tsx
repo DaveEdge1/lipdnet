@@ -453,12 +453,12 @@ export function NoaaImport({ onLoad, initialSession, onSession }: Props) {
         setNotice('No NOAA studies matched. Try broadening your search terms or clearing a filter.')
       } else {
         setResults(studies)
-        // An OR splits the query into several NCEI requests, each capped
-        // separately — say so, since the totals won't look like one search.
+        // An OR splits the query into several NCEI requests — say so, since
+        // the ordering won't look like one search.
         if (branches > 1) {
           setNotice(
-            `Your OR query ran as ${branches} searches and these are the combined matches. ` +
-            `NOAA caps each search at ${NOAA_SEARCH_LIMIT} results, so a broad branch may be truncated.`
+            `Your OR query ran as ${branches} searches. These are the combined matches, ` +
+            `taken from each group in turn and capped at ${NOAA_SEARCH_LIMIT} in total.`
           )
         }
         // A single hit is shown expanded for review — never auto-imported.
@@ -640,6 +640,12 @@ export function NoaaImport({ onLoad, initialSession, onSession }: Props) {
                     ))}
                   </div>
                 </div>
+              )}
+
+              {/* The join between the zones is always AND and can't be anything
+                  else, so it is plain text rather than a select. */}
+              {always.length > 0 && groups.length > 0 && (
+                <div className="noaa-combine-and"><span>AND</span></div>
               )}
 
               {groups.length > 0 && (
