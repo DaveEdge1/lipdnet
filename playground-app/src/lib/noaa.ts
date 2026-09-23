@@ -407,6 +407,14 @@ export interface NoaaBooleanSearchResult {
   // Groups the expression asked for beyond NOAA_MAX_BRANCHES, which were not
   // searched. Non-zero means the results are incomplete and must say so.
   skippedGroups: number
+  // Studies that came back from more than one group and are listed once. Since
+  // each branch only asks for its share of the cap, overlap between groups
+  // shortens the page rather than being absorbed -- so when the page stops
+  // short of the cap, this is why, and the UI has to say so.
+  duplicatesDropped: number
+  // At least one branch returned a full page, so NOAA holds more rows than we
+  // asked it for. Without this, a short page just means a small result.
+  moreAvailable: boolean
 }
 
 // Merge one AND-segment's terms into the request it becomes.
@@ -432,7 +440,10 @@ export async function searchNoaaStudiesBoolean(
   // fanning it out would just fetch the same study several times.
   const q = exactLookup.trim()
   if (/^\d+$/.test(q) || /paleo-search\/study\/(\d+)/.test(q)) {
-    return { studies: await searchNoaaStudies(q, {}), branches: 1, skippedGroups: 0 }
+    return {
+      studies: await searchNoaaStudies(q, {}),
+      branches: 1, skippedGroups: 0, duplicatesDropped: 0, moreAvailable: false,
+    }
   }
 
   // Terms scoped 'always' constrain every branch, so they are prepended to each
@@ -440,7 +451,9 @@ export async function searchNoaaStudiesBoolean(
   const always = alwaysTerms(terms)
   const segments = toAndSegments(terms)
   const wanted = segments.length ? segments.map(seg => [...always, ...seg]) : (always.length ? [always] : [])
-  if (!wanted.length) return { studies: [], branches: 0, skippedGroups: 0 }
+  if (!wanted.length) {
+    return { studies: [], branches: 0, skippedGroups: 0, duplicatesDropped: 0, moreAvailable: false }
+  }
 
   // Two budgets, both about being a good citizen of someone else's API.
   // Requests: never more than NOAA_MAX_BRANCHES, a few at a time.
@@ -469,6 +482,18 @@ export async function searchNoaaStudiesBoolean(
   // and the alternative you added it for would never appear. Within a branch
   // NCEI's own ranking is preserved.
   const lists = ok.map(r => r.value)
+
+  // Overlap has to be measured before the cap is applied, or a page that fills
+  // up would look like it had duplicates it never reached. A branch that came
+  // back full was truncated by its own limit, so NOAA has more where that came
+  // from -- which is what separates "short because groups overlap" from
+  // "short because that is all there is".
+  const fetched = lists.reduce((n, l) => n + l.length, 0)
+  const distinct = new Set<string>()
+  for (const list of lists) for (const s of list) distinct.add(s.NOAAStudyId)
+  const duplicatesDropped = fetched - distinct.size
+  const moreAvailable = lists.some(l => l.length >= perBranch)
+
   const deepest = lists.reduce((m, l) => Math.max(m, l.length), 0)
   const seen = new Set<string>()
   const studies: NoaaStudy[] = []
@@ -481,7 +506,7 @@ export async function searchNoaaStudiesBoolean(
       if (studies.length >= NOAA_SEARCH_LIMIT) break outer
     }
   }
-  return { studies, branches: branches.length, skippedGroups }
+  return { studies, branches: branches.length, skippedGroups, duplicatesDropped, moreAvailable }
 }
 
 

@@ -162,6 +162,21 @@ D. Edge is named as lead on Playground/PyleoTUPS integration.
   stubbed fetch (exact request counts, per-request limits, peak concurrency)
   plus the live UI suites: nine OR groups used to mean 9 requests for 225 rows,
   now 6 requests for 30.
+- [x] **Say when overlap, not scarcity, shortened the page.** Asking each branch
+  for only its share of the cap has a visible consequence: a study matching two
+  groups is fetched twice and listed once, so the page can stop short of 25
+  with no explanation on screen — indistinguishable from "NOAA only has this
+  many". The union now reports `duplicatesDropped` and `moreAvailable`, and the
+  notice fires only when all four conditions hold (more than one group, page
+  under the cap, duplicates actually dropped, and some branch came back full):
+  *"Showing 13 of 25: 13 studies match more than one group and are listed once.
+  NOAA has more — narrow a group, or join two with AND, to fill the page."*
+  Overlap is counted **before** the cap is applied, or a page that filled up
+  would report duplicates it never reached. `moreAvailable` is what keeps the
+  message honest: without it, a genuinely small result would be blamed on
+  deduplication. Verified 12/12 on three stubbed shapes — total overlap (warns),
+  no overlap (fills, silent), and small-but-complete (short, silent, because
+  that is the true answer).
 - [ ] Remaining: numeric-range validation; server-side search proxy fallback
   (CORS resilience). Optionally archive-type-scoped CV suggestions (params.json
   is scoped by dataTypeId).

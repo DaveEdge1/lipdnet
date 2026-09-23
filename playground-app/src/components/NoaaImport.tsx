@@ -448,7 +448,8 @@ export function NoaaImport({ onLoad, initialSession, onSession }: Props) {
     setResults(null)
     setSelectedId(null)
     try {
-      const { studies, branches, skippedGroups } = await searchNoaaStudiesBoolean(exact, boolTerms)
+      const { studies, branches, skippedGroups, duplicatesDropped, moreAvailable } =
+        await searchNoaaStudiesBoolean(exact, boolTerms)
       if (!studies.length) {
         setNotice('No NOAA studies matched. Try broadening your search terms or clearing a filter.')
       } else {
@@ -461,6 +462,16 @@ export function NoaaImport({ onLoad, initialSession, onSession }: Props) {
             `Only the first ${branches} groups were searched; ${skippedGroups} more ` +
             `${skippedGroups === 1 ? 'was' : 'were'} skipped to limit the load on NOAA. ` +
             `Combine some groups with AND, or search the rest separately.`
+          )
+        } else if (branches > 1 && studies.length < NOAA_SEARCH_LIMIT
+                   && duplicatesDropped > 0 && moreAvailable) {
+          // The page stopped short of the cap because groups overlap. Say it,
+          // or the short list reads as "NOAA only has this many".
+          setNotice(
+            `Showing ${studies.length} of ${NOAA_SEARCH_LIMIT}: ` +
+            `${duplicatesDropped} ${duplicatesDropped === 1 ? 'study matches' : 'studies match'} ` +
+            `more than one group and ${duplicatesDropped === 1 ? 'is' : 'are'} listed once. ` +
+            `NOAA has more — narrow a group, or join two with AND, to fill the page.`
           )
         } else if (branches > 1) {
           setNotice(
