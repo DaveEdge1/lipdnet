@@ -83,6 +83,29 @@ await noaa(2493, b => {
     `metadataOnly=${b.metadataOnly}, parser=${t0?.parser}, cols=${t0?.columns?.length}, rows=${t0?.columns?.[0]?.values?.length}`)
 })
 
+// 5982 (The Sahara in the Holocene): a plain tab-delimited spreadsheet with a
+// header row and mostly TEXT columns. The numeric-block strategy finds nothing
+// here (5 of 7 columns are words), so it used to import as metadata-only even
+// though the file is perfectly machine-readable. The delimited-table strategy
+// recovers it, text columns survive instead of being coerced to null, and the
+// Latin-1 degree signs in Coordinates decode rather than becoming U+FFFD.
+await noaa(5982, b => {
+  const t = (b.tables ?? [])[0]
+  const names = (t?.columns ?? []).map(c => c.variableName)
+  const rows = t ? Math.max(...t.columns.map(c => (c.values ?? []).length)) : 0
+  const col = n => (t?.columns ?? []).find(c => c.variableName === n)
+  const dates = col('DateBP')?.values ?? []
+  const places = col('Location')?.values ?? []
+  const coords = col('Coordinates')?.values ?? []
+  rec('NOAA 5982 \u2192 tab-delimited table with text columns recovered',
+    !b.metadataOnly && names.length === 7 && names[0] === 'DateBP' && rows > 2000
+      && typeof dates[0] === 'number'
+      && typeof places[0] === 'string' && places.filter(v => v !== null).length > 2000
+      && typeof coords[0] === 'string' && !coords[0].includes('\uFFFD'),
+    `metadataOnly=${b.metadataOnly}, cols=${names.length}, rows=${rows}, ` +
+    `date=${typeof dates[0]}, place=${typeof places[0]}, coords=${JSON.stringify(coords[0])}`)
+})
+
 // 2429 (Camp Century, our example study): fallback names its 2-column d18O
 // tables from PyleoTUPS' variable metadata (not Var1/Var2), with units.
 await noaa(2429, b => {

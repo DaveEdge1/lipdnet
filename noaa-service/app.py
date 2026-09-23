@@ -241,12 +241,26 @@ def _looks_text(url: str | None) -> bool:
     return path.endswith((".txt", ".dat", ".csv", ".tsv"))
 
 
+def _decode_text(data: bytes) -> str:
+    """Decode a NOAA text file. Legacy files predate UTF-8 and are usually
+    Latin-1: decoding those as UTF-8 with errors="replace" turned every degree
+    sign into U+FFFD, so coordinates like "20 degrees;14/16w" arrived corrupted.
+    Try strict UTF-8 first, then the single-byte encodings; Latin-1 accepts any
+    byte, so this always terminates."""
+    for enc in ("utf-8", "cp1252", "latin-1"):
+        try:
+            return data.decode(enc)
+        except UnicodeDecodeError:
+            continue
+    return data.decode("utf-8", errors="replace")
+
+
 def _fetch_text(url: str) -> str:
     r = requests.get(url, timeout=45)
     r.raise_for_status()
     if len(r.content) > _FALLBACK_MAX_BYTES:
         raise ValueError("file too large for fallback parser")
-    return r.content.decode("utf-8", errors="replace")
+    return _decode_text(r.content)
 
 
 def _split_row(line: str) -> list[str]:
@@ -270,6 +284,81 @@ def _row_is_numeric(toks: list[str]) -> bool:
         return False
     numeric = sum(1 for t in toks if _is_num(t))
     return numeric >= max(2, len(toks) - 1)  # tolerate one label/flag column
+
+
+def _is_missing(tok: str) -> bool:
+    return str(tok).strip().lower() in _MISSING_TOKENS
+
+
+def _is_strict_num(tok: str) -> bool:
+    """Unlike _is_num, a missing marker is NOT a number here - used to judge
+    whether a whole column is numeric, where blanks shouldn't count either way."""
+    t = str(tok).strip()
+    if _is_missing(t):
+        return False
+    try:
+        float(t.replace(",", ""))
+        return True
+    except ValueError:
+        return False
+
+
+def _mostly_numeric(vals: list[str]) -> bool:
+    present = [v for v in vals if not _is_missing(v)]
+    if not present:
+        return False
+    return sum(1 for v in present if _is_strict_num(v)) >= len(present) * 0.8
+
+
+def _delimited_table(lines: list[str]) -> tuple[list[str], list[list[str]]] | None:
+    """Recover a plain tab-delimited table with a header row.
+
+    The numeric-block strategy above only finds blocks where nearly every field
+    is a number, which is the shape of a classic proxy table. Some NOAA files
+    are ordinary spreadsheets exported as TSV, where most columns are text - a
+    radiocarbon date list, say, with columns for location, material and
+    laboratory. Those were reported as unparseable despite being about as
+    machine-readable as a file gets. See NOAA study 5982 / sahara.txt.
+
+    Requires tabs (splitting text columns on whitespace is ambiguous), a
+    dominant field count, a mostly-textual first row to use as the header, and
+    at least one predominantly numeric column so tab-indented prose isn't
+    mistaken for data.
+    """
+    # Trailing separators are inconsistent in real files: some rows end with a
+    # tab and some don't, which would otherwise split one table into two runs of
+    # differing width. Strip trailing empties so a row's width reflects its
+    # content, then pad short rows back out - the only reason a row is short
+    # here is a missing value at the end.
+    parsed: list[list[str]] = []
+    for ln in lines:
+        if "\t" not in ln:
+            continue
+        toks = [c.strip() for c in ln.rstrip("\r\n").split("\t")]
+        while toks and _is_missing(toks[-1]):
+            toks.pop()
+        if len(toks) >= 2:
+            parsed.append(toks)
+    if len(parsed) < 6:
+        return None
+
+    width = Counter(len(t) for t in parsed).most_common(1)[0][0]
+    if width < 2:
+        return None
+    block = [t + [""] * (width - len(t)) for t in parsed if len(t) <= width]
+    if len(block) < 6:  # a header plus at least five data rows
+        return None
+
+    header, data = block[0], block[1:]
+    if sum(1 for t in header if _is_strict_num(t)) > len(header) // 2:
+        return None  # too numeric to be a header
+    if len(data) < 5:
+        return None
+    if not any(_mostly_numeric(list(c)) for c in zip(*data)):
+        return None  # no numeric column: prose, not a table
+
+    names = [(header[i].strip() or "Var" + str(i + 1)) for i in range(width)]
+    return names, [list(r) for r in data]
 
 
 def _name_unit(desc: str) -> tuple[str, str | None]:
@@ -384,21 +473,35 @@ def _fallback_parse(file_url: str, variables: list[dict] | None = None,
         return None
     lines = text.splitlines()
     numeric = [(i, toks) for i, toks in ((k, _split_row(ln)) for k, ln in enumerate(lines)) if _row_is_numeric(toks)]
-    if len(numeric) < 5:
-        return None
-    ncol = Counter(len(t) for _, t in numeric).most_common(1)[0][0]
-    if ncol < 2:
-        return None
-    block = [t for _, t in numeric if len(t) == ncol]
-    if len(block) < 5:
-        return None
-    start_idx = next(i for i, t in numeric if len(t) == ncol)
-    if variables and len(variables) == ncol:
-        col_vars = _align_variables(block, variables, year_ranges or [])
-        source = "variables"
+
+    block: list[list[str]] | None = None
+    ncol = 0
+    start_idx = 0
+    if len(numeric) >= 5:
+        ncol = Counter(len(t) for _, t in numeric).most_common(1)[0][0]
+        if ncol >= 2:
+            cand = [t for _, t in numeric if len(t) == ncol]
+            if len(cand) >= 5:
+                block = cand
+                start_idx = next(i for i, t in numeric if len(t) == ncol)
+
+    if block is not None:
+        if variables and len(variables) == ncol:
+            col_vars = _align_variables(block, variables, year_ranges or [])
+            source = "variables"
+        else:
+            names, units, source = _column_names(lines, start_idx, ncol)
+            col_vars = [{"name": names[i], "unit": units[i]} for i in range(ncol)]
     else:
-        names, units, source = _column_names(lines, start_idx, ncol)
-        col_vars = [{"name": names[i], "unit": units[i]} for i in range(ncol)]
+        # No numeric block, but the file may still be a plain delimited table
+        # whose columns are mostly text.
+        tabular = _delimited_table(lines)
+        if tabular is None:
+            return None
+        names, block = tabular
+        ncol = len(names)
+        col_vars = [{"name": n, "unit": None} for n in names]
+        source = "header"
     # de-duplicate column names
     seen: dict[str, int] = {}
     uniq: list[str] = []
@@ -413,8 +516,17 @@ def _fallback_parse(file_url: str, variables: list[dict] | None = None,
     df = pd.DataFrame(block, columns=uniq)
     cols = []
     for idx, cv in enumerate(col_vars):
-        series = pd.to_numeric(df[uniq[idx]].astype(str).str.replace(",", "", regex=False), errors="coerce")
-        cols.append(_column_dict(uniq[idx], [_clean(x) for x in series.tolist()], cv))
+        vals_raw = df[uniq[idx]].astype(str).tolist()
+        if _mostly_numeric(vals_raw):
+            series = pd.to_numeric(
+                pd.Series(vals_raw).str.replace(",", "", regex=False), errors="coerce"
+            )
+            values = [_clean(x) for x in series.tolist()]
+        else:
+            # A text column (site name, material, laboratory) was coerced to
+            # all-NaN and silently emptied. Keep it, mapping blanks to null.
+            values = [None if _is_missing(v) else v for v in vals_raw]
+        cols.append(_column_dict(uniq[idx], values, cv))
     # Flag for human review when naming was a heuristic or any column is generic.
     review = source in ("header", "generic") or any(re.match(r"^Var\d+$", str(c["variableName"])) for c in cols)
     return cols, review
