@@ -105,8 +105,11 @@ D. Edge is named as lead on Playground/PyleoTUPS integration.
   on each chip to move it between them. Defaults reproduce the previous
   behaviour exactly — vocabulary fields in the chain, everything else
   constraining all branches — so no existing query changes meaning. The summary
-  brackets each AND-group once an OR is present and appends ", and in every case
-  …", so precedence never has to be inferred. Verified 20/20 on the term model
+  zones are labelled **Always** ("every result matches these") and **Combine**
+  ("OR offers an alternative"), each gloss inline rather than buried in a
+  tooltip, since the distinction is what people trip on. The full-sentence
+  summary under the bar was dropped at the user's request once the chips and
+  glosses carried the same information. Verified 20/20 on the term model
   (coverage, detail strings, segmentation, per-branch params, free text as its
   own branch, exact-lookup bypass) and 9/9 through the built UI on the reported
   case, including that moving latitude between zones flips it between one branch

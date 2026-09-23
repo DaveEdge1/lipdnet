@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  searchNoaaStudiesBoolean, buildTerms, describeBooleanQuery,
+  searchNoaaStudiesBoolean, buildTerms,
   noaaStudyToLipd, noaaPayloadViaService, buildCollapsed, buildPerSite, payloadSites,
   noaaFileToLipd, noaaFileViaService,
   chainTerms, alwaysTerms,
@@ -433,7 +433,6 @@ export function NoaaImport({ onLoad, initialSession, onSession }: Props) {
      minLat, maxLat, minLon, maxLon, minElevation, maxElevation,
      earliestYear, latestYear, timeFormat, timeMethod, recent, reconstructionOnly]
   )
-  const boolSummary = useMemo(() => describeBooleanQuery(boolTerms), [boolTerms])
   const chain = useMemo(() => chainTerms(boolTerms), [boolTerms])
   const always = useMemo(() => alwaysTerms(boolTerms), [boolTerms])
 
@@ -572,17 +571,22 @@ export function NoaaImport({ onLoad, initialSession, onSession }: Props) {
             <fieldset className="noaa-group noaa-combine">
               <legend>Combine filters<InfoTip text={tip('search.combine')} /></legend>
 
-              {/* Two zones. "Every result" holds filters that constrain all
-                  branches — the only way to say "(A OR B) AND C", since a
-                  linear chain can't express it. "Match" is the AND/OR chain.
-                  Chips move between them, so either reading is reachable. */}
+              {/* Two zones. "Always" holds filters that constrain every
+                  branch — the only way to say "(A OR B) AND C", since a linear
+                  chain can't express it. "Combine" is the AND/OR chain. Chips
+                  move between them, so either reading is reachable. Each label
+                  carries its own one-line gloss; the distinction is the part
+                  people trip on, so it shouldn't live only in a tooltip. */}
               {always.length > 0 && (
                 <div className="noaa-combine-zone">
-                  <span className="noaa-combine-zone-label">Every result</span>
+                  <span className="noaa-combine-zone-label">
+                    Always
+                    <span className="noaa-combine-zone-hint">every result matches these</span>
+                  </span>
                   <div className="noaa-combine-chain">
                     {always.map(term => (
                       <TermChip key={term.id} term={term} onMove={() => moveTerm(term.id, 'chain')}
-                        moveHint="Move into the match expression, so it can be combined with OR" />
+                        moveHint="Move to Combine, so this can be an OR alternative" />
                     ))}
                   </div>
                 </div>
@@ -590,7 +594,10 @@ export function NoaaImport({ onLoad, initialSession, onSession }: Props) {
 
               {chain.length > 0 && (
                 <div className="noaa-combine-zone">
-                  <span className="noaa-combine-zone-label">Match</span>
+                  <span className="noaa-combine-zone-label">
+                    Combine
+                    <span className="noaa-combine-zone-hint">OR offers an alternative</span>
+                  </span>
                   <div className="noaa-combine-chain">
                     {chain.map((term, i) => (
                       <span key={term.id} className="noaa-combine-item">
@@ -606,16 +613,13 @@ export function NoaaImport({ onLoad, initialSession, onSession }: Props) {
                           </select>
                         )}
                         <TermChip term={term} onMove={() => moveTerm(term.id, 'always')}
-                          moveHint="Apply to every result instead, so an OR elsewhere doesn't drop it" />
+                          moveHint="Move to Always, so every result must match this" />
                       </span>
                     ))}
                   </div>
                 </div>
               )}
 
-              <p className="noaa-combine-summary">
-                Matches studies where {boolSummary}.
-              </p>
             </fieldset>
           )}
 

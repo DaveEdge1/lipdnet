@@ -367,29 +367,6 @@ export function toAndSegments(terms: NoaaTerm[]): NoaaTerm[][] {
   return segments
 }
 
-// Plain-English rendering of the whole expression, for the UI summary line.
-// Every term appears, in both zones, so the sentence accounts for every filter
-// in play — the omission that made the old summary misleading.
-export function describeBooleanQuery(terms: NoaaTerm[]): string {
-  if (!terms.length) return ''
-  const part = (t: NoaaTerm) => (t.detail ? `${t.label} ${t.detail}` : t.label)
-  const segs = toAndSegments(terms)
-  // Bracket each AND-group once an OR is present, so the reader never has to
-  // know that OR binds loosest to understand what will be matched.
-  const bracket = segs.length > 1 && segs.some(seg => seg.length > 1)
-  const chain = segs
-    .map(seg => {
-      const text = seg.map(part).join(' AND ')
-      return bracket && seg.length > 1 ? `(${text})` : text
-    })
-    .join('  OR  ')
-  const always = alwaysTerms(terms).map(part).join(' AND ')
-  if (!chain) return always
-  if (!always) return chain
-  // Group the whole chain so it reads apart from the shared constraint.
-  return `${segs.length > 1 ? `(${chain})` : chain}, and in every case ${always}`
-}
-
 export interface NoaaBooleanSearchResult {
   studies: NoaaStudy[]
   // How many NCEI requests the expression compiled to. >1 means the result is a

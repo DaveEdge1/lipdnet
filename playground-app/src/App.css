@@ -179,9 +179,15 @@ body { background: var(--bg); height: 100vh; overflow: hidden; }
 .noaa-combine > legend { display: flex; align-items: center; gap: .3rem; }
 .noaa-combine-zone { display: flex; align-items: flex-start; gap: .5rem; margin-bottom: .4rem; }
 .noaa-combine-zone-label {
-  flex-shrink: 0; width: 5.6rem; padding-top: .5rem;
+  flex-shrink: 0; width: 8.2rem; padding-top: .45rem;
+  display: flex; flex-direction: column; gap: .1rem;
   font-size: .68rem; text-transform: uppercase; letter-spacing: .06em;
   color: var(--text-muted); font-weight: 700;
+}
+/* The gloss carries the distinction, so it reads without hunting for a tooltip. */
+.noaa-combine-zone-hint {
+  text-transform: none; letter-spacing: normal; font-weight: 400;
+  font-size: .68rem; line-height: 1.25; opacity: .85;
 }
 .noaa-combine-zone .noaa-combine-chain { flex: 1; min-width: 0; }
 /* The arrow moves a filter between the two zones. */
@@ -211,9 +217,6 @@ body { background: var(--bg); height: 100vh; overflow: hidden; }
 }
 .noaa-advanced .noaa-join.is-and { color: var(--text-muted); }
 .noaa-advanced .noaa-join.is-or { color: var(--accent); border-color: var(--accent); }
-.noaa-combine-summary {
-  margin: .4rem 0 0; font-size: .76rem; color: var(--text-muted); line-height: 1.45;
-}
 
 /* ---- multi-value chip filter (investigator, variable, material, …) ---- */
 .mvf { gap: .25rem; }
