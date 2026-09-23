@@ -190,6 +190,15 @@ body { background: var(--bg); height: 100vh; overflow: hidden; }
   font-size: .68rem; line-height: 1.25; opacity: .85;
 }
 .noaa-combine-zone .noaa-combine-chain { flex: 1; min-width: 0; }
+/* One box per OR alternative, stacked, so "any one of these" is visible in the
+   layout rather than only in the joins. */
+.noaa-combine-groups { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .3rem; }
+.noaa-combine-group { flex: none; }
+/* The OR sits between two boxes and belongs to neither; the rule either side
+   reads as a separator rather than as part of a group. */
+.noaa-combine-or { display: flex; align-items: center; gap: .5rem; }
+.noaa-combine-or::before,
+.noaa-combine-or::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 /* The arrow moves a filter between the two zones. */
 .noaa-combine-move {
   border: none; background: none; cursor: pointer; padding: 0 0 0 .1rem;

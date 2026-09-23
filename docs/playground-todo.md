@@ -105,15 +105,32 @@ D. Edge is named as lead on Playground/PyleoTUPS integration.
   on each chip to move it between them. Defaults reproduce the previous
   behaviour exactly — vocabulary fields in the chain, everything else
   constraining all branches — so no existing query changes meaning. The summary
-  zones are labelled **Always** ("every result matches these") and **Combine**
-  ("OR offers an alternative"), each gloss inline rather than buried in a
-  tooltip, since the distinction is what people trip on. The full-sentence
+  zones were labelled **Always** and **Combine** here, each gloss inline rather
+  than buried in a tooltip, since the distinction is what people trip on; both
+  were renamed shortly afterwards (next entry). The full-sentence
   summary under the bar was dropped at the user's request once the chips and
   glosses carried the same information. Verified 20/20 on the term model
   (coverage, detail strings, segmentation, per-branch params, free text as its
   own branch, exact-lookup bypass) and 9/9 through the built UI on the reported
   case, including that moving latitude between zones flips it between one branch
   and all of them.
+- [x] **Name the zones for what they do, and draw one box per OR group.** The
+  names were the problem: asked whether Always/Combine were just AND/OR, the
+  honest answer is no — Always is AND, but Combine holds *both* operators, so
+  the zones are really "outside the parentheses" and "inside them". Renamed to
+  **Required** ("every result matches these") and **Subfilter groups** ("a
+  result matches any one group"), which say the thing directly. The chain is no
+  longer drawn as one flat row: it is split at every OR and each alternative
+  gets its own white box, with the OR on a rule between boxes, so "match any one
+  of these" is visible in the layout rather than inferable from a dropdown.
+  Every join stays reachable and reversible — the separator select belongs to
+  the following group's leading term, so setting it to AND folds that group back
+  into the one above, and switching an in-group join to OR splits the box.
+  `toAndSegments` already produced exactly these segments for the search, so the
+  UI and the query cannot disagree. Tooltip cut from 47 words to 34. Verified
+  14/14 through the built UI: the names, one box per group, the white
+  background, split and merge in both directions, and the regression that
+  Required terms still reach every branch (both branches carried `minLat=20`).
 - [ ] Remaining: numeric-range validation; server-side search proxy fallback
   (CORS resilience). Optionally archive-type-scoped CV suggestions (params.json
   is scoped by dataTypeId).

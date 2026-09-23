@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import {
   searchNoaaStudiesBoolean, buildTerms,
   noaaStudyToLipd, noaaPayloadViaService, buildCollapsed, buildPerSite, payloadSites,
   noaaFileToLipd, noaaFileViaService,
-  chainTerms, alwaysTerms,
+  alwaysTerms, toAndSegments,
   NOAA_DATA_TYPES, NOAA_SEARCH_LIMIT, type NoaaStudy, type NoaaMultiKey, type NoaaTermId, type AndOr,
   type NoaaTerm, type NoaaTermScope, type ServicePayload, type ServiceSite,
 } from '../lib/noaa'
@@ -64,7 +64,7 @@ const MVF_CONFIG: Array<{ key: NoaaMultiKey; label: string; tipKey: string; list
   { key: 'keywords',        label: 'Keyword category', tipKey: 'search.keywords',  listId: 'noaa-keywords',         placeholder: 'e.g. climate forcing' },
 ]
 
-// One filter in the Combine bar. The arrow moves it between the two zones.
+// One filter in the combiner. The arrow moves it between the two zones.
 function TermChip({ term, onMove, moveHint }: { term: NoaaTerm; onMove: () => void; moveHint: string }) {
   return (
     <span className="noaa-combine-term" title={term.detail ? `${term.label} ${term.detail}` : term.label}>
@@ -433,7 +433,8 @@ export function NoaaImport({ onLoad, initialSession, onSession }: Props) {
      minLat, maxLat, minLon, maxLon, minElevation, maxElevation,
      earliestYear, latestYear, timeFormat, timeMethod, recent, reconstructionOnly]
   )
-  const chain = useMemo(() => chainTerms(boolTerms), [boolTerms])
+  // The chain split at every OR, so each alternative can be drawn as its own box.
+  const groups = useMemo(() => toAndSegments(boolTerms), [boolTerms])
   const always = useMemo(() => alwaysTerms(boolTerms), [boolTerms])
 
   const search = async () => {
@@ -617,50 +618,75 @@ export function NoaaImport({ onLoad, initialSession, onSession }: Props) {
             <fieldset className="noaa-group noaa-combine">
               <legend>Combine filters<InfoTip text={tip('search.combine')} /></legend>
 
-              {/* Two zones. "Always" holds filters that constrain every
+              {/* Two zones. "Required" holds filters that constrain every
                   branch — the only way to say "(A OR B) AND C", since a linear
-                  chain can't express it. "Combine" is the AND/OR chain. Chips
-                  move between them, so either reading is reachable. Each label
-                  carries its own one-line gloss; the distinction is the part
-                  people trip on, so it shouldn't live only in a tooltip. */}
+                  chain can't express it. Below it the chain is drawn split at
+                  its ORs, one box per alternative, because "match any one of
+                  these groups" is what the query actually means and a flat row
+                  of chips hid it. Chips move between the zones, so either
+                  reading is reachable. Each label carries its own one-line
+                  gloss; the distinction is the part people trip on, so it
+                  shouldn't live only in a tooltip. */}
               {always.length > 0 && (
                 <div className="noaa-combine-zone">
                   <span className="noaa-combine-zone-label">
-                    Always
+                    Required
                     <span className="noaa-combine-zone-hint">every result matches these</span>
                   </span>
                   <div className="noaa-combine-chain">
                     {always.map(term => (
                       <TermChip key={term.id} term={term} onMove={() => moveTerm(term.id, 'chain')}
-                        moveHint="Move to Combine, so this can be an OR alternative" />
+                        moveHint="Move to the subfilter groups, so this can be an alternative" />
                     ))}
                   </div>
                 </div>
               )}
 
-              {chain.length > 0 && (
+              {groups.length > 0 && (
                 <div className="noaa-combine-zone">
                   <span className="noaa-combine-zone-label">
-                    Combine
-                    <span className="noaa-combine-zone-hint">OR offers an alternative</span>
+                    Subfilter groups
+                    <span className="noaa-combine-zone-hint">a result matches any one group</span>
                   </span>
-                  <div className="noaa-combine-chain">
-                    {chain.map((term, i) => (
-                      <span key={term.id} className="noaa-combine-item">
-                        {i > 0 && (
-                          <select
-                            className={`noaa-join ${term.joinToPrevious === 'or' ? 'is-or' : 'is-and'}`}
-                            value={term.joinToPrevious}
-                            onChange={e => setJoin(term.id, e.target.value as AndOr)}
-                            aria-label={`How ${term.label} combines with the filters before it`}
-                          >
-                            <option value="and">AND</option>
-                            <option value="or">OR</option>
-                          </select>
+                  <div className="noaa-combine-groups">
+                    {groups.map((group, g) => (
+                      <Fragment key={group[0].id}>
+                        {/* The OR between two boxes is the leading term's own
+                            join, so switching it to AND folds this group back
+                            into the one above. Every join stays reachable. */}
+                        {g > 0 && (
+                          <div className="noaa-combine-or">
+                            <select
+                              className="noaa-join is-or"
+                              value={group[0].joinToPrevious}
+                              onChange={e => setJoin(group[0].id, e.target.value as AndOr)}
+                              aria-label={`Keep ${group[0].label} as a separate group, or merge it into the group above`}
+                            >
+                              <option value="or">OR</option>
+                              <option value="and">AND</option>
+                            </select>
+                          </div>
                         )}
-                        <TermChip term={term} onMove={() => moveTerm(term.id, 'always')}
-                          moveHint="Move to Always, so every result must match this" />
-                      </span>
+                        <div className="noaa-combine-chain noaa-combine-group">
+                          {group.map((term, i) => (
+                            <span key={term.id} className="noaa-combine-item">
+                              {i > 0 && (
+                                <select
+                                  className="noaa-join is-and"
+                                  value={term.joinToPrevious}
+                                  onChange={e => setJoin(term.id, e.target.value as AndOr)}
+                                  aria-label={`Keep ${term.label} in this group, or start a new group with it`}
+                                >
+                                  <option value="and">AND</option>
+                                  <option value="or">OR</option>
+                                </select>
+                              )}
+                              <TermChip term={term} onMove={() => moveTerm(term.id, 'always')}
+                                moveHint="Move to Required, so every result must match this" />
+                            </span>
+                          ))}
+                        </div>
+                      </Fragment>
                     ))}
                   </div>
                 </div>
