@@ -530,99 +530,8 @@ export function NoaaImport({ onLoad, initialSession, onSession }: Props) {
         </label>
       </div>
 
-      <div className="noaa-import-secondary">
-        <button className="btn" onClick={search} disabled={!!busy}>
-          Search
-        </button>
-        <button
-          className="noaa-advanced-toggle"
-          onClick={() => setShowAdvanced(s => !s)}
-          aria-expanded={showAdvanced}
-        >
-          {showAdvanced ? '▾' : '▸'} More filters
-        </button>
-        <label className="noaa-file-link" title="Open a NOAA-templated .txt file from your computer">
-          or open a local NOAA .txt file
-          <input
-            type="file"
-            accept=".txt,.csv,.tsv,.dat,text/plain"
-            style={{ display: 'none' }}
-            onChange={e => { openLocalNoaaFile(e.target.files?.[0]); e.target.value = '' }}
-          />
-        </label>
-        <a
-          className="noaa-import-logo"
-          href="https://github.com/LinkedEarth/PyleoTUPS"
-          target="_blank"
-          rel="noreferrer"
-          title="NOAA import based on PyleoTUPS — view on GitHub"
-        >
-          <img src={pyleotupsLogo} alt="PyleoTUPS" />
-        </a>
-      </div>
-
       {showAdvanced && (
-        <div className="noaa-advanced">
-          {/* Cross-field boolean logic (issue #17). NCEI ANDs its params, so an
-              OR between two fields is composed client-side as separate searches
-              whose results are unioned. Only shown once there's something to
-              combine — with one filled field there is no join to choose. */}
-          {boolTerms.length >= 2 && (
-            <fieldset className="noaa-group noaa-combine">
-              <legend>Combine filters<InfoTip text={tip('search.combine')} /></legend>
-
-              {/* Two zones. "Always" holds filters that constrain every
-                  branch — the only way to say "(A OR B) AND C", since a linear
-                  chain can't express it. "Combine" is the AND/OR chain. Chips
-                  move between them, so either reading is reachable. Each label
-                  carries its own one-line gloss; the distinction is the part
-                  people trip on, so it shouldn't live only in a tooltip. */}
-              {always.length > 0 && (
-                <div className="noaa-combine-zone">
-                  <span className="noaa-combine-zone-label">
-                    Always
-                    <span className="noaa-combine-zone-hint">every result matches these</span>
-                  </span>
-                  <div className="noaa-combine-chain">
-                    {always.map(term => (
-                      <TermChip key={term.id} term={term} onMove={() => moveTerm(term.id, 'chain')}
-                        moveHint="Move to Combine, so this can be an OR alternative" />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {chain.length > 0 && (
-                <div className="noaa-combine-zone">
-                  <span className="noaa-combine-zone-label">
-                    Combine
-                    <span className="noaa-combine-zone-hint">OR offers an alternative</span>
-                  </span>
-                  <div className="noaa-combine-chain">
-                    {chain.map((term, i) => (
-                      <span key={term.id} className="noaa-combine-item">
-                        {i > 0 && (
-                          <select
-                            className={`noaa-join ${term.joinToPrevious === 'or' ? 'is-or' : 'is-and'}`}
-                            value={term.joinToPrevious}
-                            onChange={e => setJoin(term.id, e.target.value as AndOr)}
-                            aria-label={`How ${term.label} combines with the filters before it`}
-                          >
-                            <option value="and">AND</option>
-                            <option value="or">OR</option>
-                          </select>
-                        )}
-                        <TermChip term={term} onMove={() => moveTerm(term.id, 'always')}
-                          moveHint="Move to Always, so every result must match this" />
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-            </fieldset>
-          )}
-
+        <div className="noaa-advanced" id="noaa-advanced-filters">
           <fieldset className="noaa-group">
             <legend>Proxy &amp; material</legend>
             <div className="noaa-group-grid">
@@ -700,6 +609,66 @@ export function NoaaImport({ onLoad, initialSession, onSession }: Props) {
             </div>
           </fieldset>
 
+          {/* Cross-field boolean logic (issue #17). NCEI ANDs its params, so an
+              OR between two fields is composed client-side as separate searches
+              whose results are unioned. Only shown once there's something to
+              combine — with one filled field there is no join to choose. */}
+          {boolTerms.length >= 2 && (
+            <fieldset className="noaa-group noaa-combine">
+              <legend>Combine filters<InfoTip text={tip('search.combine')} /></legend>
+
+              {/* Two zones. "Always" holds filters that constrain every
+                  branch — the only way to say "(A OR B) AND C", since a linear
+                  chain can't express it. "Combine" is the AND/OR chain. Chips
+                  move between them, so either reading is reachable. Each label
+                  carries its own one-line gloss; the distinction is the part
+                  people trip on, so it shouldn't live only in a tooltip. */}
+              {always.length > 0 && (
+                <div className="noaa-combine-zone">
+                  <span className="noaa-combine-zone-label">
+                    Always
+                    <span className="noaa-combine-zone-hint">every result matches these</span>
+                  </span>
+                  <div className="noaa-combine-chain">
+                    {always.map(term => (
+                      <TermChip key={term.id} term={term} onMove={() => moveTerm(term.id, 'chain')}
+                        moveHint="Move to Combine, so this can be an OR alternative" />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {chain.length > 0 && (
+                <div className="noaa-combine-zone">
+                  <span className="noaa-combine-zone-label">
+                    Combine
+                    <span className="noaa-combine-zone-hint">OR offers an alternative</span>
+                  </span>
+                  <div className="noaa-combine-chain">
+                    {chain.map((term, i) => (
+                      <span key={term.id} className="noaa-combine-item">
+                        {i > 0 && (
+                          <select
+                            className={`noaa-join ${term.joinToPrevious === 'or' ? 'is-or' : 'is-and'}`}
+                            value={term.joinToPrevious}
+                            onChange={e => setJoin(term.id, e.target.value as AndOr)}
+                            aria-label={`How ${term.label} combines with the filters before it`}
+                          >
+                            <option value="and">AND</option>
+                            <option value="or">OR</option>
+                          </select>
+                        )}
+                        <TermChip term={term} onMove={() => moveTerm(term.id, 'always')}
+                          moveHint="Move to Always, so every result must match this" />
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+            </fieldset>
+          )}
+
           {/* Shared autocomplete lists (referenced by the fields above via list=). */}
           <datalist id="noaa-cv-whats">{whatOpts}</datalist>
           <datalist id="noaa-cv-materials">{materialOpts}</datalist>
@@ -709,6 +678,38 @@ export function NoaaImport({ onLoad, initialSession, onSession }: Props) {
           <datalist id="noaa-species">{speciesOpts}</datalist>
         </div>
       )}
+
+      <div className="noaa-import-secondary">
+        <button className="btn" onClick={search} disabled={!!busy}>
+          Search
+        </button>
+        <button
+          className="noaa-advanced-toggle"
+          onClick={() => setShowAdvanced(s => !s)}
+          aria-expanded={showAdvanced}
+          aria-controls="noaa-advanced-filters"
+        >
+          {showAdvanced ? '▴' : '▸'} More filters
+        </button>
+        <label className="noaa-file-link" title="Open a NOAA-templated .txt file from your computer">
+          or open a local NOAA .txt file
+          <input
+            type="file"
+            accept=".txt,.csv,.tsv,.dat,text/plain"
+            style={{ display: 'none' }}
+            onChange={e => { openLocalNoaaFile(e.target.files?.[0]); e.target.value = '' }}
+          />
+        </label>
+        <a
+          className="noaa-import-logo"
+          href="https://github.com/LinkedEarth/PyleoTUPS"
+          target="_blank"
+          rel="noreferrer"
+          title="NOAA import based on PyleoTUPS — view on GitHub"
+        >
+          <img src={pyleotupsLogo} alt="PyleoTUPS" />
+        </a>
+      </div>
 
       {busy && <p className="noaa-import-status" aria-live="polite">{busy}</p>}
       {error && <p className="error" role="alert">{error}</p>}
