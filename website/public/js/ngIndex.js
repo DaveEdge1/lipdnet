@@ -100,6 +100,10 @@ p.controller('IndexCtrl', function ($scope) {
         "answer": "The LiPD Playground is great for creating or editing individual files in a browser with no installation required. The R and Python libraries are better for batch workflows, programmatic editing, and integration into analysis pipelines."
       },
       {
+        "question": "Is my data saved or shared when I use the Playground?",
+        "answer": "No. lipd.net does not keep your data and does not share it with anyone. The new Playground (beta) builds your LiPD file entirely in your browser. The classic Playground sends your data to the lipd.net server only long enough to package it into a LiPD file for you to download. That temporary copy is not published, indexed, or made publicly accessible, and it is automatically deleted from the server shortly afterward (within about an hour). Your data leaves lipd.net only if you choose an option that sends it somewhere, such as uploading to the LinkedEarth Wiki. It is safe to use the Playground with unpublished data."
+      },
+      {
         "question": "How do I validate a LiPD file?",
         "answer": "Use validLipd() in lipdR, or POST metadata.jsonld to the /api/validator endpoint. The validator checks required fields, coordinate ranges, publication structure, TSid uniqueness, and column consistency."
       },
