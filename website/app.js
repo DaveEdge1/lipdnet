@@ -38,11 +38,35 @@ var getDirectories = function(srcpath) {
     });
 };
 
-// Recursivley remove all lipd file data in the tmp folder that are older than
+// Where built LiPD/NOAA files are staged. Resolved from __dirname rather than
+// process.cwd(), because createArchive() in routes/index.js chdir's into a tmp
+// dir for the duration of a zip and the sweep must not follow it there.
+var TMP_DIR = path.join(__dirname, "tmp");
+
+// How long a staged file stays on disk before the sweep removes it. This has to
+// outlast the gap between POST /files (which builds the file) and GET /files/:id
+// (which the browser requests moments later) -- plus however long the user spends
+// looking at a "file contains errors" dialog first, and any retry. The old value
+// was 60 seconds, which could delete a file out from under the download that was
+// about to ask for it and answer 500. One hour, overridable for tuning.
+var TMP_RETENTION_MS = parseInt(process.env.TMP_RETENTION_MS, 10) || 3600000;
+// How often to sweep.
+var TMP_SWEEP_INTERVAL_MS = parseInt(process.env.TMP_SWEEP_INTERVAL_MS, 10) || 900000;
+
+// The routes assume tmp/ exists -- they swallow the mkdir error and then fail
+// later with a 500 on download -- so make sure it's there before serving.
+try {
+  fs.mkdirSync(TMP_DIR, { recursive: true });
+} catch(err){
+  logger.info("app: could not create tmp dir: " + err);
+}
+
+// Recursively remove all lipd file data in the tmp folder that is older than
+// TMP_RETENTION_MS.
 var cleanTmpDir = function(){
   // this code will only run when time has elapsed
 
-  var tmpDir = path.join(process.cwd(), "tmp");
+  var tmpDir = TMP_DIR;
   logger.info("app: Starting tmp cleaning...");
   try {
     var _dirs = getDirectories(tmpDir);
@@ -57,10 +81,13 @@ var cleanTmpDir = function(){
               return console.error(err);
             }
             now = new Date().getTime();
-            // 60000 - one minute
-            // 300000 - five minutes
-            // 3600000 - one hour
-            endTime = new Date(stat.ctime).getTime() + 60000;
+            // Age off the most recent activity in the dir, not just its creation:
+            // ctime alone would start the clock before the zip finished writing.
+            var lastTouched = Math.max(
+              new Date(stat.ctime).getTime(),
+              new Date(stat.mtime).getTime()
+            );
+            endTime = lastTouched + TMP_RETENTION_MS;
             if (now > endTime) {
               return rimraf(path.join(tmpDir, innerDir), function(err) {
                 if (err) {
@@ -78,8 +105,8 @@ var cleanTmpDir = function(){
 
 };
 
-// Call the cleaning function every 15 minutes
-setInterval(cleanTmpDir, 1800000);
+// Sweep on the configured interval (default: every 15 minutes).
+setInterval(cleanTmpDir, TMP_SWEEP_INTERVAL_MS);
 
 // Multer functions to save uploaded files
 var storage = multer.diskStorage({
