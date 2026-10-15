@@ -101,7 +101,7 @@ p.controller('IndexCtrl', function ($scope) {
       },
       {
         "question": "Is my data saved or shared when I use the Playground?",
-        "answer": "No. lipd.net does not keep your data and does not share it with anyone. The new Playground (beta) builds your LiPD file entirely in your browser. The classic Playground sends your data to the lipd.net server only long enough to package it into a LiPD file for you to download. That temporary copy is not published, indexed, or made publicly accessible, and it is automatically deleted from the server shortly afterward (within about an hour). Your data leaves lipd.net only if you choose an option that sends it somewhere, such as uploading to the LinkedEarth Wiki. It is safe to use the Playground with unpublished data."
+        "answer": "No. lipd.net does not keep your data and does not share it with anyone. The new Playground (beta) builds your LiPD file entirely in your browser. The classic Playground sends your data to the lipd.net server only long enough to package it into a LiPD file for you to download. That temporary copy is not published, indexed, or made publicly accessible, and it is automatically deleted from the server shortly afterward (within about an hour). Your data leaves lipd.net only if you choose an option that sends it somewhere, such as uploading to the LinkedEarth Wiki. It is safe to use the Playground with unpublished data. If you would like to contribute your data to the community once you are ready, see <a href=\"https://lipdverse.org/faq/#contribute\" target=\"_blank\" rel=\"noopener\">how to contribute data to LiPDverse</a>."
       },
       {
         "question": "How do I validate a LiPD file?",

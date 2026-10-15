@@ -191,7 +191,7 @@ block body
 						ang-accordion
 							collapsible-item(ng-repeat="item in faqs" item-title="{{item.question}}")
 								div
-									p {{item.answer}}
+									p(ng-bind-html="item.answer")
 
 
 		.container.cf#quicklinks
