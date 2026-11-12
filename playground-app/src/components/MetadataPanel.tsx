@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { LipdMetadata, LipdPub } from '../types/lipd'
 import { getSiteName, geoPosition, isFootprint } from '../lib/lipd'
 import { fetchDoiMetadata } from '../lib/crossref'
@@ -24,6 +24,37 @@ function Field({ label, value, onEdit, textarea, tipKey }: {
       {textarea
         ? <textarea rows={3} value={value} onChange={e => onEdit(e.target.value)} />
         : <input value={value} onChange={e => onEdit(e.target.value)} />}
+    </div>
+  )
+}
+
+// A numeric field that keeps the raw text while it's being typed, so partial
+// entries like "-", "-1." or "" don't get coerced (Number("-") is NaN, which
+// used to land in the dataset and lock the box). Only well-formed numbers are
+// committed; the draft re-syncs when the stored value changes from elsewhere.
+function NumberField({ label, value, onCommit, tipKey }: {
+  label: string
+  value: number | undefined
+  onCommit: (v: number) => void
+  tipKey?: string
+}) {
+  const [draft, setDraft] = useState(value == null ? '' : String(value))
+  useEffect(() => {
+    setDraft(d => (d.trim() !== '' && Number(d) === value) ? d : (value == null ? '' : String(value)))
+  }, [value])
+  return (
+    <div className="field">
+      <label>{label}{tipKey && <InfoTip text={tip(tipKey)} />}</label>
+      <input
+        inputMode="decimal"
+        value={draft}
+        onChange={e => {
+          const v = e.target.value
+          setDraft(v)
+          const n = Number(v)
+          if (v.trim() !== '' && Number.isFinite(n)) onCommit(n)
+        }}
+      />
     </div>
   )
 }
@@ -57,6 +88,9 @@ function DmsInput({ label, value, hemis, onCommit }: {
   onCommit: (decimal: number) => void
 }) {
   const [dms, setDms] = useState<Dms>(() => toDms(value))
+  useEffect(() => {
+    setDms(d => (fromDms(d) === value ? d : toDms(value)))
+  }, [value])
   const update = (patch: Partial<Dms>) => {
     const next = { ...dms, ...patch }
     setDms(next)
@@ -222,16 +256,16 @@ export function MetadataPanel({ metadata, onChange }: Props) {
         )}
         {dmsMode ? (
           <>
-            <DmsInput key={`lat${coords[1]}`} label="Latitude" value={Number(coords[1]) || 0} hemis={['N', 'S']} onCommit={v => setCoord(1, v)} />
-            <DmsInput key={`lon${coords[0]}`} label="Longitude" value={Number(coords[0]) || 0} hemis={['E', 'W']} onCommit={v => setCoord(0, v)} />
+            <DmsInput label="Latitude" value={Number(coords[1]) || 0} hemis={['N', 'S']} onCommit={v => setCoord(1, v)} />
+            <DmsInput label="Longitude" value={Number(coords[0]) || 0} hemis={['E', 'W']} onCommit={v => setCoord(0, v)} />
           </>
         ) : (
           <>
-            <Field label="Latitude" value={String(coords[1] ?? '')} onEdit={v => setCoord(1, Number(v))} tipKey="latitude" />
-            <Field label="Longitude" value={String(coords[0] ?? '')} onEdit={v => setCoord(0, Number(v))} tipKey="longitude" />
+            <NumberField label="Latitude" value={coords[1]} onCommit={v => setCoord(1, v)} tipKey="latitude" />
+            <NumberField label="Longitude" value={coords[0]} onCommit={v => setCoord(0, v)} tipKey="longitude" />
           </>
         )}
-        <Field label="Elevation (m)" value={String(coords[2] ?? '')} onEdit={v => setCoord(2, Number(v))} tipKey="elevation" />
+        <NumberField label="Elevation (m)" value={coords[2]} onCommit={v => setCoord(2, v)} tipKey="elevation" />
         <Field label="Location" value={(geo.properties?.location ?? '') as string} onEdit={v => setGeoProp('location', v)} tipKey="location" />
       </section>
 
